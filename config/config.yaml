@@ -1,0 +1,13 @@
+server:
+  port: 4000
+
+database:
+  driver: "postgres"
+  url: "postgres://postgres:Sagster-2020@localhost:5432/mwork?sslmode=disable"
+
+email:
+  smtp_host: smtp.example.com
+  smtp_port: 587
+  smtp_user: your_user@example.com
+  smtp_password: your_password
+  from_email: no-reply@example.com
