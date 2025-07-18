@@ -1,8 +1,9 @@
 package models
 
 import (
-	"gorm.io/datatypes"
 	"time"
+
+	"gorm.io/datatypes"
 )
 
 type SubscriptionPlan struct {
@@ -18,14 +19,17 @@ type SubscriptionPlan struct {
 }
 
 type UserSubscription struct {
-	ID        string `gorm:"primaryKey"`
-	UserID    string
-	PlanID    string
-	Status    string
-	StartDate time.Time
-	EndDate   time.Time
-	AutoRenew bool
-	Usage     datatypes.JSON `gorm:"type:jsonb"` // ✅ JSONB
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID          string `gorm:"primaryKey"`
+	UserID      string
+	PlanID      string
+	Status      string
+	InvID       string `gorm:"uniqueIndex"` // ID от Robokassa
+	Plan        SubscriptionPlan
+	StartDate   time.Time
+	EndDate     time.Time
+	AutoRenew   bool
+	Usage       datatypes.JSON `gorm:"type:jsonb"` // ✅ JSONB
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	CancelledAt *time.Time `json:"cancelled_at,omitempty"`
 }

@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"mwork_front_fn/internal/models"
+	"mwork_backend/internal/models"
 )
 
 type RefreshTokenRepository struct {

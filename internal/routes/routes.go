@@ -2,8 +2,8 @@ package routes
 
 import (
 	"github.com/gin-gonic/gin"
-	"mwork_front_fn/internal/handlers"
-	"mwork_front_fn/internal/middlewares"
+	"mwork_backend/internal/handlers"
+	"mwork_backend/internal/middlewares"
 )
 
 func SetupRoutes(
@@ -85,14 +85,26 @@ func SetupRoutes(
 		chat.GET("/dialogs/:id/unread", chatHandler.GetUnreadCount)
 	}
 
-	// 💳 Subscriptions (авторизованные пользователи)
-	subscription := r.Group("/subscriptions")
+	subscription := r.Group("/api/subscription")
 	subscription.Use(middleware.JWTAuthMiddleware())
 	{
-		subscription.GET("/plans", subscriptionHandler.GetPlans)
-		subscription.GET("/user/:userID", subscriptionHandler.GetUserSubscription)
-		subscription.POST("/create", subscriptionHandler.CreateSubscription)
-		subscription.GET("/check-usage", subscriptionHandler.CheckUsageLimit)
+		subscription.GET("/plans", subscriptionHandler.GetAllPlans)
+		subscription.GET("/plans/stats", subscriptionHandler.GetPlansWithStats)
+		subscription.GET("/plans/revenue", subscriptionHandler.GetRevenueByPeriod)
+		subscription.POST("/plans", subscriptionHandler.CreatePlan)
+		subscription.DELETE("/plans/:id", subscriptionHandler.DeletePlan)
+
+		subscription.POST("/user", subscriptionHandler.CreateSubscription)
+		subscription.POST("/user/cancel", subscriptionHandler.CancelMySubscription)
+		subscription.GET("/user", subscriptionHandler.GetUserSubscriptions)
+
+		// Админские
+		subscription.POST("/force/cancel/:id", subscriptionHandler.ForceCancelSubscription)
+		subscription.POST("/force/extend/:id", subscriptionHandler.ForceExtendSubscription)
+		subscription.GET("/stats", subscriptionHandler.GetSubscriptionStats)
+
+		// payment
+		subscription.POST("/initiate-payment", subscriptionHandler.InitiatePayment)
 	}
 
 	// 📤 Uploads (для всех авторизованных)

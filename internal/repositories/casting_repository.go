@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"mwork_front_fn/internal/models"
+	"mwork_backend/internal/models"
 )
 
 type CastingRepository struct {

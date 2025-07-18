@@ -1,11 +1,9 @@
 package handlers
 
 import (
-	"mwork_front_fn/internal/services"
-	"net/http"
-
 	"github.com/gin-gonic/gin"
-	_ "mwork_front_fn/internal/dto"
+	"mwork_backend/internal/services"
+	"net/http"
 )
 
 type UploadHandler struct {

@@ -2,8 +2,8 @@ package services
 
 import (
 	"context"
-	"mwork_front_fn/internal/models"
-	"mwork_front_fn/internal/repositories"
+	"mwork_backend/internal/models"
+	"mwork_backend/internal/repositories"
 )
 
 type ModelProfileService struct {

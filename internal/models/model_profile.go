@@ -1,8 +1,9 @@
 package models
 
 import (
-	"github.com/lib/pq"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 type ModelProfile struct {
@@ -19,8 +20,8 @@ type ModelProfile struct {
 	ClothingSize   string
 	ShoeSize       string
 	City           string
-	Languages      pq.StringArray `gorm:"type:text[]" json:"languages"`
-	Categories     pq.StringArray `gorm:"type:text[]" json:"categories"`
+	Languages      pq.StringArray `gorm:"type:text[]" json:"languages" swaggerignore:"true"`
+	Categories     pq.StringArray `gorm:"type:text[]" json:"categories" swaggerignore:"true"`
 	BarterAccepted bool
 	ProfileViews   int
 	Rating         float64

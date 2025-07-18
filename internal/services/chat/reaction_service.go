@@ -1,8 +1,8 @@
 package chat
 
 import (
-	modelChat "mwork_front_fn/internal/models/chat"
-	repoChat "mwork_front_fn/internal/repositories/chat"
+	modelChat "mwork_backend/internal/models/chat"
+	repoChat "mwork_backend/internal/repositories/chat"
 )
 
 type ReactionService struct {

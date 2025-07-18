@@ -3,12 +3,13 @@ package services
 import (
 	"context"
 	"errors"
+	"mwork_backend/internal/auth"
+	"mwork_backend/internal/models"
+	"mwork_backend/internal/repositories"
+	"time"
+
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-	"mwork_front_fn/internal/auth"
-	"mwork_front_fn/internal/models"
-	"mwork_front_fn/internal/repositories"
-	"time"
 )
 
 type AuthService struct {

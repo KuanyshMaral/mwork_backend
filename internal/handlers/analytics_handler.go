@@ -1,11 +1,11 @@
 package handlers
 
 import (
-	"github.com/gin-gonic/gin"
-	_ "mwork_front_fn/internal/dto"
-	"mwork_front_fn/internal/repositories"
-	"mwork_front_fn/internal/services"
+	"mwork_backend/internal/repositories"
+	"mwork_backend/internal/services"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 type AnalyticsHandler struct {

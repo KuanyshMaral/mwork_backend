@@ -1,10 +1,11 @@
 package handlers
 
 import (
-	"github.com/gin-gonic/gin"
-	"mwork_front_fn/internal/models"
-	"mwork_front_fn/internal/services"
+	"mwork_backend/internal/models"
+	"mwork_backend/internal/services"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 type ResponseHandler struct {

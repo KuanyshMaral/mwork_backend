@@ -1,8 +1,9 @@
 package chat
 
 import (
+	"mwork_backend/internal/models/chat"
+
 	"gorm.io/gorm"
-	"mwork_front_fn/internal/models/chat"
 )
 
 type MessageAttachmentRepository struct {

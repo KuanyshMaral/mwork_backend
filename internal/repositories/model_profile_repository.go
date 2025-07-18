@@ -4,8 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"mwork_backend/internal/models"
+
 	"github.com/lib/pq"
-	"mwork_front_fn/internal/models"
 )
 
 // ✅ Экспортируемый интерфейс

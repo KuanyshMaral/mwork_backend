@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"mwork_front_fn/internal/auth"
+	"mwork_backend/internal/auth"
 	"net/http"
 	"strings"
 

@@ -2,7 +2,7 @@ package services
 
 import (
 	"fmt"
-	"mwork_front_fn/internal/utils"
+	"mwork_backend/internal/utils"
 )
 
 type EmailService struct {

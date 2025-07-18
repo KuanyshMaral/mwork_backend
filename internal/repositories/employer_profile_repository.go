@@ -3,7 +3,7 @@ package repositories
 import (
 	"context"
 	"database/sql"
-	"mwork_front_fn/internal/models"
+	"mwork_backend/internal/models"
 )
 
 type EmployerProfileRepository struct {

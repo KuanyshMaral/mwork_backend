@@ -1,13 +1,9 @@
 package handlers
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
-	_ "mwork_front_fn/internal/dto"
-	_ "mwork_front_fn/internal/models"
-	_ "mwork_front_fn/internal/models/chat"
-	serviceChat "mwork_front_fn/internal/services/chat"
+	serviceChat "mwork_backend/internal/services/chat"
+	"net/http"
 )
 
 // ChatHandler — единый handler для всех функций модуля чатов

@@ -1,8 +1,6 @@
 package repositories
 
-import (
-	"database/sql"
-)
+import "database/sql"
 
 type AnalyticsRepository interface {
 	GetProfileViews(modelID string) (int, error)

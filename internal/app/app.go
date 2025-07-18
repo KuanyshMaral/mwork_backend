@@ -1,27 +1,33 @@
 package app
 
 import (
+	"fmt"
+	"log"
+	"mwork_backend/database"
+	"mwork_backend/internal/config"
+	"mwork_backend/internal/handlers"
+	"mwork_backend/internal/repositories"
+
+	"mwork_backend/internal/routes"
+	"mwork_backend/internal/services"
+	"mwork_backend/internal/utils"
+
+	"github.com/gin-gonic/gin"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"mwork_front_fn/database"
-
-	_ "database/sql"
-	"fmt"
-	"github.com/gin-gonic/gin"
-	_ "github.com/lib/pq"
-	"log"
-	"mwork_front_fn/internal/config"
-	"mwork_front_fn/internal/handlers"
-	"mwork_front_fn/internal/repositories"
-	chatrepositories "mwork_front_fn/internal/repositories/chat"
-	"mwork_front_fn/internal/routes"
-	"mwork_front_fn/internal/services"
-	chatservices "mwork_front_fn/internal/services/chat"
-	"mwork_front_fn/internal/utils"
 
 	swaggerFiles "github.com/swaggo/files"
-	"github.com/swaggo/gin-swagger"
-	_ "mwork_front_fn/docs"
+	_ "github.com/swaggo/gin-swagger"
+	_ "mwork_backend/docs"
+
+	chatrepositories "mwork_backend/internal/repositories/chat"
+	chatservices "mwork_backend/internal/services/chat"
+
+	subscriptionrepositories "mwork_backend/internal/repositories/subscription"
+	subscriptionservices "mwork_backend/internal/services/subscription"
+
+	ws "mwork_backend/ws"
 )
 
 func Run() {
@@ -109,9 +115,13 @@ func Run() {
 	chatHandler := handlers.NewChatHandler(chatService, attachmentService, reactionService, readReceiptService)
 
 	// Subscription
-	subscriptionRepo := repositories.NewSubscriptionRepository(sqlDB)
-	subscriptionService := services.NewSubscriptionService(subscriptionRepo)
-	subscriptionHandler := handlers.NewSubscriptionHandler(subscriptionService)
+	usersubscriptionRepo := subscriptionrepositories.NewUserSubscriptionRepository(sqlDB)
+	plansubscriptionRepo := subscriptionrepositories.NewSubscriptionPlanRepository(sqlDB)
+	usersubscriptionService := subscriptionservices.NewUserSubscriptionService(usersubscriptionRepo)
+	plansubscriptionService := subscriptionservices.NewPlanService(plansubscriptionRepo)
+	robokassaService := subscriptionservices.NewRobokassaService()
+
+	subscriptionHandler := handlers.NewSubscriptionHandler(plansubscriptionService, usersubscriptionService, robokassaService)
 
 	// Upload
 	uploadRepo := repositories.NewUploadRepository(sqlDB)
@@ -123,8 +133,23 @@ func Run() {
 	analyticsService := services.NewAnalyticsService(analyticsRepo)
 	analyticsHandler := handlers.NewAnalyticsHandler(analyticsService, modelProfileRepo)
 
+	// 💬 WebSocket
+	wsManager := ws.NewWebSocketManager(chatService, attachmentService, reactionService, readReceiptService)
+	go wsManager.Run()
+
+	wsHandler := ws.NewWebSocketHandler(
+		wsManager,
+		chatService,
+		attachmentService,
+		reactionService,
+		readReceiptService,
+	)
+
 	// Инициализируем Gin
 	router := gin.Default()
+
+	// Подключение WebSocket-маршрутов
+	routes.SetupWebSocketRoutes(router, wsHandler)
 
 	// Регистрируем маршруты
 	routes.SetupRoutes(

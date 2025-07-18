@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"mwork_front_fn/internal/services"
+	"mwork_backend/internal/services"
 	"net/http"
 
 	"github.com/gin-gonic/gin"

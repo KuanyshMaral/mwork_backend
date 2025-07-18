@@ -6,6 +6,8 @@ import (
 	"io"
 	"mime"
 	"mime/multipart"
+	"mwork_backend/internal/models"
+	"mwork_backend/internal/repositories"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,8 +15,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"mwork_front_fn/internal/models"
-	"mwork_front_fn/internal/repositories"
 )
 
 type UploadService interface {

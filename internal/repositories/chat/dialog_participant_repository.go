@@ -1,10 +1,10 @@
 package chat
 
 import (
+	"mwork_backend/internal/models/chat"
 	"time"
 
 	"gorm.io/gorm"
-	"mwork_front_fn/internal/models/chat"
 )
 
 type DialogParticipantRepository struct {

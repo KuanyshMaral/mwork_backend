@@ -1,11 +1,10 @@
 package chat
 
 import (
-	"time"
-
 	"github.com/google/uuid"
-	modelChat "mwork_front_fn/internal/models/chat"
-	repoChat "mwork_front_fn/internal/repositories/chat"
+	modelChat "mwork_backend/internal/models/chat"
+	repoChat "mwork_backend/internal/repositories/chat"
+	"time"
 )
 
 type AttachmentService struct {

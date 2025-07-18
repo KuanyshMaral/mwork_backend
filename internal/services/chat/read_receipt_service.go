@@ -1,10 +1,9 @@
 package chat
 
 import (
+	modelChat "mwork_backend/internal/models/chat"
+	repoChat "mwork_backend/internal/repositories/chat"
 	"time"
-
-	modelChat "mwork_front_fn/internal/models/chat"
-	repoChat "mwork_front_fn/internal/repositories/chat"
 )
 
 type ReadReceiptService struct {

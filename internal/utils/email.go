@@ -1,8 +1,9 @@
 package utils
 
 import (
+	"mwork_backend/internal/config"
+
 	"gopkg.in/gomail.v2"
-	"mwork_front_fn/internal/config"
 )
 
 type EmailSender struct {

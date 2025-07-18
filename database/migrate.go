@@ -2,15 +2,13 @@ package database
 
 import (
 	"fmt"
-	"log"
-	"strings"
-
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-
-	"mwork_front_fn/internal/config"
-	"mwork_front_fn/internal/models"
-	chatmodels "mwork_front_fn/internal/models/chat"
+	"log"
+	"mwork_backend/internal/config"
+	"mwork_backend/internal/models"
+	chatmodels "mwork_backend/internal/models/chat"
+	"strings"
 )
 
 var gormDB *gorm.DB

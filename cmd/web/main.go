@@ -12,10 +12,7 @@
 
 package main
 
-import (
-	"mwork_front_fn/internal/app"
-	_ "mwork_front_fn/internal/docs"
-)
+import "mwork_backend/internal/app"
 
 func main() {
 	app.Run()

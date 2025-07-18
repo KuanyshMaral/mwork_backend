@@ -1,8 +1,8 @@
 package services
 
 import (
-	"mwork_front_fn/internal/dto"
-	"mwork_front_fn/internal/repositories"
+	"mwork_backend/internal/dto"
+	"mwork_backend/internal/repositories"
 )
 
 type AnalyticsService struct {
