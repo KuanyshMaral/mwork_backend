@@ -152,7 +152,7 @@ func Run() {
 	routes.SetupWebSocketRoutes(router, wsHandler)
 
 	// Регистрируем маршруты
-	routes.SetupRoutes(
+	routes.RegisterAllRoutes(
 		router,
 		userHandler,
 		authHandler,
@@ -163,8 +163,7 @@ func Run() {
 		chatHandler,
 		subscriptionHandler,
 		uploadHandler,
-		analyticsHandler,
-	)
+		analyticsHandler)
 
 	// Swagger UI
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
