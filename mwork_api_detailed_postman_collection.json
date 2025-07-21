@@ -1,0 +1,940 @@
+{
+  "info": {
+    "name": "mwork API",
+    "description": "API для управления модельной компанией (документация Swagger).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Получить аналитику модели",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/analytics/model",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "analytics",
+            "model"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Вход пользователя",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/login",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"string\",\n  \"password\": \"string\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Выход из системы",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/logout",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "auth",
+            "logout"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refresh_token\": \"string\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Обновление access-токена",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/refresh",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "auth",
+            "refresh"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refresh_token\": \"string\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Регистрация нового пользователя",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/register",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "auth",
+            "register"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"string\",\n  \"password\": \"string\",\n  \"role\": \"string\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Создать новый диалог (личный или групповой)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/chat/dialogs",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "chat",
+            "dialogs"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"creator_id\": \"string\",\n  \"is_group\": true,\n  \"participant_ids\": [],\n  \"title\": \"string\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Получить вложения в диалоге",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/chat/dialogs/{id}/files",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "chat",
+            "dialogs",
+            "{id}",
+            "files"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Выйти из диалога",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/chat/dialogs/{id}/leave",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "chat",
+            "dialogs",
+            "{id}",
+            "leave"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"example\": \"data\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Получить сообщения из диалога",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/chat/dialogs/{id}/messages",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "chat",
+            "dialogs",
+            "{id}",
+            "messages"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Отметить все сообщения как прочитанные",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/chat/dialogs/{id}/read",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "chat",
+            "dialogs",
+            "{id}",
+            "read"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"example\": \"data\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Получить количество непрочитанных сообщений в диалоге",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/chat/dialogs/{id}/unread",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "chat",
+            "dialogs",
+            "{id}",
+            "unread"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Отправить сообщение в диалог",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/chat/messages/send",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "chat",
+            "messages",
+            "send"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"attachment_ids\": [],\n  \"content\": \"string\",\n  \"dialog_id\": \"string\",\n  \"forward_from\": \"string\",\n  \"reply_to_id\": \"string\",\n  \"sender_id\": \"string\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Поставить или убрать реакцию на сообщение",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/chat/reactions/toggle",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "chat",
+            "reactions",
+            "toggle"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"emoji\": \"string\",\n  \"message_id\": \"string\",\n  \"user_id\": \"string\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Создать профиль работодателя",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/employer-profiles",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "employer-profiles"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"city\": \"string\",\n  \"companyName\": \"string\",\n  \"companyType\": \"string\",\n  \"contactPerson\": \"string\",\n  \"createdAt\": \"string\",\n  \"description\": \"string\",\n  \"id\": \"string\",\n  \"isVerified\": true,\n  \"phone\": \"string\",\n  \"updatedAt\": \"string\",\n  \"userID\": \"string\",\n  \"website\": \"string\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Получить профиль работодателя по ID пользователя",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/employer-profiles/{user_id}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "employer-profiles",
+            "{user_id}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Создать модельный профиль",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/model-profiles",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "model-profiles"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"age\": 0,\n  \"barterAccepted\": true,\n  \"city\": \"string\",\n  \"clothingSize\": \"string\",\n  \"createdAt\": \"string\",\n  \"description\": \"string\",\n  \"experience\": 0,\n  \"gender\": \"string\",\n  \"height\": 0.0,\n  \"hourlyRate\": 0.0,\n  \"id\": \"string\",\n  \"isPublic\": true,\n  \"name\": \"string\",\n  \"profileViews\": 0,\n  \"rating\": 0.0,\n  \"shoeSize\": \"string\",\n  \"updatedAt\": \"string\",\n  \"userID\": \"string\",\n  \"weight\": 0.0\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Получить профиль модели по ID пользователя",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/model-profiles/{user_id}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "model-profiles",
+            "{user_id}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Получить отклики на кастинг",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/responses",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "responses"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Отклик на кастинг",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/responses",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "responses"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"castingID\": \"string\",\n  \"createdAt\": \"string\",\n  \"id\": \"string\",\n  \"message\": \"string\",\n  \"modelID\": \"string\",\n  \"status\": \"string\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Получить отклик по ID",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/responses/{id}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "responses",
+            "{id}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Создать подписку на план для пользователя",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/subscriptions",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "subscriptions"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"auto_renew\": true,\n  \"plan_id\": \"string\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Отменить свою подписку",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/subscriptions/my/cancel",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "subscriptions",
+            "my",
+            "cancel"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"example\": \"data\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Инициировать оплату через Robokassa",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/subscriptions/pay",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "subscriptions",
+            "pay"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"plan_id\": \"string\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Получить все подписочные планы",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/subscriptions/plans",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "subscriptions",
+            "plans"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Создать новый подписочный план",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/subscriptions/plans",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "subscriptions",
+            "plans"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"currency\": \"string\",\n  \"duration_days\": 0,\n  \"id\": \"string\",\n  \"name\": \"string\",\n  \"price\": 0.0\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Получить выручку по каждому плану за период",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/subscriptions/plans/revenue",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "subscriptions",
+            "plans",
+            "revenue"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Получить планы с числом пользователей на каждом",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/subscriptions/plans/stats",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "subscriptions",
+            "plans",
+            "stats"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Удалить подписочный план по ID",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/subscriptions/plans/{id}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "subscriptions",
+            "plans",
+            "{id}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Получить общую статистику подписок",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/subscriptions/stats",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "subscriptions",
+            "stats"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Получить список подписок пользователей",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/subscriptions/users",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "subscriptions",
+            "users"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Принудительно отменить подписку пользователя (админ)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/subscriptions/{id}/force-cancel",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "subscriptions",
+            "{id}",
+            "force-cancel"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"example\": \"data\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Принудительно продлить подписку до новой даты",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/subscriptions/{id}/force-extend",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "subscriptions",
+            "{id}",
+            "force-extend"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"new_end_date\": \"string\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Загрузить файл",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/upload",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "upload"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"example\": \"data\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Получить пользователя по ID",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/users/{id}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "users",
+            "{id}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Обновить пользователя",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/users/{id}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "users",
+            "{id}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"example\": \"data\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Удалить пользователя",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/users/{id}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "users",
+            "{id}"
+          ]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:4000/"
+    }
+  ]
+}
