@@ -1,144 +1,469 @@
 package repositories
 
 import (
-	"context"
-	"database/sql"
-	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
 	"mwork_backend/internal/models"
+
+	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
-type CastingRepository struct {
-	db *sql.DB
+var (
+	ErrCastingNotFound = errors.New("casting not found")
+)
+
+type CastingRepository interface {
+	// Casting operations
+	CreateCasting(casting *models.Casting) error
+	FindCastingByID(id string) (*models.Casting, error)
+	FindCastingsByEmployer(employerID string) ([]models.Casting, error)
+	UpdateCasting(casting *models.Casting) error
+	UpdateCastingStatus(castingID string, status models.CastingStatus) error
+	DeleteCasting(id string) error
+	IncrementCastingViews(castingID string) error
+	SearchCastings(criteria CastingSearchCriteria) ([]models.Casting, int64, error)
+	FindActiveCastings(limit int) ([]models.Casting, error)
+	FindCastingsByCity(city string, limit int) ([]models.Casting, error)
+	FindExpiredCastings() ([]models.Casting, error)
+	GetCastingStats(employerID string) (*CastingStats, error)
+
+	// Matching operations
+	FindCastingsForMatching(criteria MatchingCriteria) ([]models.Casting, error)
+	// Analytics methods
+	GetPlatformCastingStats(dateFrom, dateTo time.Time) (*PlatformCastingStats, error)
+	GetMatchingStats(dateFrom, dateTo time.Time) (*MatchingStats, error)
+	GetCastingDistributionByCity() (map[string]int64, error)
+	GetActiveCastingsCount() (int64, error)
+	GetPopularCategories(limit int) ([]CategoryCount, error)
 }
 
-func NewCastingRepository(db *sql.DB) *CastingRepository {
-	return &CastingRepository{db: db}
+type CastingRepositoryImpl struct {
+	db *gorm.DB
 }
 
-func (r *CastingRepository) Create(ctx context.Context, c *models.Casting) error {
-	categoriesJSON, _ := json.Marshal(c.Categories)
-	languagesJSON, _ := json.Marshal(c.Languages)
-
-	return r.db.QueryRowContext(ctx, `
-		INSERT INTO castings (
-			employer_id, title, description, payment_min, payment_max, 
-			casting_date, casting_time, address, city, categories, gender, 
-			age_min, age_max, height_min, height_max, weight_min, weight_max, 
-			clothing_size, shoe_size, experience_level, languages, 
-			job_type, status
-		)
-		VALUES (
-			$1, $2, $3, $4, $5,
-			$6, $7, $8, $9, $10, $11,
-			$12, $13, $14, $15, $16, $17,
-			$18, $19, $20, $21,
-			$22, $23
-		)
-		RETURNING id, created_at, updated_at
-	`,
-		c.EmployerID, c.Title, c.Description, c.PaymentMin, c.PaymentMax,
-		c.CastingDate, c.CastingTime, c.Address, c.City, categoriesJSON, c.Gender,
-		c.AgeMin, c.AgeMax, c.HeightMin, c.HeightMax, c.WeightMin, c.WeightMax,
-		c.ClothingSize, c.ShoeSize, c.ExperienceLevel, languagesJSON,
-		c.JobType, c.Status,
-	).Scan(&c.ID, &c.CreatedAt, &c.UpdatedAt)
+// Search criteria for castings
+type CastingSearchCriteria struct {
+	Query      string     `form:"query"`
+	City       string     `form:"city"`
+	Categories []string   `form:"categories[]"`
+	Gender     string     `form:"gender"`
+	MinAge     *int       `form:"min_age"`
+	MaxAge     *int       `form:"max_age"`
+	MinHeight  *int       `form:"min_height"`
+	MaxHeight  *int       `form:"max_height"`
+	MinSalary  *int       `form:"min_salary"`
+	MaxSalary  *int       `form:"max_salary"`
+	JobType    string     `form:"job_type"`
+	Status     string     `form:"status"`
+	EmployerID string     `form:"employer_id"`
+	DateFrom   *time.Time `form:"date_from"`
+	DateTo     *time.Time `form:"date_to"`
+	Page       int        `form:"page" binding:"min=1"`
+	PageSize   int        `form:"page_size" binding:"min=1,max=100"`
+	SortBy     string     `form:"sort_by"`    // created_at, salary, casting_date
+	SortOrder  string     `form:"sort_order"` // asc, desc
 }
 
-func (r *CastingRepository) GetByID(ctx context.Context, id string) (*models.Casting, error) {
-	var c models.Casting
-	var categoriesJSON, languagesJSON []byte
+// Criteria for matching algorithm
+type MatchingCriteria struct {
+	City       string   `json:"city"`
+	Categories []string `json:"categories"`
+	Gender     string   `json:"gender"`
+	MinAge     *int     `json:"min_age"`
+	MaxAge     *int     `json:"max_age"`
+	MinHeight  *int     `json:"min_height"`
+	MaxHeight  *int     `json:"max_height"`
+	JobType    string   `json:"job_type"`
+	Limit      int      `json:"limit" binding:"min=1,max=100"`
+}
 
-	err := r.db.QueryRowContext(ctx, `
-		SELECT 
-			id, employer_id, title, description, payment_min, payment_max, 
-			casting_date, casting_time, address, city, categories, gender, 
-			age_min, age_max, height_min, height_max, weight_min, weight_max, 
-			clothing_size, shoe_size, experience_level, languages, 
-			job_type, status, views, created_at, updated_at
-		FROM castings WHERE id = $1
-	`, id).Scan(
-		&c.ID, &c.EmployerID, &c.Title, &c.Description, &c.PaymentMin, &c.PaymentMax,
-		&c.CastingDate, &c.CastingTime, &c.Address, &c.City, &categoriesJSON, &c.Gender,
-		&c.AgeMin, &c.AgeMax, &c.HeightMin, &c.HeightMax, &c.WeightMin, &c.WeightMax,
-		&c.ClothingSize, &c.ShoeSize, &c.ExperienceLevel, &languagesJSON,
-		&c.JobType, &c.Status, &c.Views, &c.CreatedAt, &c.UpdatedAt,
-	)
+// Statistics for castings
+type CastingStats struct {
+	TotalCastings    int64 `json:"total_castings"`
+	ActiveCastings   int64 `json:"active_castings"`
+	DraftCastings    int64 `json:"draft_castings"`
+	ClosedCastings   int64 `json:"closed_castings"`
+	TotalViews       int64 `json:"total_views"`
+	TotalResponses   int64 `json:"total_responses"`
+	PendingResponses int64 `json:"pending_responses"`
+}
+type PlatformCastingStats struct {
+	TotalCastings   int64   `json:"totalCastings"`
+	ActiveCastings  int64   `json:"activeCastings"`
+	SuccessRate     float64 `json:"successRate"`
+	AvgResponseRate float64 `json:"avgResponseRate"`
+	AvgResponseTime float64 `json:"avgResponseTime"`
+}
+
+type MatchingStats struct {
+	TotalMatches    int64   `json:"totalMatches"`
+	AvgMatchScore   float64 `json:"avgMatchScore"`
+	AvgSatisfaction float64 `json:"avgSatisfaction"`
+	MatchRate       float64 `json:"matchRate"`
+	ResponseRate    float64 `json:"responseRate"`
+	TimeToMatch     float64 `json:"timeToMatch"` // in hours
+}
+
+type CategoryCount struct {
+	Name  string `json:"name"`
+	Count int64  `json:"count"`
+}
+
+func NewCastingRepository(db *gorm.DB) CastingRepository {
+	return &CastingRepositoryImpl{db: db}
+}
+
+// Casting operations
+
+func (r *CastingRepositoryImpl) CreateCasting(casting *models.Casting) error {
+	return r.db.Create(casting).Error
+}
+
+func (r *CastingRepositoryImpl) FindCastingByID(id string) (*models.Casting, error) {
+	var casting models.Casting
+	err := r.db.Preload("Employer").Preload("Responses").Preload("Responses.Model").
+		First(&casting, "id = ?", id).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrCastingNotFound
+		}
 		return nil, err
 	}
-
-	_ = json.Unmarshal(categoriesJSON, &c.Categories)
-	_ = json.Unmarshal(languagesJSON, &c.Languages)
-
-	return &c, nil
+	return &casting, nil
 }
 
-func (r *CastingRepository) Update(ctx context.Context, c *models.Casting) error {
-	categoriesJSON, _ := json.Marshal(c.Categories)
-	languagesJSON, _ := json.Marshal(c.Languages)
-
-	_, err := r.db.ExecContext(ctx, `
-		UPDATE castings SET
-			title = $1, description = $2, payment_min = $3, payment_max = $4,
-			casting_date = $5, casting_time = $6, address = $7, city = $8,
-			categories = $9, gender = $10, age_min = $11, age_max = $12,
-			height_min = $13, height_max = $14, weight_min = $15, weight_max = $16,
-			clothing_size = $17, shoe_size = $18, experience_level = $19, languages = $20,
-			job_type = $21, status = $22, updated_at = now()
-		WHERE id = $23
-	`,
-		c.Title, c.Description, c.PaymentMin, c.PaymentMax,
-		c.CastingDate, c.CastingTime, c.Address, c.City,
-		categoriesJSON, c.Gender, c.AgeMin, c.AgeMax,
-		c.HeightMin, c.HeightMax, c.WeightMin, c.WeightMax,
-		c.ClothingSize, c.ShoeSize, c.ExperienceLevel, languagesJSON,
-		c.JobType, c.Status, c.ID,
-	)
-	return err
+func (r *CastingRepositoryImpl) FindCastingsByEmployer(employerID string) ([]models.Casting, error) {
+	var castings []models.Casting
+	err := r.db.Preload("Responses", func(db *gorm.DB) *gorm.DB {
+		return db.Preload("Model")
+	}).Where("employer_id = ?", employerID).
+		Order("created_at DESC").
+		Find(&castings).Error
+	return castings, err
 }
 
-func (r *CastingRepository) Delete(ctx context.Context, id string) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM castings WHERE id = $1`, id)
-	return err
-}
+func (r *CastingRepositoryImpl) UpdateCasting(casting *models.Casting) error {
+	result := r.db.Model(casting).Updates(map[string]interface{}{
+		"title":            casting.Title,
+		"description":      casting.Description,
+		"payment_min":      casting.PaymentMin,
+		"payment_max":      casting.PaymentMax,
+		"casting_date":     casting.CastingDate,
+		"casting_time":     casting.CastingTime,
+		"address":          casting.Address,
+		"city":             casting.City,
+		"categories":       casting.Categories,
+		"gender":           casting.Gender,
+		"age_min":          casting.AgeMin,
+		"age_max":          casting.AgeMax,
+		"height_min":       casting.HeightMin,
+		"height_max":       casting.HeightMax,
+		"weight_min":       casting.WeightMin,
+		"weight_max":       casting.WeightMax,
+		"clothing_size":    casting.ClothingSize,
+		"shoe_size":        casting.ShoeSize,
+		"experience_level": casting.ExperienceLevel,
+		"languages":        casting.Languages,
+		"job_type":         casting.JobType,
+		"status":           casting.Status,
+		"updated_at":       time.Now(),
+	})
 
-func (r *CastingRepository) ListByEmployer(ctx context.Context, employerID string) ([]*models.Casting, error) {
-	rows, err := r.db.QueryContext(ctx, `
-		SELECT 
-			id, employer_id, title, description, payment_min, payment_max,
-			casting_date, casting_time, address, city, categories, gender,
-			age_min, age_max, height_min, height_max, weight_min, weight_max,
-			clothing_size, shoe_size, experience_level, languages,
-			job_type, status, views, created_at, updated_at
-		FROM castings WHERE employer_id = $1 ORDER BY created_at DESC
-	`, employerID)
-	if err != nil {
-		return nil, err
+	if result.Error != nil {
+		return result.Error
 	}
-	defer rows.Close()
+	if result.RowsAffected == 0 {
+		return ErrCastingNotFound
+	}
+	return nil
+}
 
-	var castings []*models.Casting
+func (r *CastingRepositoryImpl) UpdateCastingStatus(castingID string, status models.CastingStatus) error {
+	result := r.db.Model(&models.Casting{}).Where("id = ?", castingID).Updates(map[string]interface{}{
+		"status":     status,
+		"updated_at": time.Now(),
+	})
 
-	for rows.Next() {
-		var c models.Casting
-		var categoriesJSON, languagesJSON []byte
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrCastingNotFound
+	}
+	return nil
+}
 
-		err := rows.Scan(
-			&c.ID, &c.EmployerID, &c.Title, &c.Description, &c.PaymentMin, &c.PaymentMax,
-			&c.CastingDate, &c.CastingTime, &c.Address, &c.City, &categoriesJSON, &c.Gender,
-			&c.AgeMin, &c.AgeMax, &c.HeightMin, &c.HeightMax, &c.WeightMin, &c.WeightMax,
-			&c.ClothingSize, &c.ShoeSize, &c.ExperienceLevel, &languagesJSON,
-			&c.JobType, &c.Status, &c.Views, &c.CreatedAt, &c.UpdatedAt,
-		)
-		if err != nil {
-			continue
+func (r *CastingRepositoryImpl) DeleteCasting(id string) error {
+	// Use transaction to delete casting and related responses
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// Delete responses first
+		if err := tx.Where("casting_id = ?", id).Delete(&models.CastingResponse{}).Error; err != nil {
+			return err
 		}
 
-		_ = json.Unmarshal(categoriesJSON, &c.Categories)
-		_ = json.Unmarshal(languagesJSON, &c.Languages)
+		// Delete casting
+		result := tx.Where("id = ?", id).Delete(&models.Casting{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return ErrCastingNotFound
+		}
+		return nil
+	})
+}
 
-		castings = append(castings, &c)
+func (r *CastingRepositoryImpl) IncrementCastingViews(castingID string) error {
+	return r.db.Model(&models.Casting{}).Where("id = ?", castingID).
+		Update("views", gorm.Expr("views + ?", 1)).Error
+}
+
+// 🎯 ИСПРАВЛЕННЫЙ метод поиска кастингов с PostgreSQL операциями
+func (r *CastingRepositoryImpl) SearchCastings(criteria CastingSearchCriteria) ([]models.Casting, int64, error) {
+	var castings []models.Casting
+	query := r.db.Model(&models.Casting{}).Preload("Employer")
+
+	// Apply filters based on TZ requirements
+	if criteria.Query != "" {
+		search := "%" + criteria.Query + "%"
+		query = query.Where("title ILIKE ? OR description ILIKE ?", search, search)
 	}
 
-	return castings, nil
+	if criteria.City != "" {
+		query = query.Where("city = ?", criteria.City)
+	}
+
+	if criteria.Gender != "" {
+		query = query.Where("gender = ?", criteria.Gender)
+	}
+
+	if criteria.JobType != "" {
+		query = query.Where("job_type = ?", criteria.JobType)
+	}
+
+	if criteria.Status != "" {
+		query = query.Where("status = ?", criteria.Status)
+	} else {
+		// По умолчанию показываем только активные кастинги
+		query = query.Where("status = ?", models.CastingStatusActive)
+	}
+
+	if criteria.EmployerID != "" {
+		query = query.Where("employer_id = ?", criteria.EmployerID)
+	}
+
+	if criteria.MinAge != nil {
+		query = query.Where("age_min >= ?", criteria.MinAge)
+	}
+
+	if criteria.MaxAge != nil {
+		query = query.Where("age_max <= ?", criteria.MaxAge)
+	}
+
+	if criteria.MinHeight != nil {
+		query = query.Where("height_min >= ?", criteria.MinHeight)
+	}
+
+	if criteria.MaxHeight != nil {
+		query = query.Where("height_max <= ?", criteria.MaxHeight)
+	}
+
+	if criteria.MinSalary != nil {
+		query = query.Where("payment_min >= ?", criteria.MinSalary)
+	}
+
+	if criteria.MaxSalary != nil {
+		query = query.Where("payment_max <= ?", criteria.MaxSalary)
+	}
+
+	if criteria.DateFrom != nil {
+		query = query.Where("casting_date >= ?", criteria.DateFrom)
+	}
+
+	if criteria.DateTo != nil {
+		query = query.Where("casting_date <= ?", criteria.DateTo)
+	}
+
+	// ✅ PostgreSQL JSONB operations для категорий
+	if len(criteria.Categories) > 0 {
+		categoryConditions := []string{}
+		categoryArgs := []interface{}{}
+
+		for _, category := range criteria.Categories {
+			categoryConditions = append(categoryConditions, "categories::jsonb @> ?")
+			categoryArgs = append(categoryArgs, datatypes.JSON(`["`+category+`"]`))
+		}
+
+		query = query.Where("("+strings.Join(categoryConditions, " OR ")+")", categoryArgs...)
+	}
+
+	// Get total count
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Apply sorting
+	sortField := getCastingSortField(criteria.SortBy)
+	sortOrder := getSortOrder(criteria.SortOrder)
+	query = query.Order(fmt.Sprintf("%s %s", sortField, sortOrder))
+
+	// Apply pagination
+	limit := criteria.PageSize
+	offset := (criteria.Page - 1) * criteria.PageSize
+
+	err := query.Limit(limit).Offset(offset).Find(&castings).Error
+	return castings, total, err
+}
+
+func (r *CastingRepositoryImpl) FindActiveCastings(limit int) ([]models.Casting, error) {
+	var castings []models.Casting
+	err := r.db.Preload("Employer").
+		Where("status = ?", models.CastingStatusActive).
+		Where("casting_date IS NULL OR casting_date >= ?", time.Now()).
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&castings).Error
+	return castings, err
+}
+
+func (r *CastingRepositoryImpl) FindCastingsByCity(city string, limit int) ([]models.Casting, error) {
+	var castings []models.Casting
+	err := r.db.Preload("Employer").
+		Where("city = ? AND status = ?", city, models.CastingStatusActive).
+		Where("casting_date IS NULL OR casting_date >= ?", time.Now()).
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&castings).Error
+	return castings, err
+}
+
+func (r *CastingRepositoryImpl) FindExpiredCastings() ([]models.Casting, error) {
+	var castings []models.Casting
+	err := r.db.Where("status = ? AND casting_date < ?",
+		models.CastingStatusActive, time.Now()).Find(&castings).Error
+	return castings, err
+}
+
+func (r *CastingRepositoryImpl) GetCastingStats(employerID string) (*CastingStats, error) {
+	var stats CastingStats
+
+	// Total castings
+	if err := r.db.Model(&models.Casting{}).Where("employer_id = ?", employerID).
+		Count(&stats.TotalCastings).Error; err != nil {
+		return nil, err
+	}
+
+	// Active castings
+	if err := r.db.Model(&models.Casting{}).Where("employer_id = ? AND status = ?",
+		employerID, models.CastingStatusActive).Count(&stats.ActiveCastings).Error; err != nil {
+		return nil, err
+	}
+
+	// Draft castings
+	if err := r.db.Model(&models.Casting{}).Where("employer_id = ? AND status = ?",
+		employerID, models.CastingStatusDraft).Count(&stats.DraftCastings).Error; err != nil {
+		return nil, err
+	}
+
+	// Closed castings
+	if err := r.db.Model(&models.Casting{}).Where("employer_id = ? AND status = ?",
+		employerID, models.CastingStatusClosed).Count(&stats.ClosedCastings).Error; err != nil {
+		return nil, err
+	}
+
+	// Total views
+	if err := r.db.Model(&models.Casting{}).Where("employer_id = ?", employerID).
+		Select("COALESCE(SUM(views), 0)").Scan(&stats.TotalViews).Error; err != nil {
+		return nil, err
+	}
+
+	// Total responses
+	if err := r.db.Model(&models.CastingResponse{}).Where("casting_id IN (?)",
+		r.db.Model(&models.Casting{}).Select("id").Where("employer_id = ?", employerID)).
+		Count(&stats.TotalResponses).Error; err != nil {
+		return nil, err
+	}
+
+	// Pending responses
+	if err := r.db.Model(&models.CastingResponse{}).Where("casting_id IN (?) AND status = ?",
+		r.db.Model(&models.Casting{}).Select("id").Where("employer_id = ?", employerID),
+		models.ResponseStatusPending).Count(&stats.PendingResponses).Error; err != nil {
+		return nil, err
+	}
+
+	return &stats, nil
+}
+
+// Matching operations
+
+func (r *CastingRepositoryImpl) FindCastingsForMatching(criteria MatchingCriteria) ([]models.Casting, error) {
+	var castings []models.Casting
+	query := r.db.Model(&models.Casting{}).Where("status = ?", models.CastingStatusActive)
+
+	// Apply matching criteria
+	if criteria.City != "" {
+		query = query.Where("city = ?", criteria.City)
+	}
+
+	if criteria.Gender != "" {
+		query = query.Where("gender = ?", criteria.Gender)
+	}
+
+	if criteria.JobType != "" {
+		query = query.Where("job_type = ?", criteria.JobType)
+	}
+
+	if criteria.MinAge != nil {
+		query = query.Where("age_min >= ?", criteria.MinAge)
+	}
+
+	if criteria.MaxAge != nil {
+		query = query.Where("age_max <= ?", criteria.MaxAge)
+	}
+
+	if criteria.MinHeight != nil {
+		query = query.Where("height_min >= ?", criteria.MinHeight)
+	}
+
+	if criteria.MaxHeight != nil {
+		query = query.Where("height_max <= ?", criteria.MaxHeight)
+	}
+
+	// ✅ PostgreSQL JSONB operations для категорий
+	if len(criteria.Categories) > 0 {
+		categoryConditions := []string{}
+		categoryArgs := []interface{}{}
+
+		for _, category := range criteria.Categories {
+			categoryConditions = append(categoryConditions, "categories::jsonb @> ?")
+			categoryArgs = append(categoryArgs, datatypes.JSON(`["`+category+`"]`))
+		}
+
+		query = query.Where("("+strings.Join(categoryConditions, " OR ")+")", categoryArgs...)
+	}
+
+	err := query.Order("created_at DESC").Limit(criteria.Limit).Find(&castings).Error
+	return castings, err
+}
+
+// Helper functions
+
+func getCastingSortField(sortBy string) string {
+	switch sortBy {
+	case "salary":
+		return "payment_max"
+	case "casting_date":
+		return "casting_date"
+	case "created_at":
+		return "created_at"
+	case "views":
+		return "views"
+	default:
+		return "created_at"
+	}
 }

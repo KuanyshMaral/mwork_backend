@@ -1,16 +1,20 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"mwork_backend/database"
 	"mwork_backend/internal/config"
-	"mwork_backend/internal/handlers"
-	"mwork_backend/internal/repositories"
-
+	"mwork_backend/internal/handlers/old_shit"
+	"mwork_backend/internal/middlewares"
+	"mwork_backend/internal/repositories/old_bullshit"
+	"mwork_backend/internal/repositories/old_bullshit/chat"
+	"mwork_backend/internal/repositories/old_bullshit/subscription"
 	"mwork_backend/internal/routes"
 	"mwork_backend/internal/services"
 	"mwork_backend/internal/utils"
+	"mwork_backend/internal/workers"
 
 	"github.com/gin-gonic/gin"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -21,10 +25,8 @@ import (
 	_ "github.com/swaggo/gin-swagger"
 	_ "mwork_backend/docs"
 
-	chatrepositories "mwork_backend/internal/repositories/chat"
 	chatservices "mwork_backend/internal/services/chat"
 
-	subscriptionrepositories "mwork_backend/internal/repositories/subscription"
 	subscriptionservices "mwork_backend/internal/services/subscription"
 
 	ws "mwork_backend/ws"
@@ -60,50 +62,69 @@ func Run() {
 	}
 	fmt.Println("✅ База данных подключена")
 
+	ctx := context.Background()
+
+	castingWorker := workers.NewCastingWorker(gormDB)
+	go castingWorker.Start(ctx)
+	fmt.Println("✅ Casting worker started")
+
+	subscriptionWorker := workers.NewSubscriptionWorker(gormDB)
+	go subscriptionWorker.Start(ctx)
+	fmt.Println("✅ Subscription worker started")
+
 	// Инициализация email sender & service
 	emailSender := utils.NewEmailSender(cfg)
 	emailService := services.NewEmailService(emailSender)
 
 	// User
-	userRepo := repositories.NewUserRepository(sqlDB)
+	userRepo := old_bullshit.NewUserRepository(sqlDB)
 	userService := services.NewUserService(userRepo)
-	userHandler := handlers.NewUserHandler(userService)
+	userHandler := old_shit.NewUserHandler(userService)
 
 	// Refresh token
-	refreshRepo := repositories.NewRefreshTokenRepository(sqlDB)
+	refreshRepo := old_bullshit.NewRefreshTokenRepository(sqlDB)
 	refreshService := services.NewRefreshTokenService(refreshRepo, userRepo)
 
 	// Auth
 	authService := services.NewAuthService(userRepo, emailService, refreshService)
-	authHandler := handlers.NewAuthHandler(authService)
+	authHandler := old_shit.NewAuthHandler(authService)
 
 	// Model profile
-	modelProfileRepo := repositories.NewModelProfileRepository(sqlDB)
+	modelProfileRepo := old_bullshit.NewModelProfileRepository(sqlDB)
 	modelProfileService := services.NewModelProfileService(modelProfileRepo)
-	modelProfileHandler := handlers.NewModelProfileHandler(modelProfileService)
+	modelProfileHandler := old_shit.NewModelProfileHandler(modelProfileService)
 
 	// Employer profile
-	employerProfileRepo := repositories.NewEmployerProfileRepository(sqlDB)
+	employerProfileRepo := old_bullshit.NewEmployerProfileRepository(sqlDB)
 	employerProfileService := services.NewEmployerProfileService(employerProfileRepo)
-	employerProfileHandler := handlers.NewEmployerProfileHandler(employerProfileService)
+	employerProfileHandler := old_shit.NewEmployerProfileHandler(employerProfileService)
+
+	castingRepoGorm := old_bullshit.NewCastingRepository(sqlDB)
+	modelRepoGorm := old_bullshit.NewModelRepository(gormDB)
+	responseRepoGorm := old_bullshit.NewResponseRepository(gormDB)
+	notificationRepoGorm := old_bullshit.NewNotificationRepository(gormDB)
+	portfolioRepoGorm := old_bullshit.NewPortfolioRepository(gormDB)
+	reviewRepoGorm := old_bullshit.NewReviewRepository(gormDB)
+	uploadRepoGorm := old_bullshit.NewUploadRepository(sqlDB)
+	chatRepoGorm := old_bullshit.NewChatRepository(gormDB)
 
 	// Casting
-	castingRepo := repositories.NewCastingRepository(sqlDB)
+	castingRepo := old_bullshit.NewCastingRepository(sqlDB)
 	castingService := services.NewCastingService(castingRepo)
-	castingHandler := handlers.NewCastingHandler(castingService)
+	castingHandler := old_shit.NewCastingHandler(castingService)
 
 	// Casting response
-	responseRepo := repositories.NewResponseRepository(sqlDB)
+	responseRepo := old_bullshit.NewResponseRepository(sqlDB)
 	responseService := services.NewResponseService(responseRepo)
-	responseHandler := handlers.NewResponseHandler(responseService)
+	responseHandler := old_shit.NewResponseHandler(responseService)
 
 	// 💬 Chat: репозитории
-	dialogRepo := chatrepositories.NewDialogRepository(gormDB)
-	participantRepo := chatrepositories.NewDialogParticipantRepository(gormDB)
-	messageRepo := chatrepositories.NewMessageRepository(gormDB)
-	attachmentRepo := chatrepositories.NewMessageAttachmentRepository(gormDB)
-	reactionRepo := chatrepositories.NewMessageReactionRepository(gormDB)
-	readReceiptRepo := chatrepositories.NewMessageReadReceiptRepository(gormDB)
+	dialogRepo := chat.NewDialogRepository(gormDB)
+	participantRepo := chat.NewDialogParticipantRepository(gormDB)
+	messageRepo := chat.NewMessageRepository(gormDB)
+	attachmentRepo := chat.NewMessageAttachmentRepository(gormDB)
+	reactionRepo := chat.NewMessageReactionRepository(gormDB)
+	readReceiptRepo := chat.NewMessageReadReceiptRepository(gormDB)
 
 	// 💬 Chat: сервисы
 	chatService := chatservices.NewChatService(dialogRepo, participantRepo, messageRepo, readReceiptRepo)
@@ -112,26 +133,53 @@ func Run() {
 	readReceiptService := chatservices.NewReadReceiptService(readReceiptRepo, messageRepo)
 
 	// 💬 Chat: handler
-	chatHandler := handlers.NewChatHandler(chatService, attachmentService, reactionService, readReceiptService)
+	chatHandler := old_shit.NewChatHandler(chatService, attachmentService, reactionService, readReceiptService)
 
 	// Subscription
-	usersubscriptionRepo := subscriptionrepositories.NewUserSubscriptionRepository(sqlDB)
-	plansubscriptionRepo := subscriptionrepositories.NewSubscriptionPlanRepository(sqlDB)
+	usersubscriptionRepo := subscription.NewUserSubscriptionRepository(sqlDB)
+	plansubscriptionRepo := subscription.NewSubscriptionPlanRepository(sqlDB)
 	usersubscriptionService := subscriptionservices.NewUserSubscriptionService(usersubscriptionRepo)
 	plansubscriptionService := subscriptionservices.NewPlanService(plansubscriptionRepo)
 	robokassaService := subscriptionservices.NewRobokassaService()
 
-	subscriptionHandler := handlers.NewSubscriptionHandler(plansubscriptionService, usersubscriptionService, robokassaService)
+	subscriptionHandler := old_shit.NewSubscriptionHandler(plansubscriptionService, usersubscriptionService, robokassaService)
+
+	notificationService := services.NewNotificationService(notificationRepoGorm, emailService)
+	usageService := services.NewUsageService(usersubscriptionRepo)
+	searchService := services.NewSearchService(castingRepoGorm, modelRepoGorm)
+	matchingService := services.NewMatchingService(castingRepoGorm, modelRepoGorm, notificationService)
+	portfolioService := services.NewPortfolioService(portfolioRepoGorm, uploadRepoGorm)
+	reviewService := services.NewReviewService(reviewRepoGorm, modelRepoGorm, notificationService)
+	moderationService := services.NewModerationService(userRepo, employerProfileRepo, castingRepoGorm)
+
+	// Enhanced casting service with validation and transactions
+	castingServiceEnhanced := services.NewCastingServiceEnhanced(
+		gormDB,
+		castingRepoGorm,
+		usersubscriptionRepo,
+		notificationService,
+	)
+
+	// Enhanced response service
+	responseServiceEnhanced := services.NewResponseService(responseRepoGorm)
+	responseServiceEnhanced.SetDependencies(castingRepoGorm, chatRepoGorm, notificationService, usersubscriptionRepo)
+
+	searchHandler := old_shit.NewSearchHandler(searchService)
+	matchingHandler := old_shit.NewMatchingHandler(matchingService)
+	notificationHandler := old_shit.NewNotificationHandler(notificationService)
+	portfolioHandler := old_shit.NewPortfolioHandler(portfolioService)
+	reviewHandler := old_shit.NewReviewHandler(reviewService)
+	moderationHandler := old_shit.NewModerationHandler(moderationService)
 
 	// Upload
-	uploadRepo := repositories.NewUploadRepository(sqlDB)
+	uploadRepo := old_bullshit.NewUploadRepository(sqlDB)
 	uploadService := services.NewUploadService(uploadRepo, "/mwork-front-fn/uploads", "/mwork-front-fn/uploads")
-	uploadHandler := handlers.NewUploadHandler(uploadService)
+	uploadHandler := old_shit.NewUploadHandler(uploadService)
 
 	// Analytics
-	analyticsRepo := repositories.NewAnalyticsRepository(sqlDB)
+	analyticsRepo := old_bullshit.NewAnalyticsRepository(sqlDB)
 	analyticsService := services.NewAnalyticsService(analyticsRepo)
-	analyticsHandler := handlers.NewAnalyticsHandler(analyticsService, modelProfileRepo)
+	analyticsHandler := old_shit.NewAnalyticsHandler(analyticsService, modelProfileRepo)
 
 	// 💬 WebSocket
 	wsManager := ws.NewWebSocketManager(chatService, attachmentService, reactionService, readReceiptService)
@@ -148,10 +196,12 @@ func Run() {
 	// Инициализируем Gin
 	router := gin.Default()
 
+	router.Use(middlewares.ErrorHandler())
+	router.Use(middlewares.CORS())
+
 	// Подключение WebSocket-маршрутов
 	routes.SetupWebSocketRoutes(router, wsHandler)
 
-	// Регистрируем маршруты
 	routes.RegisterAllRoutes(
 		router,
 		userHandler,
@@ -163,7 +213,15 @@ func Run() {
 		chatHandler,
 		subscriptionHandler,
 		uploadHandler,
-		analyticsHandler)
+		analyticsHandler,
+		searchHandler,
+		matchingHandler,
+		notificationHandler,
+		portfolioHandler,
+		reviewHandler,
+		moderationHandler,
+		usageService,
+	)
 
 	// Swagger UI
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
