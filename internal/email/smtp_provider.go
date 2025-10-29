@@ -196,3 +196,39 @@ func (p *SMTPProvider) sendWithClient(client *smtp.Client, email *Email, message
 
 	return nil
 }
+
+// GetFromEmail возвращает email отправителя
+func (p *SMTPProvider) GetFromEmail() string {
+	if p.config.FromEmail != "" {
+		return p.config.FromEmail
+	}
+	return p.config.Username // fallback
+}
+
+func (p *SMTPProvider) SendVerification(email string, token string) error {
+	verificationURL := fmt.Sprintf("https://mwork.ru/verify-email?token=%s", token)
+
+	data := TemplateData{
+		"VerificationURL": verificationURL,
+		"Token":           token,
+	}
+
+	emailMsg := &Email{
+		From:    p.config.FromEmail,
+		To:      []string{email},
+		Subject: "Подтверждение email",
+	}
+
+	return p.SendWithTemplate("email_verification", data, emailMsg)
+}
+
+// SendTemplate отправляет email по шаблону
+func (p *SMTPProvider) SendTemplate(to []string, subject string, templateName string, data TemplateData) error {
+	emailMsg := &Email{
+		From:    p.config.FromEmail,
+		To:      to,
+		Subject: subject,
+	}
+
+	return p.SendWithTemplate(templateName, data, emailMsg)
+}

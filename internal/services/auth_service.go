@@ -29,20 +29,23 @@ type AuthServiceImpl struct {
 	userRepo         repositories.UserRepository
 	profileRepo      repositories.ProfileRepository
 	subscriptionRepo repositories.SubscriptionRepository
-	emailSender      email.Sender
+	emailProvider    email.Provider
+	refreshTokenRepo repositories.RefreshTokenRepository // <-- Добавлено
 }
 
 func NewAuthService(
 	userRepo repositories.UserRepository,
 	profileRepo repositories.ProfileRepository,
 	subscriptionRepo repositories.SubscriptionRepository,
-	emailSender email.Sender,
+	emailProvider email.Provider,
+	refreshTokenRepo repositories.RefreshTokenRepository, // <-- Добавлено
 ) AuthService {
 	return &AuthServiceImpl{
 		userRepo:         userRepo,
 		profileRepo:      profileRepo,
 		subscriptionRepo: subscriptionRepo,
-		emailSender:      emailSender,
+		emailProvider:    emailProvider,
+		refreshTokenRepo: refreshTokenRepo, // <-- Добавлено
 	}
 }
 
@@ -149,14 +152,17 @@ func (s *AuthServiceImpl) Login(req *dto.LoginRequest) (*dto.LoginResponse, erro
 // RefreshToken - обновление access token по refresh token
 func (s *AuthServiceImpl) RefreshToken(refreshToken string) (*dto.LoginResponse, error) {
 	// Поиск refresh token в БД
-	token, err := s.userRepo.FindRefreshToken(refreshToken)
+	// --- Обновлено ---
+	token, err := s.refreshTokenRepo.FindByToken(refreshToken)
 	if err != nil {
+		// Неважно, какая ошибка (не найден или другая) - токен невалиден
 		return nil, appErrors.ErrInvalidToken
 	}
+	// --- Конец обновления ---
 
 	// Проверка срока действия
 	if time.Now().After(token.ExpiresAt) {
-		s.userRepo.DeleteRefreshToken(refreshToken)
+		s.refreshTokenRepo.DeleteByToken(refreshToken) // <-- Обновлено
 		return nil, appErrors.ErrInvalidToken
 	}
 
@@ -198,7 +204,9 @@ func (s *AuthServiceImpl) RefreshToken(refreshToken string) (*dto.LoginResponse,
 
 // Logout - выход (удаление refresh token)
 func (s *AuthServiceImpl) Logout(refreshToken string) error {
-	return s.userRepo.DeleteRefreshToken(refreshToken)
+	// --- Обновлено ---
+	return s.refreshTokenRepo.DeleteByToken(refreshToken)
+	// --- Конец обновления ---
 }
 
 // VerifyEmail - подтверждение email
@@ -289,7 +297,9 @@ func (s *AuthServiceImpl) ResetPassword(token, newPassword string) error {
 	}
 
 	// Удаляем все refresh токены для безопасности
-	s.userRepo.DeleteUserRefreshTokens(user.ID)
+	// --- Обновлено ---
+	s.refreshTokenRepo.DeleteByUserID(user.ID)
+	// --- Конец обновления ---
 
 	return nil
 }
@@ -378,9 +388,11 @@ func (s *AuthServiceImpl) createRefreshToken(userID string) (string, error) {
 		ExpiresAt: refreshTokenExp,
 	}
 
-	if err := s.userRepo.CreateRefreshToken(refreshTokenModel); err != nil {
+	// --- Обновлено ---
+	if err := s.refreshTokenRepo.Create(refreshTokenModel); err != nil {
 		return "", err
 	}
+	// --- Конец обновления ---
 
 	return refreshToken, nil
 }
@@ -388,9 +400,11 @@ func (s *AuthServiceImpl) createRefreshToken(userID string) (string, error) {
 // rotateRefreshToken удаляет старый и создает новый refresh token
 func (s *AuthServiceImpl) rotateRefreshToken(userID, oldToken string) (string, error) {
 	// Удаляем старый токен
-	if err := s.userRepo.DeleteRefreshToken(oldToken); err != nil {
+	// --- Обновлено ---
+	if err := s.refreshTokenRepo.DeleteByToken(oldToken); err != nil {
 		return "", err
 	}
+	// --- Конец обновления ---
 
 	// Создаем новый
 	return s.createRefreshToken(userID)
@@ -447,12 +461,12 @@ func (s *AuthServiceImpl) buildUserResponse(user *models.User) (*dto.UserRespons
 
 // sendVerificationEmail отправляет email с токеном верификации
 func (s *AuthServiceImpl) sendVerificationEmail(email, token string) {
-	if s.emailSender == nil {
+	if s.emailProvider == nil {
 		return
 	}
 
 	go func() {
-		if err := s.emailSender.SendVerification(email, token); err != nil {
+		if err := s.emailProvider.SendVerification(email, token); err != nil {
 			fmt.Printf("Failed to send verification email: %v\n", err)
 		}
 	}()
@@ -460,7 +474,7 @@ func (s *AuthServiceImpl) sendVerificationEmail(email, token string) {
 
 // sendPasswordResetEmail отправляет email со ссылкой для сброса пароля
 func (s *AuthServiceImpl) sendPasswordResetEmail(email, token string) {
-	if s.emailSender == nil {
+	if s.emailProvider == nil {
 		return
 	}
 
@@ -468,7 +482,7 @@ func (s *AuthServiceImpl) sendPasswordResetEmail(email, token string) {
 		data := map[string]interface{}{
 			"ResetURL": fmt.Sprintf("https://mwork.ru/reset-password?token=%s", token),
 		}
-		if err := s.emailSender.SendTemplate([]string{email}, "Сброс пароля", "password_reset", data); err != nil {
+		if err := s.emailProvider.SendTemplate([]string{email}, "Сброс пароля", "password_reset", data); err != nil {
 			fmt.Printf("Failed to send password reset email: %v\n", err)
 		}
 	}()

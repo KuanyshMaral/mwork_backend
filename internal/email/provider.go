@@ -8,6 +8,12 @@ type Provider interface {
 	// SendWithTemplate отправляет email используя шаблон
 	SendWithTemplate(templateName string, data TemplateData, email *Email) error
 
+	// SendVerification отправляет email верификации
+	SendVerification(email string, token string) error
+
+	// SendTemplate отправляет email по шаблону (удобный метод)
+	SendTemplate(to []string, subject string, templateName string, data TemplateData) error
+
 	// Validate проверяет конфигурацию провайдера
 	Validate() error
 

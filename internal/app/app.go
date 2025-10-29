@@ -1,12 +1,11 @@
 package app
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"log"
-	"mwork_backend/database"
 	"mwork_backend/internal/config"
+	"mwork_backend/internal/email"
 	"mwork_backend/internal/handlers"
 	"mwork_backend/internal/middleware"
 	"mwork_backend/internal/repositories"
@@ -31,7 +30,7 @@ type AppHandlers struct {
 	SubscriptionHandler *handlers.SubscriptionHandler
 	SearchHandler       *handlers.SearchHandler
 	AnalyticsHandler    *handlers.AnalyticsHandler
-	ChatHandler         *handlers.ChatHandler
+	ChatHandler         *handlers.ChatHandler // Этот хендлер теперь будет для /api/v1/chat/... (не-WS)
 }
 
 func Run() {
@@ -48,11 +47,12 @@ func Run() {
 		log.Fatalf("Ошибка подключения к GORM: %v", err)
 	}
 
-	// Автоматическая миграция моделей
+	/*// Автоматическая миграция моделей
 	if err := database.AutoMigrate(); err != nil {
 		log.Fatalf("❌ AutoMigrate ошибка: %v", err)
 	}
 	fmt.Println("✅ AutoMigrate выполнен успешно")
+	*/
 
 	// Стандартный sql.DB
 	sqlDB, err := gormDB.DB()
@@ -63,8 +63,6 @@ func Run() {
 		log.Fatalf("База данных недоступна: %v", err)
 	}
 	fmt.Println("✅ База данных подключена")
-
-	ctx := context.Background()
 
 	// Инициализация сервисов
 	serviceContainer := initializeServices(cfg, gormDB, sqlDB)
@@ -80,13 +78,13 @@ func Run() {
 
 	wsHandler := ws.NewWebSocketHandler(
 		wsManager,
-		serviceContainer.ChatService,
 	)
 
 	// Инициализация роутеров
 	ginRouter := initializeGinRouter()
 
 	// Настройка маршрутов
+	// ПРИМЕЧАНИЕ: wsHandler передается отдельно от appHandlers
 	setupRoutes(ginRouter, appHandlers, wsHandler)
 
 	// Запускаем сервер
@@ -100,25 +98,41 @@ func Run() {
 
 // ServiceContainer содержит все сервисы приложения
 type ServiceContainer struct {
-	UserService         *services.UserService
-	ProfileService      *services.ProfileService
-	CastingService      *services.CastingService
-	ResponseService     *services.ResponseService
-	ReviewService       *services.ReviewService
-	PortfolioService    *services.PortfolioService
-	MatchingService     *services.MatchingService
-	NotificationService *services.NotificationService
-	SubscriptionService *services.SubscriptionService
-	SearchService       *services.SearchService
-	AnalyticsService    *services.AnalyticsService
+	UserService         services.UserService
+	AuthService         services.AuthService
+	ProfileService      services.ProfileService
+	CastingService      services.CastingService
+	ResponseService     services.ResponseService
+	ReviewService       services.ReviewService
+	PortfolioService    services.PortfolioService
+	MatchingService     services.MatchingService
+	NotificationService services.NotificationService
+	SubscriptionService services.SubscriptionService
+	SearchService       services.SearchService
+	AnalyticsService    services.AnalyticsService
 	ChatService         services.ChatService
-	EmailService        *services.EmailService
+	EmailService        email.Provider
 }
 
 // initializeServices инициализирует все сервисы приложения
 func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB) *ServiceContainer {
-	// Инициализация email service
-	emailService := services.NewEmailService(cfg.SMTP)
+	// 1. Создаем структуру конфигурации для EmailService
+	emailServiceConfig := services.EmailServiceConfig{
+		SMTPHost:     cfg.Email.SMTPHost,
+		SMTPPort:     cfg.Email.SMTPPort,
+		SMTPUsername: cfg.Email.SMTPUsername,
+		SMTPPassword: cfg.Email.SMTPPassword,
+		FromEmail:    cfg.Email.FromEmail,
+		FromName:     cfg.Email.FromName,
+		UseTLS:       cfg.Email.UseTLS,
+		TemplatesDir: cfg.Email.TemplatesDir,
+	}
+
+	// 2. Используем правильный конструктор NewEmailServiceWithConfig
+	emailService, err := services.NewEmailServiceWithConfig(emailServiceConfig)
+	if err != nil {
+		log.Fatalf("Ошибка инициализации EmailService: %v", err)
+	}
 
 	// Репозитории
 	userRepo := repositories.NewUserRepository(gormDB)
@@ -129,28 +143,96 @@ func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB) *Ser
 	notificationRepo := repositories.NewNotificationRepository(gormDB)
 	portfolioRepo := repositories.NewPortfolioRepository(gormDB)
 	reviewRepo := repositories.NewReviewRepository(gormDB)
-	uploadRepo := repositories.NewUploadRepository(gormDB)
-	analyticsRepo := repositories.NewAnalyticsRepository(gormDB)
 	subscriptionRepo := repositories.NewSubscriptionRepository(gormDB)
 	chatRepo := repositories.NewChatRepository(gormDB)
+	analyticsRepo := repositories.NewAnalyticsRepository(gormDB)
 
 	// Сервисы
-	userService := services.NewUserService(userRepo)
-	authService := services.NewAuthService(userRepo, refreshTokenRepo, emailService)
-	profileService := services.NewProfileService(profileRepo)
-	castingService := services.NewCastingService(castingRepo)
-	responseService := services.NewResponseService(responseRepo)
-	notificationService := services.NewNotificationService(notificationRepo, emailService)
-	portfolioService := services.NewPortfolioService(portfolioRepo)
-	reviewService := services.NewReviewService(reviewRepo)
-	searchService := services.NewSearchService(castingRepo, profileRepo)
-	matchingService := services.NewMatchingService(castingRepo, profileRepo, notificationService)
-	analyticsService := services.NewAnalyticsService(analyticsRepo)
-	uploadService := services.NewUploadService(uploadRepo)
-	moderationService := services.NewModerationService(userRepo, profileRepo, castingRepo)
-	usageService := services.NewUsageService(subscriptionRepo)
-	subscriptionService := services.NewSubscriptionService(subscriptionRepo)
-	chatService := services.NewChatService(chatRepo)
+	userService := services.NewUserService(userRepo, profileRepo)
+	authService := services.NewAuthService(
+		userRepo,
+		profileRepo,
+		subscriptionRepo,
+		emailService,
+		refreshTokenRepo,
+	)
+	profileService := services.NewProfileService(
+		profileRepo,
+		userRepo,
+		portfolioRepo,
+		reviewRepo,
+		notificationRepo,
+	)
+	castingService := services.NewCastingService(
+		castingRepo,
+		userRepo,
+		profileRepo,
+		subscriptionRepo,
+		notificationRepo,
+		reviewRepo,
+		responseRepo,
+	)
+	responseService := services.NewResponseService(
+		responseRepo,
+		castingRepo,
+		userRepo,
+		subscriptionRepo,
+		notificationRepo,
+		reviewRepo,
+	)
+	notificationService := services.NewNotificationService(
+		notificationRepo,
+		userRepo,
+		profileRepo,
+	)
+	portfolioService := services.NewPortfolioService(
+		portfolioRepo,
+		userRepo,
+		profileRepo,
+	)
+	reviewService := services.NewReviewService(
+		reviewRepo,
+		userRepo,
+		profileRepo,
+		castingRepo,
+		notificationRepo,
+	)
+	searchService := services.NewSearchService(
+		castingRepo,
+		profileRepo,
+		portfolioRepo,
+		reviewRepo,
+	)
+	matchingService := services.NewMatchingService(
+		profileRepo,
+		castingRepo,
+		reviewRepo,
+		portfolioRepo,
+		notificationRepo,
+	)
+	analyticsService := services.NewAnalyticsService(
+		userRepo,
+		profileRepo,
+		castingRepo,
+		reviewRepo,
+		notificationRepo,
+		portfolioRepo,
+		subscriptionRepo,
+		chatRepo,
+		analyticsRepo,
+	)
+	subscriptionService := services.NewSubscriptionService(
+		subscriptionRepo,
+		userRepo,
+		notificationRepo,
+	)
+	chatService := services.NewChatService(
+		chatRepo,
+		userRepo,
+		castingRepo,
+		profileRepo,
+		notificationRepo,
+	)
 
 	return &ServiceContainer{
 		UserService:         userService,
@@ -167,15 +249,13 @@ func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB) *Ser
 		AnalyticsService:    analyticsService,
 		ChatService:         chatService,
 		EmailService:        emailService,
-		UploadService:       uploadService,
-		ModerationService:   moderationService,
-		UsageService:        usageService,
 	}
 }
 
 // initializeHandlers инициализирует все хендлеры приложения
 func initializeHandlers(services *ServiceContainer) *AppHandlers {
 	return &AppHandlers{
+		// <-- ИСПРАВЛЕНО: Добавлен services.AuthService
 		UserHandler:         handlers.NewUserHandler(services.UserService, services.AuthService),
 		ProfileHandler:      handlers.NewProfileHandler(services.ProfileService),
 		CastingHandler:      handlers.NewCastingHandler(services.CastingService),
@@ -187,9 +267,8 @@ func initializeHandlers(services *ServiceContainer) *AppHandlers {
 		SubscriptionHandler: handlers.NewSubscriptionHandler(services.SubscriptionService),
 		SearchHandler:       handlers.NewSearchHandler(services.SearchService),
 		AnalyticsHandler:    handlers.NewAnalyticsHandler(services.AnalyticsService),
-		ChatHandler:         handlers.NewChatHandler(services.ChatService),
-		UploadHandler:       handlers.NewUploadHandler(services.UploadService),
-		ModerationHandler:   handlers.NewModerationHandler(services.ModerationService),
+		// ChatHandler используется для API-маршрутов чата (например, /api/v1/chat/history)
+		ChatHandler: handlers.NewChatHandler(services.ChatService),
 	}
 }
 
@@ -198,7 +277,6 @@ func initializeGinRouter() *gin.Engine {
 	router := gin.Default()
 
 	// Middleware
-	router.Use(middleware.ErrorHandler())
 	router.Use(middleware.CORSMiddleware())
 
 	return router
@@ -209,61 +287,38 @@ func setupRoutes(ginRouter *gin.Engine, handlers *AppHandlers, wsHandler *ws.Web
 	// Регистрация API маршрутов
 	api := ginRouter.Group("/api/v1")
 
-	// User and Auth routes
+	// ВСЕ handler.RegisterRoutes ДОЛЖНЫ принимать *gin.RouterGroup
+	// Убедитесь, что *каждый* хендлер в пакете 'handlers'
+	// имеет метод RegisterRoutes(router *gin.RouterGroup)
 	handlers.UserHandler.RegisterRoutes(api)
-
-	// Profile routes
 	handlers.ProfileHandler.RegisterRoutes(api)
-
-	// Casting routes
 	handlers.CastingHandler.RegisterRoutes(api)
-
-	// Response routes
 	handlers.ResponseHandler.RegisterRoutes(api)
-
-	// Review routes
 	handlers.ReviewHandler.RegisterRoutes(api)
-
-	// Portfolio routes
 	handlers.PortfolioHandler.RegisterRoutes(api)
-
-	// Matching routes
 	handlers.MatchingHandler.RegisterRoutes(api)
-
-	// Notification routes
 	handlers.NotificationHandler.RegisterRoutes(api)
-
-	// Subscription routes
 	handlers.SubscriptionHandler.RegisterRoutes(api)
-
-	// Search routes
 	handlers.SearchHandler.RegisterRoutes(api)
-
-	// Analytics routes
 	handlers.AnalyticsHandler.RegisterRoutes(api)
 
-	// Upload routes
-	handlers.UploadHandler.RegisterRoutes(api)
-
-	// Moderation routes
-	handlers.ModerationHandler.RegisterRoutes(api)
-
-	// Chat routes
+	// ИСПРАВЛЕНИЕ: ChatHandler регистрирует свои *API* маршруты (например, история чата)
+	// WebSocket маршрут регистрируется отдельно ниже.
 	handlers.ChatHandler.RegisterRoutes(api)
 
 	// WebSocket маршруты
+	// ИСПРАВЛЕНИЕ: Вызываем функцию, которая теперь определена
 	setupWebSocketRoutes(ginRouter, wsHandler)
 }
 
-// setupWebSocketRoutes настраивает WebSocket маршруты
-func setupWebSocketRoutes(router *gin.Engine, wsHandler *ws.WebSocketHandler) {
-	wsGroup := router.Group("/ws")
-	{
-		wsGroup.GET("/chat", func(c *gin.Context) {
-			wsHandler.HandleWebSocket(c.Writer, c.Request)
-		})
-		wsGroup.GET("/chat/:dialog_id", func(c *gin.Context) {
-			wsHandler.HandleWebSocket(c.Writer, c.Request)
-		})
-	}
+// setupWebSocketRoutes настраивает маршруты для WebSocket
+// ИСПРАВЛЕНИЕ: Реализация недостающей функции
+func setupWebSocketRoutes(ginRouter *gin.Engine, wsHandler *ws.WebSocketHandler) {
+	// Вы можете поместить /ws в /api/v1/ws, если хотите
+	// apiV1 := ginRouter.Group("/api/v1")
+	// apiV1.GET("/ws", wsHandler.ServeWS)
+
+	// Или оставить его в корне
+	ginRouter.GET("/ws", wsHandler.ServeWS)
+	fmt.Println("🔌 WebSocket маршрут /ws зарегистрирован")
 }

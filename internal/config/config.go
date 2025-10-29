@@ -17,11 +17,21 @@ type Config struct {
 	} `yaml:"database"`
 
 	Email struct {
-		SMTPHost     string `yaml:"smtp_host"`
-		SMTPPort     int    `yaml:"smtp_port"`
-		SMTPUser     string `yaml:"smtp_user"`
+		// --- ОБЯЗАТЕЛЬНЫЕ ПОЛЯ (из вашего services/services.go) ---
+
+		SMTPHost string `yaml:"smtp_host"`
+		SMTPPort int    `yaml:"smtp_port"`
+
+		// ИСПРАВЛЕНИЕ: В сервисе поле называется SMTPUsername, а не SMTPUser
+		SMTPUsername string `yaml:"smtp_user"`
+
 		SMTPPassword string `yaml:"smtp_password"`
 		FromEmail    string `yaml:"from_email"`
+
+		// ИСПРАВЛЕНИЕ: Эти поля НУЖНЫ для NewEmailServiceWithConfig
+		FromName     string `yaml:"from_name"`     // Нужно добавить в config.yaml
+		UseTLS       bool   `yaml:"use_tls"`       // Нужно добавить в config.yaml
+		TemplatesDir string `yaml:"templates_dir"` // Нужно добавить в config.yaml
 	} `yaml:"email"`
 
 	JWT struct {

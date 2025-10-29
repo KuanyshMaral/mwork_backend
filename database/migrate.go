@@ -8,7 +8,7 @@ import (
 	"mwork_backend/internal/config"
 	"mwork_backend/internal/models"
 	chatmodels "mwork_backend/internal/models/chat"
-	"strings"
+	// "strings" // Больше не нужен
 )
 
 var gormDB *gorm.DB
@@ -38,12 +38,14 @@ func AutoMigrate() error {
 		return err
 	}
 
-	// Попытка удалить constraint, если он есть
-	if err := db.Migrator().DropConstraint(&models.RefreshToken{}, "uni_refresh_tokens_token"); err != nil {
-		if !strings.Contains(err.Error(), "не существует") {
-			log.Fatalf("Ошибка DropConstraint: %v", err)
-		}
-	}
+	// 🔻🔻🔻 ЭТОТ БЛОК УДАЛЕН 🔻🔻🔻
+	// // Попытка удалить constraint, если он есть
+	// if err := db.Migrator().DropConstraint(&models.RefreshToken{}, "uni_refresh_tokens_token"); err != nil {
+	//    if !strings.Contains(err.Error(), "не существует") {
+	//       log.Fatalf("Ошибка DropConstraint: %v", err)
+	//    }
+	// }
+	// 🔺🔺🔺 БЛОК УДАЛЕН 🔺🔺🔺
 
 	// Миграция
 	err = db.AutoMigrate(
@@ -56,7 +58,6 @@ func AutoMigrate() error {
 		&models.RefreshToken{},
 		&models.UserSubscription{},
 		&models.CastingResponse{},
-		&models.Rating{},
 		// chat модуль
 		&chatmodels.Dialog{},
 		&chatmodels.DialogParticipant{},
@@ -70,5 +71,7 @@ func AutoMigrate() error {
 		log.Fatalf("❌ AutoMigrate ошибка: %v", err)
 	}
 
+	// Добавим лог, чтобы видеть, что все прошло успешно
+	log.Println("✅ AutoMigrate успешно завершен.")
 	return nil
 }

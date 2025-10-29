@@ -13,7 +13,21 @@ import (
 	"gorm.io/datatypes"
 )
 
-type ProfileService struct {
+// ProfileService - это интерфейс для профильных операций.
+type ProfileService interface {
+	CreateModelProfile(req *dto.CreateModelProfileRequest) error
+	CreateEmployerProfile(req *dto.CreateEmployerProfileRequest) error
+	GetProfile(userID, requesterID string) (*dto.ProfileResponse, error)
+	UpdateProfile(userID string, req *dto.UpdateProfileRequest) error
+	SearchModels(criteria dto.ProfileSearchCriteria) ([]*dto.ProfileResponse, int64, error)
+	SearchEmployers(criteria repositories.EmployerSearchCriteria) ([]*dto.ProfileResponse, int64, error)
+	GetModelStats(modelID string) (*dto.ModelProfileStats, error)
+	ToggleProfileVisibility(userID string, isPublic bool) error
+}
+
+// ProfileServiceImpl - конкретная реализация интерфейса ProfileService.
+// ПЕРЕИМЕНОВАНО: Было ProfileService, стало ProfileServiceImpl.
+type ProfileServiceImpl struct {
 	profileRepo      repositories.ProfileRepository
 	userRepo         repositories.UserRepository
 	portfolioRepo    repositories.PortfolioRepository
@@ -21,14 +35,15 @@ type ProfileService struct {
 	notificationRepo repositories.NotificationRepository
 }
 
+// NewProfileService - конструктор, возвращающий тип ИНТЕРФЕЙСА.
 func NewProfileService(
 	profileRepo repositories.ProfileRepository,
 	userRepo repositories.UserRepository,
 	portfolioRepo repositories.PortfolioRepository,
 	reviewRepo repositories.ReviewRepository,
 	notificationRepo repositories.NotificationRepository,
-) *ProfileService {
-	return &ProfileService{
+) ProfileService { // <--- ИЗМЕНЕНО: теперь возвращает интерфейс ProfileService
+	return &ProfileServiceImpl{ // Возвращает указатель на реализацию, который удовлетворяет интерфейсу
 		profileRepo:      profileRepo,
 		userRepo:         userRepo,
 		portfolioRepo:    portfolioRepo,
@@ -40,7 +55,8 @@ func NewProfileService(
 // ==========================
 // Profile Creation
 // ==========================
-func (s *ProfileService) CreateModelProfile(req *dto.CreateModelProfileRequest) error {
+// Методы теперь привязаны к ProfileServiceImpl
+func (s *ProfileServiceImpl) CreateModelProfile(req *dto.CreateModelProfileRequest) error {
 	user, err := s.userRepo.FindByID(req.UserID)
 	if err != nil {
 		return err
@@ -48,6 +64,7 @@ func (s *ProfileService) CreateModelProfile(req *dto.CreateModelProfileRequest) 
 	if user.Role != models.UserRoleModel {
 		return appErrors.ErrInvalidUserRole
 	}
+	// ... (остальной код метода)
 
 	if err := s.validateModelProfileData(req); err != nil {
 		return err
@@ -67,8 +84,8 @@ func (s *ProfileService) CreateModelProfile(req *dto.CreateModelProfileRequest) 
 		UserID:         req.UserID,
 		Name:           req.Name,
 		Age:            req.Age,
-		Height:         req.Height,
-		Weight:         req.Weight,
+		Height:         int(req.Height), // <--- ИСПРАВЛЕНО: Добавлено int()
+		Weight:         int(req.Weight), // <--- ИСПРАВЛЕНО: Добавлено int()
 		Gender:         req.Gender,
 		Experience:     req.Experience,
 		HourlyRate:     req.HourlyRate,
@@ -85,7 +102,7 @@ func (s *ProfileService) CreateModelProfile(req *dto.CreateModelProfileRequest) 
 	return s.profileRepo.CreateModelProfile(profile)
 }
 
-func (s *ProfileService) CreateEmployerProfile(req *dto.CreateEmployerProfileRequest) error {
+func (s *ProfileServiceImpl) CreateEmployerProfile(req *dto.CreateEmployerProfileRequest) error {
 	user, err := s.userRepo.FindByID(req.UserID)
 	if err != nil {
 		return err
@@ -112,7 +129,7 @@ func (s *ProfileService) CreateEmployerProfile(req *dto.CreateEmployerProfileReq
 // ==========================
 // Profile Retrieval
 // ==========================
-func (s *ProfileService) GetProfile(userID, requesterID string) (*dto.ProfileResponse, error) {
+func (s *ProfileServiceImpl) GetProfile(userID, requesterID string) (*dto.ProfileResponse, error) {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
 		return nil, err
@@ -171,7 +188,7 @@ func (s *ProfileService) GetProfile(userID, requesterID string) (*dto.ProfileRes
 // ==========================
 // Profile Update
 // ==========================
-func (s *ProfileService) UpdateProfile(userID string, req *dto.UpdateProfileRequest) error {
+func (s *ProfileServiceImpl) UpdateProfile(userID string, req *dto.UpdateProfileRequest) error {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
 		return err
@@ -187,7 +204,7 @@ func (s *ProfileService) UpdateProfile(userID string, req *dto.UpdateProfileRequ
 	}
 }
 
-func (s *ProfileService) updateModelProfile(userID string, req *dto.UpdateProfileRequest) error {
+func (s *ProfileServiceImpl) updateModelProfile(userID string, req *dto.UpdateProfileRequest) error {
 	profile, err := s.profileRepo.FindModelProfileByUserID(userID)
 	if err != nil {
 		return err
@@ -206,10 +223,10 @@ func (s *ProfileService) updateModelProfile(userID string, req *dto.UpdateProfil
 		profile.Age = *req.Age
 	}
 	if req.Height != nil {
-		profile.Height = *req.Height
+		profile.Height = int(*req.Height) // <--- ИСПРАВЛЕНО: Добавлено int()
 	}
 	if req.Weight != nil {
-		profile.Weight = *req.Weight
+		profile.Weight = int(*req.Weight) // <--- ИСПРАВЛЕНО: Добавлено int()
 	}
 	if req.Gender != nil {
 		profile.Gender = *req.Gender
@@ -252,7 +269,7 @@ func (s *ProfileService) updateModelProfile(userID string, req *dto.UpdateProfil
 	return s.profileRepo.UpdateModelProfile(profile)
 }
 
-func (s *ProfileService) updateEmployerProfile(userID string, req *dto.UpdateProfileRequest) error {
+func (s *ProfileServiceImpl) updateEmployerProfile(userID string, req *dto.UpdateProfileRequest) error {
 	profile, err := s.profileRepo.FindEmployerProfileByUserID(userID)
 	if err != nil {
 		return err
@@ -286,7 +303,7 @@ func (s *ProfileService) updateEmployerProfile(userID string, req *dto.UpdatePro
 // ==========================
 // Search and Discovery
 // ==========================
-func (s *ProfileService) SearchModels(criteria dto.ProfileSearchCriteria) ([]*dto.ProfileResponse, int64, error) {
+func (s *ProfileServiceImpl) SearchModels(criteria dto.ProfileSearchCriteria) ([]*dto.ProfileResponse, int64, error) {
 	searchCriteria := repositories.ModelSearchCriteria{
 		Query:         criteria.Query,
 		City:          criteria.City,
@@ -331,7 +348,7 @@ func (s *ProfileService) SearchModels(criteria dto.ProfileSearchCriteria) ([]*dt
 	return responses, total, nil
 }
 
-func (s *ProfileService) SearchEmployers(criteria repositories.EmployerSearchCriteria) ([]*dto.ProfileResponse, int64, error) {
+func (s *ProfileServiceImpl) SearchEmployers(criteria repositories.EmployerSearchCriteria) ([]*dto.ProfileResponse, int64, error) {
 	employers, total, err := s.profileRepo.SearchEmployerProfiles(criteria)
 	if err != nil {
 		return nil, 0, err
@@ -355,7 +372,7 @@ func (s *ProfileService) SearchEmployers(criteria repositories.EmployerSearchCri
 // ==========================
 // Helper Methods
 // ==========================
-func (s *ProfileService) validateModelProfileData(req *dto.CreateModelProfileRequest) error {
+func (s *ProfileServiceImpl) validateModelProfileData(req *dto.CreateModelProfileRequest) error {
 	if req.Age < 16 || req.Age > 70 {
 		return errors.New("age must be between 16 and 70")
 	}
@@ -368,7 +385,7 @@ func (s *ProfileService) validateModelProfileData(req *dto.CreateModelProfileReq
 	return nil
 }
 
-func (s *ProfileService) getEmployerStats(employerID string) (*dto.EmployerProfileStats, error) {
+func (s *ProfileServiceImpl) getEmployerStats(employerID string) (*dto.EmployerProfileStats, error) {
 	return &dto.EmployerProfileStats{
 		TotalCastings:  0,
 		ActiveCastings: 0,
@@ -379,7 +396,7 @@ func (s *ProfileService) getEmployerStats(employerID string) (*dto.EmployerProfi
 }
 
 // Profile Analytics
-func (s *ProfileService) GetModelStats(modelID string) (*dto.ModelProfileStats, error) {
+func (s *ProfileServiceImpl) GetModelStats(modelID string) (*dto.ModelProfileStats, error) {
 	stats, err := s.profileRepo.GetModelStats(modelID)
 	if err != nil {
 		return nil, err
@@ -396,7 +413,7 @@ func (s *ProfileService) GetModelStats(modelID string) (*dto.ModelProfileStats, 
 }
 
 // Profile Visibility Management
-func (s *ProfileService) ToggleProfileVisibility(userID string, isPublic bool) error {
+func (s *ProfileServiceImpl) ToggleProfileVisibility(userID string, isPublic bool) error {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
 		return err

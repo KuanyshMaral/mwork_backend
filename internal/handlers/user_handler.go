@@ -1,24 +1,25 @@
 package handlers
 
 import (
-	"net/http"
-
 	"mwork_backend/internal/appErrors"
 	"mwork_backend/internal/middleware"
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/services"
 	"mwork_backend/internal/services/dto"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
 type UserHandler struct {
-	userService *services.UserService
+	userService services.UserService // <-- Изменено
+	authService services.AuthService // <-- Добавлено
 }
 
-func NewUserHandler(userService *services.UserService) *UserHandler {
+func NewUserHandler(userService services.UserService, authService services.AuthService) *UserHandler { // <-- Обновлен конструктор
 	return &UserHandler{
 		userService: userService,
+		authService: authService,
 	}
 }
 
@@ -39,7 +40,7 @@ func (h *UserHandler) RegisterRoutes(r *gin.RouterGroup) {
 	{
 		profile.GET("", h.GetProfile)
 		profile.PUT("", h.UpdateProfile)
-		profile.POST("/password/change", h.ChangePassword)
+		profile.POST("/password/change", h.ChangePassword) // <-- Этот метод относится к auth
 	}
 
 	admin := r.Group("/admin/users")
@@ -57,18 +58,18 @@ func (h *UserHandler) RegisterRoutes(r *gin.RouterGroup) {
 func (h *UserHandler) Register(c *gin.Context) {
 	var req dto.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		appErrors.HandleValidationError(c, err)
 		return
 	}
 
-	if err := h.userService.Register(&req); err != nil {
-		statusCode := http.StatusInternalServerError
-		if appErrors.Is(err, appErrors.ErrWeakPassword) ||
-			appErrors.Is(err, appErrors.ErrInvalidUserRole) ||
-			appErrors.Is(err, appErrors.ErrEmailAlreadyExists) {
-			statusCode = http.StatusBadRequest
+	// Используем authService
+	if err := h.authService.Register(&req); err != nil {
+		var appErr *appErrors.AppError
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
 		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -80,21 +81,19 @@ func (h *UserHandler) Register(c *gin.Context) {
 func (h *UserHandler) Login(c *gin.Context) {
 	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		appErrors.HandleValidationError(c, err)
 		return
 	}
 
-	response, err := h.userService.Login(&req)
+	// Используем authService
+	response, err := h.authService.Login(&req)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if appErrors.Is(err, appErrors.ErrInvalidCredentials) {
-			statusCode = http.StatusUnauthorized
-		} else if appErrors.Is(err, appErrors.ErrUserSuspended) ||
-			appErrors.Is(err, appErrors.ErrUserBanned) ||
-			appErrors.Is(err, appErrors.ErrUserNotVerified) {
-			statusCode = http.StatusForbidden
+		var appErr *appErrors.AppError
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
 		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -106,13 +105,19 @@ func (h *UserHandler) RefreshToken(c *gin.Context) {
 		RefreshToken string `json:"refresh_token" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		appErrors.HandleValidationError(c, err)
 		return
 	}
 
-	response, err := h.userService.RefreshToken(req.RefreshToken)
+	// Используем authService
+	response, err := h.authService.RefreshToken(req.RefreshToken)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		var appErr *appErrors.AppError
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -124,12 +129,18 @@ func (h *UserHandler) Logout(c *gin.Context) {
 		RefreshToken string `json:"refresh_token" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		appErrors.HandleValidationError(c, err)
 		return
 	}
 
-	if err := h.userService.Logout(req.RefreshToken); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	// Используем authService
+	if err := h.authService.Logout(req.RefreshToken); err != nil {
+		var appErr *appErrors.AppError
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -139,12 +150,18 @@ func (h *UserHandler) Logout(c *gin.Context) {
 func (h *UserHandler) VerifyEmail(c *gin.Context) {
 	token := c.Query("token")
 	if token == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Token is required"})
+		appErrors.HandleError(c, appErrors.NewBadRequestError("Token is required"))
 		return
 	}
 
-	if err := h.userService.VerifyEmail(token); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	// Используем authService
+	if err := h.authService.VerifyEmail(token); err != nil {
+		var appErr *appErrors.AppError
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -156,11 +173,12 @@ func (h *UserHandler) RequestPasswordReset(c *gin.Context) {
 		Email string `json:"email" binding:"required,email"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email"})
+		appErrors.HandleError(c, appErrors.NewBadRequestError("Invalid email").WithDetails(err.Error()))
 		return
 	}
 
-	if err := h.userService.RequestPasswordReset(req.Email); err != nil {
+	// Используем authService
+	if err := h.authService.RequestPasswordReset(req.Email); err != nil {
 		// Always return success to prevent email enumeration
 		c.JSON(http.StatusOK, gin.H{
 			"message": "If an account exists with this email, a password reset link has been sent.",
@@ -179,16 +197,18 @@ func (h *UserHandler) ResetPassword(c *gin.Context) {
 		NewPassword string `json:"new_password" binding:"required,min=6"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		appErrors.HandleValidationError(c, err)
 		return
 	}
 
-	if err := h.userService.ResetPassword(req.Token, req.NewPassword); err != nil {
-		statusCode := http.StatusBadRequest
-		if appErrors.Is(err, appErrors.ErrInvalidToken) {
-			statusCode = http.StatusUnauthorized
+	// Используем authService
+	if err := h.authService.ResetPassword(req.Token, req.NewPassword); err != nil {
+		var appErr *appErrors.AppError
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
 		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -200,9 +220,15 @@ func (h *UserHandler) ResetPassword(c *gin.Context) {
 func (h *UserHandler) GetProfile(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 
+	// Используем userService (корректно)
 	profile, err := h.userService.GetProfile(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		var appErr *appErrors.AppError
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -214,12 +240,18 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 
 	var req dto.UpdateProfileRequestUser
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		appErrors.HandleValidationError(c, err)
 		return
 	}
 
+	// Используем userService (корректно)
 	if err := h.userService.UpdateProfile(userID, &req); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		var appErr *appErrors.AppError
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -234,18 +266,18 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 		NewPassword     string `json:"new_password" binding:"required,min=6"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		appErrors.HandleValidationError(c, err)
 		return
 	}
 
-	if err := h.userService.ChangePassword(userID, req.CurrentPassword, req.NewPassword); err != nil {
-		statusCode := http.StatusInternalServerError
-		if appErrors.Is(err, appErrors.ErrInvalidCredentials) {
-			statusCode = http.StatusUnauthorized
-		} else if appErrors.Is(err, appErrors.ErrWeakPassword) {
-			statusCode = http.StatusBadRequest
+	// Используем authService
+	if err := h.authService.ChangePassword(userID, req.CurrentPassword, req.NewPassword); err != nil {
+		var appErr *appErrors.AppError
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
 		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -257,7 +289,7 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 func (h *UserHandler) GetUsers(c *gin.Context) {
 	var filter dto.AdminUserFilter
 	if err := c.ShouldBindQuery(&filter); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
+		appErrors.HandleError(c, appErrors.NewBadRequestError("Invalid query parameters").WithDetails(err.Error()))
 		return
 	}
 
@@ -269,9 +301,15 @@ func (h *UserHandler) GetUsers(c *gin.Context) {
 		filter.PageSize = 20
 	}
 
+	// Используем userService (корректно)
 	users, total, err := h.userService.GetUsers(filter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		var appErr *appErrors.AppError
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -291,17 +329,18 @@ func (h *UserHandler) UpdateUserStatus(c *gin.Context) {
 		Status models.UserStatus `json:"status" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		appErrors.HandleValidationError(c, err)
 		return
 	}
 
+	// Используем userService (корректно)
 	if err := h.userService.UpdateUserStatus(adminID, userID, req.Status); err != nil {
-		statusCode := http.StatusInternalServerError
-		if appErrors.Is(err, appErrors.ErrCannotModifySelf) ||
-			appErrors.Is(err, appErrors.ErrInsufficientPermissions) {
-			statusCode = http.StatusForbidden
+		var appErr *appErrors.AppError
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
 		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -312,12 +351,14 @@ func (h *UserHandler) VerifyEmployer(c *gin.Context) {
 	adminID := middleware.GetUserID(c)
 	employerID := c.Param("userId")
 
+	// Используем userService (корректно)
 	if err := h.userService.VerifyEmployer(adminID, employerID); err != nil {
-		statusCode := http.StatusInternalServerError
-		if appErrors.Is(err, appErrors.ErrInsufficientPermissions) {
-			statusCode = http.StatusForbidden
+		var appErr *appErrors.AppError
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
 		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -332,9 +373,15 @@ func (h *UserHandler) GetRegistrationStats(c *gin.Context) {
 		}
 	}
 
+	// Используем userService (корректно)
 	stats, err := h.userService.GetRegistrationStats(days)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		var appErr *appErrors.AppError
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 

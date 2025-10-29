@@ -12,7 +12,21 @@ import (
 	"mwork_backend/internal/services/dto"
 )
 
-type ResponseService struct {
+// ResponseService - интерфейс для операций, связанных с откликами (Responses).
+type ResponseService interface {
+	CreateResponse(modelID, castingID string, req *dto.CreateResponseRequest) (*models.CastingResponse, error)
+	GetModelResponses(modelID string) ([]models.CastingResponse, error)
+	DeleteResponse(modelID, responseID string) error
+	GetCastingResponses(castingID, employerID string) ([]dto.ResponseSummary, error)
+	UpdateResponseStatus(employerID, responseID string, status models.ResponseStatus) error
+	MarkResponseAsViewed(employerID, responseID string) error
+	GetResponseStats(castingID string) (*dto.CastingStatsResponse, error)
+	GetResponse(responseID, userID string) (*models.CastingResponse, error)
+}
+
+// ResponseServiceImpl - конкретная реализация интерфейса ResponseService.
+// ПЕРЕИМЕНОВАНО: Было ResponseService, стало ResponseServiceImpl.
+type ResponseServiceImpl struct {
 	responseRepo     repositories.ResponseRepository
 	castingRepo      repositories.CastingRepository
 	userRepo         repositories.UserRepository
@@ -21,6 +35,7 @@ type ResponseService struct {
 	reviewRepo       repositories.ReviewRepository
 }
 
+// NewResponseService - конструктор, возвращающий тип ИНТЕРФЕЙСА.
 func NewResponseService(
 	responseRepo repositories.ResponseRepository,
 	castingRepo repositories.CastingRepository,
@@ -28,8 +43,8 @@ func NewResponseService(
 	subscriptionRepo repositories.SubscriptionRepository,
 	notificationRepo repositories.NotificationRepository,
 	reviewRepo repositories.ReviewRepository,
-) *ResponseService {
-	return &ResponseService{
+) ResponseService { // <--- ИЗМЕНЕНО: теперь возвращает интерфейс ResponseService
+	return &ResponseServiceImpl{
 		responseRepo:     responseRepo,
 		castingRepo:      castingRepo,
 		userRepo:         userRepo,
@@ -41,7 +56,7 @@ func NewResponseService(
 
 // Response Operations
 
-func (s *ResponseService) CreateResponse(modelID, castingID string, req *dto.CreateResponseRequest) (*models.CastingResponse, error) {
+func (s *ResponseServiceImpl) CreateResponse(modelID, castingID string, req *dto.CreateResponseRequest) (*models.CastingResponse, error) {
 	model, err := s.userRepo.FindByID(modelID)
 	if err != nil {
 		return nil, err
@@ -125,11 +140,11 @@ func (s *ResponseService) CreateResponse(modelID, castingID string, req *dto.Cre
 	return response, nil
 }
 
-func (s *ResponseService) GetModelResponses(modelID string) ([]models.CastingResponse, error) {
+func (s *ResponseServiceImpl) GetModelResponses(modelID string) ([]models.CastingResponse, error) {
 	return s.responseRepo.FindResponsesByModel(modelID)
 }
 
-func (s *ResponseService) DeleteResponse(modelID, responseID string) error {
+func (s *ResponseServiceImpl) DeleteResponse(modelID, responseID string) error {
 	response, err := s.responseRepo.FindResponseByID(responseID)
 	if err != nil {
 		return err
@@ -159,7 +174,7 @@ func (s *ResponseService) DeleteResponse(modelID, responseID string) error {
 	return nil
 }
 
-func (s *ResponseService) GetCastingResponses(castingID, employerID string) ([]dto.ResponseSummary, error) {
+func (s *ResponseServiceImpl) GetCastingResponses(castingID, employerID string) ([]dto.ResponseSummary, error) {
 	casting, err := s.castingRepo.FindCastingByID(castingID)
 	if err != nil {
 		return nil, err
@@ -196,7 +211,7 @@ func (s *ResponseService) GetCastingResponses(castingID, employerID string) ([]d
 	return summaries, nil
 }
 
-func (s *ResponseService) UpdateResponseStatus(employerID, responseID string, status models.ResponseStatus) error {
+func (s *ResponseServiceImpl) UpdateResponseStatus(employerID, responseID string, status models.ResponseStatus) error {
 	response, err := s.responseRepo.FindResponseByID(responseID)
 	if err != nil {
 		return err
@@ -239,7 +254,7 @@ func (s *ResponseService) UpdateResponseStatus(employerID, responseID string, st
 	return nil
 }
 
-func (s *ResponseService) MarkResponseAsViewed(employerID, responseID string) error {
+func (s *ResponseServiceImpl) MarkResponseAsViewed(employerID, responseID string) error {
 	response, err := s.responseRepo.FindResponseByID(responseID)
 	if err != nil {
 		return err
@@ -257,7 +272,7 @@ func (s *ResponseService) MarkResponseAsViewed(employerID, responseID string) er
 	return s.responseRepo.MarkResponseAsViewed(responseID)
 }
 
-func (s *ResponseService) GetResponseStats(castingID string) (*dto.CastingStatsResponse, error) {
+func (s *ResponseServiceImpl) GetResponseStats(castingID string) (*dto.CastingStatsResponse, error) {
 	stats, err := s.responseRepo.GetResponseStats(castingID)
 	if err != nil {
 		return nil, err
@@ -271,7 +286,7 @@ func (s *ResponseService) GetResponseStats(castingID string) (*dto.CastingStatsR
 	}, nil
 }
 
-func (s *ResponseService) GetResponse(responseID, userID string) (*models.CastingResponse, error) {
+func (s *ResponseServiceImpl) GetResponse(responseID, userID string) (*models.CastingResponse, error) {
 	response, err := s.responseRepo.FindResponseByID(responseID)
 	if err != nil {
 		return nil, err
@@ -293,7 +308,7 @@ func (s *ResponseService) GetResponse(responseID, userID string) (*models.Castin
 
 // Helper Methods
 
-func (s *ResponseService) createReviewPlaceholder(casting *models.Casting, response *models.CastingResponse) {
+func (s *ResponseServiceImpl) createReviewPlaceholder(casting *models.Casting, response *models.CastingResponse) {
 	review := &models.Review{
 		ModelID:    response.ModelID,
 		EmployerID: casting.EmployerID,

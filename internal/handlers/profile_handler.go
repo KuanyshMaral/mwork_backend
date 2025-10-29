@@ -15,10 +15,10 @@ import (
 )
 
 type ProfileHandler struct {
-	profileService *services.ProfileService
+	profileService services.ProfileService
 }
 
-func NewProfileHandler(profileService *services.ProfileService) *ProfileHandler {
+func NewProfileHandler(profileService services.ProfileService) *ProfileHandler {
 	return &ProfileHandler{
 		profileService: profileService,
 	}
@@ -50,22 +50,19 @@ func (h *ProfileHandler) RegisterRoutes(r *gin.RouterGroup) {
 func (h *ProfileHandler) CreateModelProfile(c *gin.Context) {
 	var req dto.CreateModelProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		appErrors.HandleValidationError(c, err) // <-- Fixed
 		return
 	}
 
 	req.UserID = middleware.GetUserID(c)
 
 	if err := h.profileService.CreateModelProfile(&req); err != nil {
-		statusCode := http.StatusInternalServerError
-		if appErrors.Is(err, appErrors.ErrInvalidUserRole) {
-			statusCode = http.StatusForbidden
-		} else if err.Error() == "age must be between 16 and 70" ||
-			err.Error() == "height must be between 100 and 250 cm" ||
-			err.Error() == "hourly rate cannot be negative" {
-			statusCode = http.StatusBadRequest
+		var appErr *appErrors.AppError // <-- Fixed
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
 		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -75,18 +72,19 @@ func (h *ProfileHandler) CreateModelProfile(c *gin.Context) {
 func (h *ProfileHandler) CreateEmployerProfile(c *gin.Context) {
 	var req dto.CreateEmployerProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		appErrors.HandleValidationError(c, err) // <-- Fixed
 		return
 	}
 
 	req.UserID = middleware.GetUserID(c)
 
 	if err := h.profileService.CreateEmployerProfile(&req); err != nil {
-		statusCode := http.StatusInternalServerError
-		if appErrors.Is(err, appErrors.ErrInvalidUserRole) {
-			statusCode = http.StatusForbidden
+		var appErr *appErrors.AppError // <-- Fixed
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
 		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -106,13 +104,12 @@ func (h *ProfileHandler) GetProfile(c *gin.Context) {
 
 	profile, err := h.profileService.GetProfile(userID, requesterID)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if appErrors.Is(err, appErrors.ErrProfileNotPublic) {
-			statusCode = http.StatusForbidden
-		} else if appErrors.Is(err, appErrors.ErrInvalidUserRole) {
-			statusCode = http.StatusBadRequest
+		var appErr *appErrors.AppError // <-- Fixed
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
 		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -126,16 +123,17 @@ func (h *ProfileHandler) UpdateMyProfile(c *gin.Context) {
 
 	var req dto.UpdateProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		appErrors.HandleValidationError(c, err) // <-- Fixed
 		return
 	}
 
 	if err := h.profileService.UpdateProfile(userID, &req); err != nil {
-		statusCode := http.StatusInternalServerError
-		if appErrors.Is(err, appErrors.ErrInvalidUserRole) {
-			statusCode = http.StatusForbidden
+		var appErr *appErrors.AppError // <-- Fixed
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
 		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -149,16 +147,17 @@ func (h *ProfileHandler) ToggleVisibility(c *gin.Context) {
 		IsPublic bool `json:"is_public"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		appErrors.HandleValidationError(c, err) // <-- Fixed
 		return
 	}
 
 	if err := h.profileService.ToggleProfileVisibility(userID, req.IsPublic); err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "only model profiles can toggle visibility" {
-			statusCode = http.StatusForbidden
+		var appErr *appErrors.AppError // <-- Fixed
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
 		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -170,7 +169,7 @@ func (h *ProfileHandler) ToggleVisibility(c *gin.Context) {
 func (h *ProfileHandler) SearchModels(c *gin.Context) {
 	var criteria dto.ProfileSearchCriteria
 	if err := c.ShouldBindQuery(&criteria); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
+		appErrors.HandleValidationError(c, err) // <-- Fixed
 		return
 	}
 
@@ -184,7 +183,12 @@ func (h *ProfileHandler) SearchModels(c *gin.Context) {
 
 	profiles, total, err := h.profileService.SearchModels(criteria)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		var appErr *appErrors.AppError // <-- Fixed
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -199,7 +203,7 @@ func (h *ProfileHandler) SearchModels(c *gin.Context) {
 func (h *ProfileHandler) SearchEmployers(c *gin.Context) {
 	var criteria repositories.EmployerSearchCriteria
 	if err := c.ShouldBindQuery(&criteria); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
+		appErrors.HandleValidationError(c, err) // <-- Fixed
 		return
 	}
 
@@ -213,7 +217,12 @@ func (h *ProfileHandler) SearchEmployers(c *gin.Context) {
 
 	profiles, total, err := h.profileService.SearchEmployers(criteria)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		var appErr *appErrors.AppError // <-- Fixed
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -233,7 +242,12 @@ func (h *ProfileHandler) GetMyStats(c *gin.Context) {
 	// Get user to determine role
 	user, err := h.profileService.GetProfile(userID, userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		var appErr *appErrors.AppError // <-- Fixed
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -242,7 +256,12 @@ func (h *ProfileHandler) GetMyStats(c *gin.Context) {
 		if modelProfile, ok := user.Data.(*models.ModelProfile); ok {
 			stats, err := h.profileService.GetModelStats(modelProfile.ID)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				var appErr *appErrors.AppError // <-- Fixed
+				if appErrors.As(err, &appErr) {
+					appErrors.HandleError(c, appErr)
+				} else {
+					appErrors.HandleError(c, appErrors.InternalError(err))
+				}
 				return
 			}
 			c.JSON(http.StatusOK, stats)
@@ -250,7 +269,8 @@ func (h *ProfileHandler) GetMyStats(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusBadRequest, gin.H{"error": "Stats not available for this profile type"})
+	// <-- Fixed
+	appErrors.HandleError(c, appErrors.NewBadRequestError("Stats not available for this profile type"))
 }
 
 // ============================================================================

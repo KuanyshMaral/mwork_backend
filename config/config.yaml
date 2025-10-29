@@ -5,17 +5,3 @@ database:
   driver: "postgres"
   url: "postgres://postgres:Sagster-2020@localhost:5432/mwork?sslmode=disable"
 
-email:
-  smtp_host: smtp.example.com
-  smtp_port: 587
-  smtp_user: your_user@example.com
-  smtp_password: your_password
-  from_email: no-reply@example.com
-
-robokassa:
-  merchant_login: yourLogin
-  password1: yourPassword1
-  password2: yourPassword2
-  result_url: https://yourapi.com/api/payment/robokassa/result
-  success_url: https://yourfront.com/success
-  fail_url: https://yourfront.com/fail

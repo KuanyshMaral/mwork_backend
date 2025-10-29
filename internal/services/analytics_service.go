@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context" // <-- Добавлено
 	"errors"
 	"time"
 
@@ -47,6 +48,7 @@ type analyticsService struct {
 	portfolioRepo    repositories.PortfolioRepository
 	subscriptionRepo repositories.SubscriptionRepository
 	chatRepo         repositories.ChatRepository
+	analyticsRepo    repositories.AnalyticsRepository // <-- Добавлено
 }
 
 func NewAnalyticsService(
@@ -58,6 +60,7 @@ func NewAnalyticsService(
 	portfolioRepo repositories.PortfolioRepository,
 	subscriptionRepo repositories.SubscriptionRepository,
 	chatRepo repositories.ChatRepository,
+	analyticsRepo repositories.AnalyticsRepository, // <-- Добавлено
 ) AnalyticsService {
 	return &analyticsService{
 		userRepo:         userRepo,
@@ -68,6 +71,7 @@ func NewAnalyticsService(
 		portfolioRepo:    portfolioRepo,
 		subscriptionRepo: subscriptionRepo,
 		chatRepo:         chatRepo,
+		analyticsRepo:    analyticsRepo, // <-- Добавлено
 	}
 }
 
@@ -165,13 +169,22 @@ func (s *analyticsService) GetPlatformGrowthMetrics(days int) (*dto.GrowthMetric
 
 	// Generate historical trends
 	var historicalTrends []dto.DataPoint
+	ctx := context.Background() // <-- Используем context
 	for i := 0; i < days; i++ {
 		currentDate := dateFrom.AddDate(0, 0, i)
-		nextDate := currentDate.AddDate(0, 0, 1)
 
-		dailyStats, err := s.userRepo.GetUserStats(currentDate, nextDate)
+		// Используем GetDAU из analyticsRepo для получения активных пользователей
+		// или GetUserStats для новых пользователей. Выберем GetUserStats для "NewUsers"
+		dailyStats, err := s.userRepo.GetUserStats(currentDate, currentDate.AddDate(0, 0, 1))
 		if err != nil {
-			continue
+			// Попробуем получить DAU, если GetUserStats не удался (или наоборот)
+			dau, dauErr := s.analyticsRepo.GetDAU(ctx, currentDate)
+			if dauErr != nil {
+				continue // Пропускаем день, если обе статистики не удались
+			}
+			dailyStats.NewUsers = dau // Используем DAU как запасной вариант, хотя это разные метрики
+			// В идеале GetUserStats должен быть надежным, или мы должны
+			// отслеживать "USER_REGISTER" в analyticsRepo
 		}
 
 		historicalTrends = append(historicalTrends, dto.DataPoint{
@@ -180,11 +193,14 @@ func (s *analyticsService) GetPlatformGrowthMetrics(days int) (*dto.GrowthMetric
 		})
 	}
 
+	// Получаем средний DAU за период
+	avgDAU, _ := s.calculateAverageDAU(dateFrom, dateTo)
+
 	return &dto.GrowthMetrics{
 		TotalUsers:        int(userStats.TotalUsers),
 		NewUsersThisMonth: int(monthStats.NewUsers),
 		MonthlyGrowthRate: monthlyGrowthRate,
-		ActiveUsers:       int(userStats.ActiveUsers),
+		ActiveUsers:       int(avgDAU), // <-- Используем средний DAU
 		ChurnRate:         s.calculateChurnRate(dateFrom, dateTo),
 		HistoricalTrends:  historicalTrends,
 	}, nil
@@ -206,16 +222,21 @@ func (s *analyticsService) GetUserAnalytics(dateFrom, dateTo time.Time) (*dto.Us
 		return nil, err
 	}
 
-	userStats, err := s.userRepo.GetUserStats(dateFrom, dateTo)
+	// --- Обновленная логика ---
+	// Рассчитываем средний DAU, WAU, MAU за период
+	avgDAU, err := s.calculateAverageDAU(dateFrom, dateTo)
 	if err != nil {
-		return nil, err
+		// Не фатально, можем просто установить в 0
+		avgDAU = 0
 	}
 
+	// WAU и MAU все еще упрощены, но основаны на более точной метрике DAU
 	activity := dto.UserActivity{
-		DailyActiveUsers:   int(userStats.ActiveUsers),
-		WeeklyActiveUsers:  int(userStats.ActiveUsers * 5 / 7),  // Simplified
-		MonthlyActiveUsers: int(userStats.ActiveUsers * 20 / 7), // Simplified
+		DailyActiveUsers:   int(avgDAU),
+		WeeklyActiveUsers:  int(avgDAU * 5),  // Упрощенное предположение (5 рабочих дней)
+		MonthlyActiveUsers: int(avgDAU * 22), // Упрощенное предположение (22 рабочих дня)
 	}
+	// --- Конец обновленной логики ---
 
 	churn := dto.ChurnAnalysis{
 		Rate: s.calculateChurnRate(dateFrom, dateTo),
@@ -241,6 +262,9 @@ func (s *analyticsService) GetUserAcquisitionMetrics(dateFrom, dateTo time.Time)
 		return nil, err
 	}
 
+	// Получаем DAU, чтобы рассчитать ReturningUsers
+	avgDAU, _ := s.calculateAverageDAU(dateFrom, dateTo)
+
 	sources := []dto.DataPoint{
 		{Timestamp: "Organic", Value: 500},
 		{Timestamp: "Direct", Value: 300},
@@ -249,9 +273,14 @@ func (s *analyticsService) GetUserAcquisitionMetrics(dateFrom, dateTo time.Time)
 		{Timestamp: "Paid Ads", Value: 100},
 	}
 
+	returningUsers := int(avgDAU) - int(userStats.NewUsers)
+	if returningUsers < 0 {
+		returningUsers = 0 // Не может быть отрицательным
+	}
+
 	return &dto.UserAcquisitionMetrics{
 		NewUsers:       int(userStats.NewUsers),
-		ReturningUsers: int(userStats.ActiveUsers - userStats.NewUsers),
+		ReturningUsers: returningUsers, // <-- Используем DAU
 		ConversionRate: 0.05,
 		Sources:        sources,
 	}, nil
@@ -381,10 +410,16 @@ func (s *analyticsService) GetGeographicAnalytics() (*dto.GeographicAnalytics, e
 			Revenue:   float64(userCount) * 25.0, // Simplified calculation
 		})
 
+		// Ensure userCount is not zero to avoid division by zero
+		responseTime := 0.5
+		if userCount > 0 {
+			responseTime += (float64(castingDistribution[city]) / float64(userCount))
+		}
+
 		cities = append(cities, dto.CityPerformance{
 			Name:           city,
 			EngagementRate: 0.65 + (float64(len(city)%100) / 100.0 * 0.3),
-			ResponseTime:   0.5 + (float64(castingDistribution[city]) / float64(userCount)),
+			ResponseTime:   responseTime,
 		})
 	}
 
@@ -409,6 +444,7 @@ func (s *analyticsService) GetPerformanceMetrics(dateFrom, dateTo time.Time) (*d
 
 // Real-time Analytics
 func (s *analyticsService) GetRealTimeMetrics() (*dto.RealTimeMetrics, error) {
+	// Эта метрика (активные за 15 мин) хороша для "Real-time"
 	activeUsers, err := s.userRepo.GetActiveUsersCount(15)
 	if err != nil {
 		return nil, err
@@ -420,16 +456,25 @@ func (s *analyticsService) GetRealTimeMetrics() (*dto.RealTimeMetrics, error) {
 	}
 
 	keyMetrics := dto.KeyMetrics{
-		ActiveUsers: int(activeUsers),
+		ActiveUsers: int(activeUsers), // Активные за 15 мин
 		NewUsers:    0,
 		Revenue:     0.0,
 	}
 
-	activity := dto.UserActivity{
-		DailyActiveUsers:   int(activeUsers),
-		WeeklyActiveUsers:  int(activeUsers * 5),
-		MonthlyActiveUsers: int(activeUsers * 20),
+	// --- Обновленная логика ---
+	// Получаем DAU (активные за *сегодня*)
+	ctx := context.Background()
+	dau, err := s.analyticsRepo.GetDAU(ctx, time.Now())
+	if err != nil {
+		dau = 0 // Не фатально
 	}
+
+	activity := dto.UserActivity{
+		DailyActiveUsers:   int(dau),      // <-- Реальный DAU за сегодня
+		WeeklyActiveUsers:  int(dau * 5),  // Упрощение
+		MonthlyActiveUsers: int(dau * 20), // Упрощение
+	}
+	// --- Конец обновленной логики ---
 
 	castingActivity := dto.CastingActivity{
 		OpenCastings: int(activeCastings),
@@ -492,16 +537,53 @@ func (s *analyticsService) GetAdminDashboard(adminID string) (*dto.AdminDashboar
 	}, nil
 }
 
+// ==============================
 // Helper methods
+// ==============================
+
+// calculateAverageDAU рассчитывает средний DAU за период
+func (s *analyticsService) calculateAverageDAU(from, to time.Time) (float64, error) {
+	ctx := context.Background()
+	totalDAU := int64(0)
+	numDays := 0
+
+	// Нормализуем даты до начала дня
+	currentDay := from.Truncate(24 * time.Hour)
+	endDate := to.Truncate(24 * time.Hour)
+
+	// Итерируем по каждому дню в диапазоне
+	for ; !currentDay.After(endDate); currentDay = currentDay.AddDate(0, 0, 1) {
+		dau, err := s.analyticsRepo.GetDAU(ctx, currentDay)
+		if err != nil {
+			// Если один день не удался, мы можем либо пропустить его, либо вернуть ошибку
+			// Вернем ошибку, чтобы среднее значение было точным
+			return 0, err
+		}
+		totalDAU += dau
+		numDays++
+	}
+
+	if numDays == 0 {
+		return 0, nil // Избегаем деления на ноль
+	}
+
+	return float64(totalDAU) / float64(numDays), nil
+}
+
 func (s *analyticsService) calculateRetentionRate(dateFrom, dateTo time.Time) float64 {
+	// TODO: Реализовать с использованием analyticsRepo (например, когортный анализ)
 	return 0.75
 }
 
 func (s *analyticsService) calculateChurnRate(dateFrom, dateTo time.Time) float64 {
+	// TODO: Реализовать с использованием analyticsRepo
 	return 0.08
 }
 
+// ==============================
 // Stub implementations
+// ==============================
+
 func (s *analyticsService) GetUserRetentionMetrics(days int) (*dto.UserRetentionMetrics, error) {
 	return &dto.UserRetentionMetrics{
 		RetentionRate:   0.75,

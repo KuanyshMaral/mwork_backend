@@ -6,7 +6,7 @@ import (
 	"mwork_backend/internal/email"
 )
 
-// EmailService предоставляет высокоуровневый интерфейс для работы с email
+// EmailService предоставляет высокоуровговый интерфейс для работы с email
 type EmailService struct {
 	provider email.Provider
 }
@@ -18,6 +18,52 @@ func NewEmailService(provider email.Provider) *EmailService {
 	}
 }
 
+// =========================================================
+// Email Provider Interface Implementation (Delegation)
+// *EmailService теперь реализует интерфейс email.Provider, делегируя вызовы
+// внутреннему провайдеру (s.provider).
+// =========================================================
+
+// Send делегирует базовую отправку email низкоуровневому провайдеру.
+func (s *EmailService) Send(emailMsg *email.Email) error {
+	return s.provider.Send(emailMsg)
+}
+
+// SendWithTemplate делегирует отправку email по шаблону низкоуровневому провайдеру.
+func (s *EmailService) SendWithTemplate(templateName string, data email.TemplateData, emailMsg *email.Email) error {
+	return s.provider.SendWithTemplate(templateName, data, emailMsg)
+}
+
+// SendVerification делегирует отправку письма верификации email низкоуровневому провайдеру.
+func (s *EmailService) SendVerification(to, token string) error {
+	return s.provider.SendVerification(to, token)
+}
+
+// SendTemplate удовлетворяет новый контракт интерфейса email.Provider.
+// Этот метод является недостающим звеном, о котором сообщает компилятор.
+func (s *EmailService) SendTemplate(to []string, subject string, templateName string, data email.TemplateData) error {
+	emailMsg := &email.Email{
+		To:      to,
+		Subject: subject,
+	}
+	// Делегируем вызов уже существующему методу провайдера
+	return s.provider.SendWithTemplate(templateName, data, emailMsg)
+}
+
+// Validate проверяет конфигурацию email сервиса
+func (s *EmailService) Validate() error {
+	return s.provider.Validate()
+}
+
+// Close закрывает соединения email сервиса
+func (s *EmailService) Close() error {
+	return s.provider.Close()
+}
+
+// =========================================================
+// High-Level Service Methods (With Context)
+// =========================================================
+
 // SendSimpleEmail отправляет простое текстовое email сообщение
 func (s *EmailService) SendSimpleEmail(ctx context.Context, to []string, subject, body string) error {
 	emailMsg := &email.Email{
@@ -26,7 +72,7 @@ func (s *EmailService) SendSimpleEmail(ctx context.Context, to []string, subject
 		Body:    body,
 	}
 
-	return s.provider.Send(emailMsg)
+	return s.Send(emailMsg)
 }
 
 // SendHTMLEmail отправляет HTML email сообщение
@@ -37,7 +83,7 @@ func (s *EmailService) SendHTMLEmail(ctx context.Context, to []string, subject, 
 		HTMLBody: htmlBody,
 	}
 
-	return s.provider.Send(emailMsg)
+	return s.Send(emailMsg)
 }
 
 // SendTemplatedEmail отправляет email используя шаблон
@@ -47,7 +93,7 @@ func (s *EmailService) SendTemplatedEmail(ctx context.Context, to []string, subj
 		Subject: subject,
 	}
 
-	return s.provider.SendWithTemplate(templateName, data, emailMsg)
+	return s.SendWithTemplate(templateName, data, emailMsg)
 }
 
 // SendEmailWithAttachments отправляет email с вложениями
@@ -59,7 +105,7 @@ func (s *EmailService) SendEmailWithAttachments(ctx context.Context, to []string
 		Attachments: attachments,
 	}
 
-	return s.provider.Send(emailMsg)
+	return s.Send(emailMsg)
 }
 
 // SendBulkEmail отправляет массовые email сообщения
@@ -76,12 +122,12 @@ func (s *EmailService) SendBulkEmail(ctx context.Context, emails []BulkEmail) er
 			}
 
 			if emailItem.TemplateName != "" {
-				err := s.provider.SendWithTemplate(emailItem.TemplateName, emailItem.TemplateData, emailMsg)
+				err := s.SendWithTemplate(emailItem.TemplateName, emailItem.TemplateData, emailMsg)
 				if err != nil {
 					return fmt.Errorf("failed to send email to %s (index %d): %w", emailItem.To, i, err)
 				}
 			} else {
-				err := s.provider.Send(emailMsg)
+				err := s.Send(emailMsg)
 				if err != nil {
 					return fmt.Errorf("failed to send email to %s (index %d): %w", emailItem.To, i, err)
 				}
@@ -134,16 +180,6 @@ func (s *EmailService) SendNotificationEmail(ctx context.Context, to, title, mes
 	}
 
 	return s.SendTemplatedEmail(ctx, []string{to}, title, "notification", data)
-}
-
-// Validate проверяет конфигурацию email сервиса
-func (s *EmailService) Validate() error {
-	return s.provider.Validate()
-}
-
-// Close закрывает соединения email сервиса
-func (s *EmailService) Close() error {
-	return s.provider.Close()
 }
 
 // BulkEmail представляет email для массовой рассылки

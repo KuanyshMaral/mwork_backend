@@ -8,7 +8,8 @@ import (
 	"mwork_backend/internal/services"
 	"mwork_backend/internal/services/dto"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
+	// "github.com/gorilla/mux" // No longer needed
 )
 
 type ChatHandler struct {
@@ -21,90 +22,94 @@ func NewChatHandler(chatService services.ChatService) *ChatHandler {
 	}
 }
 
-// RegisterRoutes регистрирует все маршруты для чата
-func (h *ChatHandler) RegisterRoutes(router *mux.Router) {
+// RegisterRoutes регистрирует все маршруты для чата, используя GIN
+func (h *ChatHandler) RegisterRoutes(router *gin.RouterGroup) {
+	// Мы регистрируем маршруты непосредственно в группе /api/v1 (которая передается как 'router')
+	// Mux: router.HandleFunc("/dialogs", h.CreateDialog).Methods(http.MethodPost)
+	// Gin: router.POST("/dialogs", h.CreateDialog)
+
 	// Dialog routes
-	router.HandleFunc("/dialogs", h.CreateDialog).Methods(http.MethodPost)
-	router.HandleFunc("/dialogs/casting", h.CreateCastingDialog).Methods(http.MethodPost)
-	router.HandleFunc("/dialogs", h.GetUserDialogs).Methods(http.MethodGet)
-	router.HandleFunc("/dialogs/{dialogID}", h.GetDialog).Methods(http.MethodGet)
-	router.HandleFunc("/dialogs/{dialogID}", h.UpdateDialog).Methods(http.MethodPut)
-	router.HandleFunc("/dialogs/{dialogID}", h.DeleteDialog).Methods(http.MethodDelete)
-	router.HandleFunc("/dialogs/{dialogID}/leave", h.LeaveDialog).Methods(http.MethodPost)
-	router.HandleFunc("/dialogs/between/{user1ID}/{user2ID}", h.GetDialogBetweenUsers).Methods(http.MethodGet)
+	router.POST("/dialogs", h.CreateDialog)
+	router.POST("/dialogs/casting", h.CreateCastingDialog)
+	router.GET("/dialogs", h.GetUserDialogs)
+	router.GET("/dialogs/:dialogID", h.GetDialog)
+	router.PUT("/dialogs/:dialogID", h.UpdateDialog)
+	router.DELETE("/dialogs/:dialogID", h.DeleteDialog)
+	router.POST("/dialogs/:dialogID/leave", h.LeaveDialog)
+	router.GET("/dialogs/between/:user1ID/:user2ID", h.GetDialogBetweenUsers)
 
 	// Participant routes
-	router.HandleFunc("/dialogs/{dialogID}/participants", h.AddParticipants).Methods(http.MethodPost)
-	router.HandleFunc("/dialogs/{dialogID}/participants/{userID}", h.RemoveParticipant).Methods(http.MethodDelete)
-	router.HandleFunc("/dialogs/{dialogID}/participants/{userID}/role", h.UpdateParticipantRole).Methods(http.MethodPut)
-	router.HandleFunc("/dialogs/{dialogID}/mute", h.MuteDialog).Methods(http.MethodPost)
-	router.HandleFunc("/dialogs/{dialogID}/last-seen", h.UpdateLastSeen).Methods(http.MethodPost)
-	router.HandleFunc("/dialogs/{dialogID}/typing", h.SetTyping).Methods(http.MethodPost)
+	router.POST("/dialogs/:dialogID/participants", h.AddParticipants)
+	router.DELETE("/dialogs/:dialogID/participants/:userID", h.RemoveParticipant)
+	router.PUT("/dialogs/:dialogID/participants/:userID/role", h.UpdateParticipantRole)
+	router.POST("/dialogs/:dialogID/mute", h.MuteDialog)
+	router.POST("/dialogs/:dialogID/last-seen", h.UpdateLastSeen)
+	router.POST("/dialogs/:dialogID/typing", h.SetTyping)
 
 	// Message routes
-	router.HandleFunc("/messages", h.SendMessage).Methods(http.MethodPost)
-	router.HandleFunc("/messages/attachments", h.SendMessageWithAttachments).Methods(http.MethodPost)
-	router.HandleFunc("/messages/{messageID}", h.GetMessage).Methods(http.MethodGet)
-	router.HandleFunc("/messages/{messageID}", h.UpdateMessage).Methods(http.MethodPut)
-	router.HandleFunc("/messages/{messageID}", h.DeleteMessage).Methods(http.MethodDelete)
-	router.HandleFunc("/messages/forward", h.ForwardMessage).Methods(http.MethodPost)
-	router.HandleFunc("/dialogs/{dialogID}/messages", h.GetMessages).Methods(http.MethodGet)
-	router.HandleFunc("/dialogs/{dialogID}/search", h.SearchMessages).Methods(http.MethodGet)
+	router.POST("/messages", h.SendMessage)
+	router.POST("/messages/attachments", h.SendMessageWithAttachments)
+	router.GET("/messages/:messageID", h.GetMessage)
+	router.PUT("/messages/:messageID", h.UpdateMessage)
+	router.DELETE("/messages/:messageID", h.DeleteMessage)
+	router.POST("/messages/forward", h.ForwardMessage)
+	router.GET("/dialogs/:dialogID/messages", h.GetMessages)
+	router.GET("/dialogs/:dialogID/search", h.SearchMessages)
 
 	// Attachment routes
-	router.HandleFunc("/attachments/upload", h.UploadAttachment).Methods(http.MethodPost)
-	router.HandleFunc("/messages/{messageID}/attachments", h.GetMessageAttachments).Methods(http.MethodGet)
-	router.HandleFunc("/dialogs/{dialogID}/attachments", h.GetDialogAttachments).Methods(http.MethodGet)
-	router.HandleFunc("/attachments/{attachmentID}", h.DeleteAttachment).Methods(http.MethodDelete)
+	router.POST("/attachments/upload", h.UploadAttachment)
+	router.GET("/messages/:messageID/attachments", h.GetMessageAttachments)
+	router.GET("/dialogs/:dialogID/attachments", h.GetDialogAttachments)
+	router.DELETE("/attachments/:attachmentID", h.DeleteAttachment)
 
 	// Reaction routes
-	router.HandleFunc("/messages/{messageID}/reactions", h.AddReaction).Methods(http.MethodPost)
-	router.HandleFunc("/messages/{messageID}/reactions", h.RemoveReaction).Methods(http.MethodDelete)
-	router.HandleFunc("/messages/{messageID}/reactions", h.GetMessageReactions).Methods(http.MethodGet)
+	router.POST("/messages/:messageID/reactions", h.AddReaction)
+	router.DELETE("/messages/:messageID/reactions", h.RemoveReaction)
+	router.GET("/messages/:messageID/reactions", h.GetMessageReactions)
 
 	// Read receipts routes
-	router.HandleFunc("/dialogs/{dialogID}/read", h.MarkMessagesAsRead).Methods(http.MethodPost)
-	router.HandleFunc("/dialogs/{dialogID}/unread-count", h.GetUnreadCount).Methods(http.MethodGet)
-	router.HandleFunc("/messages/{messageID}/read-receipts", h.GetReadReceipts).Methods(http.MethodGet)
+	router.POST("/dialogs/:dialogID/read", h.MarkMessagesAsRead)
+	router.GET("/dialogs/:dialogID/unread-count", h.GetUnreadCount)
+	router.GET("/messages/:messageID/read-receipts", h.GetReadReceipts)
 
 	// Combined routes
-	router.HandleFunc("/dialogs/{dialogID}/with-messages", h.GetDialogWithMessages).Methods(http.MethodGet)
+	router.GET("/dialogs/:dialogID/with-messages", h.GetDialogWithMessages)
 
-	// Admin routes
-	router.HandleFunc("/admin/dialogs", h.GetAllDialogs).Methods(http.MethodGet)
-	router.HandleFunc("/admin/stats", h.GetChatStats).Methods(http.MethodGet)
-	router.HandleFunc("/admin/clean", h.CleanOldMessages).Methods(http.MethodPost)
-	router.HandleFunc("/admin/users/{userID}/messages", h.DeleteUserMessages).Methods(http.MethodDelete)
+	// Admin routes (TODO: Защитите эти маршруты с помощью Admin middleware)
+	router.GET("/admin/dialogs", h.GetAllDialogs)
+	router.GET("/admin/stats", h.GetChatStats)
+	router.POST("/admin/clean", h.CleanOldMessages)
+	router.DELETE("/admin/users/:userID/messages", h.DeleteUserMessages)
 }
 
 // Dialog handlers
 
-func (h *ChatHandler) CreateDialog(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) CreateDialog(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	var req dto.CreateDialogRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
 	dialog, err := h.chatService.CreateDialog(userID, &req)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusCreated, dialog)
+	c.JSON(http.StatusCreated, dialog)
 }
 
-func (h *ChatHandler) CreateCastingDialog(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) CreateCastingDialog(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
@@ -114,773 +119,756 @@ func (h *ChatHandler) CreateCastingDialog(w http.ResponseWriter, r *http.Request
 		ModelID    string `json:"model_id"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
 	dialog, err := h.chatService.CreateCastingDialog(req.CastingID, req.EmployerID, req.ModelID)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusCreated, dialog)
+	c.JSON(http.StatusCreated, dialog)
 }
 
-func (h *ChatHandler) GetDialog(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) GetDialog(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	dialogID := vars["dialogID"]
+	dialogID := c.Param("dialogID")
 
 	dialog, err := h.chatService.GetDialog(dialogID, userID)
 	if err != nil {
-		respondError(w, http.StatusNotFound, err.Error())
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, dialog)
+	c.JSON(http.StatusOK, dialog)
 }
 
-func (h *ChatHandler) GetUserDialogs(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) GetUserDialogs(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	dialogs, err := h.chatService.GetUserDialogs(userID)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, dialogs)
+	c.JSON(http.StatusOK, dialogs)
 }
 
-func (h *ChatHandler) GetDialogBetweenUsers(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) GetDialogBetweenUsers(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	user1ID := vars["user1ID"]
-	user2ID := vars["user2ID"]
+	user1ID := c.Param("user1ID")
+	user2ID := c.Param("user2ID")
 
 	dialog, err := h.chatService.GetDialogBetweenUsers(user1ID, user2ID)
 	if err != nil {
-		respondError(w, http.StatusNotFound, err.Error())
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, dialog)
+	c.JSON(http.StatusOK, dialog)
 }
 
-func (h *ChatHandler) UpdateDialog(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) UpdateDialog(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	dialogID := vars["dialogID"]
+	dialogID := c.Param("dialogID")
 
 	var req dto.UpdateDialogRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
 	if err := h.chatService.UpdateDialog(userID, dialogID, &req); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]string{"message": "dialog updated successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "dialog updated successfully"})
 }
 
-func (h *ChatHandler) DeleteDialog(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) DeleteDialog(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	dialogID := vars["dialogID"]
+	dialogID := c.Param("dialogID")
 
 	if err := h.chatService.DeleteDialog(userID, dialogID); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]string{"message": "dialog deleted successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "dialog deleted successfully"})
 }
 
-func (h *ChatHandler) LeaveDialog(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) LeaveDialog(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	dialogID := vars["dialogID"]
+	dialogID := c.Param("dialogID")
 
 	if err := h.chatService.LeaveDialog(userID, dialogID); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]string{"message": "left dialog successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "left dialog successfully"})
 }
 
 // Participant handlers
 
-func (h *ChatHandler) AddParticipants(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) AddParticipants(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	dialogID := vars["dialogID"]
+	dialogID := c.Param("dialogID")
 
 	var req struct {
 		ParticipantIDs []string `json:"participant_ids"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
 	if err := h.chatService.AddParticipants(userID, dialogID, req.ParticipantIDs); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]string{"message": "participants added successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "participants added successfully"})
 }
 
-func (h *ChatHandler) RemoveParticipant(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) RemoveParticipant(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	dialogID := vars["dialogID"]
-	targetUserID := vars["userID"]
+	dialogID := c.Param("dialogID")
+	targetUserID := c.Param("userID")
 
 	if err := h.chatService.RemoveParticipant(userID, dialogID, targetUserID); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]string{"message": "participant removed successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "participant removed successfully"})
 }
 
-func (h *ChatHandler) UpdateParticipantRole(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) UpdateParticipantRole(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	dialogID := vars["dialogID"]
-	targetUserID := vars["userID"]
+	dialogID := c.Param("dialogID")
+	targetUserID := c.Param("userID")
 
 	var req struct {
 		Role string `json:"role"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
 	if err := h.chatService.UpdateParticipantRole(userID, dialogID, targetUserID, req.Role); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]string{"message": "participant role updated successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "participant role updated successfully"})
 }
 
-func (h *ChatHandler) MuteDialog(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) MuteDialog(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	dialogID := vars["dialogID"]
+	dialogID := c.Param("dialogID")
 
 	var req struct {
 		Muted bool `json:"muted"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
 	if err := h.chatService.MuteDialog(userID, dialogID, req.Muted); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]string{"message": "dialog mute status updated"})
+	c.JSON(http.StatusOK, gin.H{"message": "dialog mute status updated"})
 }
 
-func (h *ChatHandler) UpdateLastSeen(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) UpdateLastSeen(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	dialogID := vars["dialogID"]
+	dialogID := c.Param("dialogID")
 
 	if err := h.chatService.UpdateLastSeen(userID, dialogID); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]string{"message": "last seen updated"})
+	c.JSON(http.StatusOK, gin.H{"message": "last seen updated"})
 }
 
-func (h *ChatHandler) SetTyping(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) SetTyping(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	dialogID := vars["dialogID"]
+	dialogID := c.Param("dialogID")
 
 	var req struct {
 		Typing bool `json:"typing"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
 	if err := h.chatService.SetTyping(userID, dialogID, req.Typing); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]string{"message": "typing status updated"})
+	c.JSON(http.StatusOK, gin.H{"message": "typing status updated"})
 }
 
 // Message handlers
 
-func (h *ChatHandler) SendMessage(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) SendMessage(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	var req dto.SendMessageRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
 	message, err := h.chatService.SendMessage(userID, &req)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusCreated, message)
+	c.JSON(http.StatusCreated, message)
 }
 
-func (h *ChatHandler) SendMessageWithAttachments(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) SendMessageWithAttachments(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	if err := r.ParseMultipartForm(50 << 20); err != nil {
-		respondError(w, http.StatusBadRequest, "failed to parse multipart form")
+	// 50 MB лимит
+	if err := c.Request.ParseMultipartForm(50 << 20); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to parse multipart form"})
 		return
 	}
 
 	// Parse message data
 	var req dto.SendMessageRequest
-	if err := json.Unmarshal([]byte(r.FormValue("message")), &req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid message data")
+	messageData := c.Request.FormValue("message")
+	if err := json.Unmarshal([]byte(messageData), &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid message data"})
 		return
 	}
 
 	// Get files
-	files := r.MultipartForm.File["files"]
+	files := c.Request.MultipartForm.File["files"]
 
 	message, err := h.chatService.SendMessageWithAttachments(userID, &req, files)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusCreated, message)
+	c.JSON(http.StatusCreated, message)
 }
 
-func (h *ChatHandler) GetMessages(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) GetMessages(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	dialogID := vars["dialogID"]
-
-	criteria := parseMessageCriteria(r)
+	dialogID := c.Param("dialogID")
+	criteria := parseMessageCriteria(c)
 
 	messages, err := h.chatService.GetMessages(dialogID, userID, criteria)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, messages)
+	c.JSON(http.StatusOK, messages)
 }
 
-func (h *ChatHandler) GetMessage(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) GetMessage(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	messageID := vars["messageID"]
+	messageID := c.Param("messageID")
 
 	message, err := h.chatService.GetMessage(messageID, userID)
 	if err != nil {
-		respondError(w, http.StatusNotFound, err.Error())
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, message)
+	c.JSON(http.StatusOK, message)
 }
 
-func (h *ChatHandler) UpdateMessage(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) UpdateMessage(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	messageID := vars["messageID"]
+	messageID := c.Param("messageID")
 
 	var req dto.UpdateMessageRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
 	if err := h.chatService.UpdateMessage(userID, messageID, &req); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]string{"message": "message updated successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "message updated successfully"})
 }
 
-func (h *ChatHandler) DeleteMessage(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) DeleteMessage(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	messageID := vars["messageID"]
+	messageID := c.Param("messageID")
 
 	if err := h.chatService.DeleteMessage(userID, messageID); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]string{"message": "message deleted successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "message deleted successfully"})
 }
 
-func (h *ChatHandler) ForwardMessage(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) ForwardMessage(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	var req dto.ForwardMessageRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
 	message, err := h.chatService.ForwardMessage(userID, &req)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusCreated, message)
+	c.JSON(http.StatusCreated, message)
 }
 
-func (h *ChatHandler) SearchMessages(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) SearchMessages(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	dialogID := vars["dialogID"]
-	query := r.URL.Query().Get("q")
+	dialogID := c.Param("dialogID")
+	query := c.Query("q")
 
 	messages, err := h.chatService.SearchMessages(userID, dialogID, query)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, messages)
+	c.JSON(http.StatusOK, messages)
 }
 
 // Attachment handlers
 
-func (h *ChatHandler) UploadAttachment(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) UploadAttachment(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	file, _, err := r.FormFile("file")
+	// Используем Gin-метод FormFile
+	fileHeader, err := c.FormFile("file")
 	if err != nil {
-		respondError(w, http.StatusBadRequest, "no file provided")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no file provided"})
 		return
 	}
-	defer file.Close()
-
-	fileHeader := r.MultipartForm.File["file"][0]
 
 	attachment, err := h.chatService.UploadAttachment(userID, fileHeader)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusCreated, attachment)
+	c.JSON(http.StatusCreated, attachment)
 }
 
-func (h *ChatHandler) GetMessageAttachments(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) GetMessageAttachments(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	messageID := vars["messageID"]
+	messageID := c.Param("messageID")
 
 	attachments, err := h.chatService.GetMessageAttachments(messageID, userID)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, attachments)
+	c.JSON(http.StatusOK, attachments)
 }
 
-func (h *ChatHandler) GetDialogAttachments(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) GetDialogAttachments(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	dialogID := vars["dialogID"]
+	dialogID := c.Param("dialogID")
 
 	attachments, err := h.chatService.GetDialogAttachments(dialogID, userID)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, attachments)
+	c.JSON(http.StatusOK, attachments)
 }
 
-func (h *ChatHandler) DeleteAttachment(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) DeleteAttachment(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	attachmentID := vars["attachmentID"]
+	attachmentID := c.Param("attachmentID")
 
 	if err := h.chatService.DeleteAttachment(userID, attachmentID); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]string{"message": "attachment deleted successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "attachment deleted successfully"})
 }
 
 // Reaction handlers
 
-func (h *ChatHandler) AddReaction(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) AddReaction(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	messageID := vars["messageID"]
+	messageID := c.Param("messageID")
 
 	var req struct {
 		Emoji string `json:"emoji"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
 	if err := h.chatService.AddReaction(userID, messageID, req.Emoji); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusCreated, map[string]string{"message": "reaction added successfully"})
+	c.JSON(http.StatusCreated, gin.H{"message": "reaction added successfully"})
 }
 
-func (h *ChatHandler) RemoveReaction(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) RemoveReaction(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	messageID := vars["messageID"]
+	messageID := c.Param("messageID")
 
 	if err := h.chatService.RemoveReaction(userID, messageID); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]string{"message": "reaction removed successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "reaction removed successfully"})
 }
 
-func (h *ChatHandler) GetMessageReactions(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) GetMessageReactions(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	messageID := vars["messageID"]
+	messageID := c.Param("messageID")
 
 	reactions, err := h.chatService.GetMessageReactions(messageID, userID)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, reactions)
+	c.JSON(http.StatusOK, reactions)
 }
 
 // Read receipts handlers
 
-func (h *ChatHandler) MarkMessagesAsRead(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) MarkMessagesAsRead(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	dialogID := vars["dialogID"]
+	dialogID := c.Param("dialogID")
 
 	if err := h.chatService.MarkMessagesAsRead(userID, dialogID); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]string{"message": "messages marked as read"})
+	c.JSON(http.StatusOK, gin.H{"message": "messages marked as read"})
 }
 
-func (h *ChatHandler) GetUnreadCount(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) GetUnreadCount(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	dialogID := vars["dialogID"]
+	dialogID := c.Param("dialogID")
 
 	count, err := h.chatService.GetUnreadCount(dialogID, userID)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]int64{"unread_count": count})
+	c.JSON(http.StatusOK, gin.H{"unread_count": count})
 }
 
-func (h *ChatHandler) GetReadReceipts(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) GetReadReceipts(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	messageID := vars["messageID"]
+	messageID := c.Param("messageID")
 
 	receipts, err := h.chatService.GetReadReceipts(messageID, userID)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, receipts)
+	c.JSON(http.StatusOK, receipts)
 }
 
 // Combined handlers
 
-func (h *ChatHandler) GetDialogWithMessages(w http.ResponseWriter, r *http.Request) {
-	userID := getUserIDFromContext(r)
+func (h *ChatHandler) GetDialogWithMessages(c *gin.Context) {
+	userID := getUserIDFromContext(c)
 	if userID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	dialogID := vars["dialogID"]
+	dialogID := c.Param("dialogID")
 
-	criteria := parseMessageCriteria(r)
+	criteria := parseMessageCriteria(c)
 
 	result, err := h.chatService.GetDialogWithMessages(dialogID, userID, criteria)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, result)
+	c.JSON(http.StatusOK, result)
 }
 
 // Admin handlers
 
-func (h *ChatHandler) GetAllDialogs(w http.ResponseWriter, r *http.Request) {
-	criteria := parseDialogCriteria(r)
+func (h *ChatHandler) GetAllDialogs(c *gin.Context) {
+	criteria := parseDialogCriteria(c)
 
 	dialogs, err := h.chatService.GetAllDialogs(criteria)
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, dialogs)
+	c.JSON(http.StatusOK, dialogs)
 }
 
-func (h *ChatHandler) GetChatStats(w http.ResponseWriter, r *http.Request) {
+func (h *ChatHandler) GetChatStats(c *gin.Context) {
 	stats, err := h.chatService.GetChatStats()
 	if err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, stats)
+	c.JSON(http.StatusOK, stats)
 }
 
-func (h *ChatHandler) CleanOldMessages(w http.ResponseWriter, r *http.Request) {
+func (h *ChatHandler) CleanOldMessages(c *gin.Context) {
 	var req struct {
 		Days int `json:"days"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		respondError(w, http.StatusBadRequest, "invalid request body")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
 	if err := h.chatService.CleanOldMessages(req.Days); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]string{"message": "old messages cleaned successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "old messages cleaned successfully"})
 }
 
-func (h *ChatHandler) DeleteUserMessages(w http.ResponseWriter, r *http.Request) {
-	adminID := getUserIDFromContext(r)
+func (h *ChatHandler) DeleteUserMessages(c *gin.Context) {
+	adminID := getUserIDFromContext(c)
 	if adminID == "" {
-		respondError(w, http.StatusUnauthorized, "unauthorized")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	vars := mux.Vars(r)
-	userID := vars["userID"]
+	userID := c.Param("userID")
 
 	if err := h.chatService.DeleteUserMessages(adminID, userID); err != nil {
-		respondError(w, http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]string{"message": "user messages deleted successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "user messages deleted successfully"})
 }
 
 // Helper functions
 
-func getUserIDFromContext(r *http.Request) string {
-	// Получаем userID из контекста (обычно устанавливается middleware аутентификации)
-	if userID := r.Context().Value("userID"); userID != nil {
-		if id, ok := userID.(string); ok {
-			return id
-		}
+func getUserIDFromContext(c *gin.Context) string {
+	// Получаем userID из контекста Gin (обычно устанавливается middleware аутентификации)
+	userID, exists := c.Get("userID")
+	if !exists {
+		return ""
+	}
+	if id, ok := userID.(string); ok {
+		return id
 	}
 	return ""
 }
 
-func parseMessageCriteria(r *http.Request) dto.MessageCriteria {
-	query := r.URL.Query()
-
-	limit, _ := strconv.Atoi(query.Get("limit"))
-	if limit == 0 {
-		limit = 50 // default limit
+// Вспомогательная функция для парсинга query-параметров (как в AnalyticsHandler)
+func parseIntQuery(c *gin.Context, key string, defaultValue int) int {
+	valueStr := c.Query(key)
+	if valueStr == "" {
+		return defaultValue
 	}
 
-	offset, _ := strconv.Atoi(query.Get("offset"))
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return defaultValue
+	}
+
+	return value
+}
+
+func parseMessageCriteria(c *gin.Context) dto.MessageCriteria {
+	limit := parseIntQuery(c, "limit", 50)
+	offset := parseIntQuery(c, "offset", 0)
 
 	return dto.MessageCriteria{
 		Limit:  limit,
@@ -888,31 +876,12 @@ func parseMessageCriteria(r *http.Request) dto.MessageCriteria {
 	}
 }
 
-func parseDialogCriteria(r *http.Request) dto.DialogCriteria {
-	query := r.URL.Query()
-
-	page, _ := strconv.Atoi(query.Get("page"))
-	if page == 0 {
-		page = 1
-	}
-
-	pageSize, _ := strconv.Atoi(query.Get("page_size"))
-	if pageSize == 0 {
-		pageSize = 20
-	}
+func parseDialogCriteria(c *gin.Context) dto.DialogCriteria {
+	page := parseIntQuery(c, "page", 1)
+	pageSize := parseIntQuery(c, "page_size", 20)
 
 	return dto.DialogCriteria{
 		Page:     page,
 		PageSize: pageSize,
 	}
-}
-
-func respondJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
-}
-
-func respondError(w http.ResponseWriter, status int, message string) {
-	respondJSON(w, status, map[string]string{"error": message})
 }

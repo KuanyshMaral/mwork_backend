@@ -22,7 +22,7 @@ type UserSubscription struct {
 	UserID       string             `gorm:"not null;index"`
 	PlanID       string             `gorm:"not null;index"`
 	Status       SubscriptionStatus `gorm:"default:'active'"`
-	InvID        string             `gorm:"uniqueIndex"` // ID от Robokassa
+	InvID        string             `gorm:"uniqueIndex"` // Просто uniqueIndex
 	CurrentUsage datatypes.JSON     `gorm:"type:jsonb"`  // {"publications": 2, "responses": 5}
 	StartDate    time.Time
 	EndDate      time.Time
@@ -39,7 +39,7 @@ type PaymentTransaction struct {
 	SubscriptionID string `gorm:"not null;index"`
 	Amount         float64
 	Status         PaymentStatus `gorm:"default:'pending'"`
-	InvID          string        `gorm:"uniqueIndex"`
+	InvID          string        `gorm:"uniqueIndex"` // Просто uniqueIndex
 	PaidAt         *time.Time
 
 	// Relations

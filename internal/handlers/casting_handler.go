@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"mwork_backend/internal/appErrors" // <-- Добавлен импорт
 	"mwork_backend/internal/middleware"
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/services"
@@ -14,10 +15,10 @@ import (
 )
 
 type CastingHandler struct {
-	castingService *services.CastingService
+	castingService services.CastingService
 }
 
-func NewCastingHandler(castingService *services.CastingService) *CastingHandler {
+func NewCastingHandler(castingService services.CastingService) *CastingHandler {
 	return &CastingHandler{
 		castingService: castingService,
 	}
@@ -97,39 +98,14 @@ func (h *CastingHandler) parseDateRange(c *gin.Context) (time.Time, time.Time) {
 	return dateFrom, dateTo
 }
 
-func (h *CastingHandler) handleServiceError(c *gin.Context, err error) {
-	statusCode := http.StatusInternalServerError
-
-	switch err.Error() {
-	case "insufficient permissions":
-		statusCode = http.StatusForbidden
-	case "casting not found":
-		statusCode = http.StatusNotFound
-	case "invalid casting status", "subscription limit reached":
-		statusCode = http.StatusBadRequest
-	}
-
-	c.JSON(statusCode, gin.H{"error": err.Error()})
-}
-
-func (h *CastingHandler) handleListResponse(c *gin.Context, castings []*dto.CastingResponse, err error) {
-	if err != nil {
-		h.handleServiceError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"castings": castings,
-		"total":    len(castings),
-	})
-}
+// --- УДАЛЕНЫ УСТАРЕВШИЕ handleServiceError и handleListResponse ---
 
 // Public handlers
 
 func (h *CastingHandler) SearchCastings(c *gin.Context) {
 	var criteria dto.CastingSearchCriteria
 	if err := c.ShouldBindQuery(&criteria); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid query parameters"})
+		appErrors.HandleValidationError(c, err) // <-- ИСПРАВЛЕНО
 		return
 	}
 
@@ -143,7 +119,12 @@ func (h *CastingHandler) SearchCastings(c *gin.Context) {
 
 	castings, total, err := h.castingService.SearchCastings(criteria)
 	if err != nil {
-		h.handleServiceError(c, err)
+		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -166,7 +147,12 @@ func (h *CastingHandler) GetCasting(c *gin.Context) {
 
 	casting, err := h.castingService.GetCasting(castingID, userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Casting not found"})
+		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -176,14 +162,40 @@ func (h *CastingHandler) GetCasting(c *gin.Context) {
 func (h *CastingHandler) GetActiveCastings(c *gin.Context) {
 	limit := h.parseLimit(c)
 	castings, err := h.castingService.GetActiveCastings(limit)
-	h.handleListResponse(c, castings, err)
+	if err != nil {
+		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"castings": castings,
+		"total":    len(castings),
+	})
 }
 
 func (h *CastingHandler) GetCastingsByCity(c *gin.Context) {
 	city := c.Param("city")
 	limit := h.parseLimit(c)
 	castings, err := h.castingService.GetCastingsByCity(city, limit)
-	h.handleListResponse(c, castings, err)
+	if err != nil {
+		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"castings": castings,
+		"total":    len(castings),
+	})
 }
 
 // Employer handlers
@@ -193,7 +205,7 @@ func (h *CastingHandler) CreateCasting(c *gin.Context) {
 
 	var req dto.CreateCastingRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		appErrors.HandleValidationError(c, err) // <-- ИСПРАВЛЕНО
 		return
 	}
 
@@ -202,7 +214,12 @@ func (h *CastingHandler) CreateCasting(c *gin.Context) {
 
 	err := h.castingService.CreateCasting(&req)
 	if err != nil {
-		h.handleServiceError(c, err)
+		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -214,7 +231,20 @@ func (h *CastingHandler) GetMyCastings(c *gin.Context) {
 	requesterID := employerID // For employer, requester ID is the same as employer ID
 
 	castings, err := h.castingService.GetEmployerCastings(employerID, requesterID)
-	h.handleListResponse(c, castings, err)
+	if err != nil {
+		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"castings": castings,
+		"total":    len(castings),
+	})
 }
 
 func (h *CastingHandler) UpdateCasting(c *gin.Context) {
@@ -223,12 +253,17 @@ func (h *CastingHandler) UpdateCasting(c *gin.Context) {
 
 	var req dto.UpdateCastingRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		appErrors.HandleValidationError(c, err) // <-- ИСПРАВЛЕНО
 		return
 	}
 
 	if err := h.castingService.UpdateCasting(castingID, employerID, &req); err != nil {
-		h.handleServiceError(c, err)
+		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -240,7 +275,12 @@ func (h *CastingHandler) DeleteCasting(c *gin.Context) {
 	castingID := c.Param("castingId")
 
 	if err := h.castingService.DeleteCasting(castingID, employerID); err != nil {
-		h.handleServiceError(c, err)
+		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -255,12 +295,17 @@ func (h *CastingHandler) UpdateCastingStatus(c *gin.Context) {
 		Status models.CastingStatus `json:"status" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		appErrors.HandleValidationError(c, err) // <-- ИСПРАВЛЕНО
 		return
 	}
 
 	if err := h.castingService.UpdateCastingStatus(castingID, employerID, req.Status); err != nil {
-		h.handleServiceError(c, err)
+		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -273,7 +318,12 @@ func (h *CastingHandler) GetCastingStatsForCasting(c *gin.Context) {
 
 	stats, err := h.castingService.GetCastingStatsForCasting(castingID, employerID)
 	if err != nil {
-		h.handleServiceError(c, err)
+		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -286,7 +336,12 @@ func (h *CastingHandler) GetMyStats(c *gin.Context) {
 
 	stats, err := h.castingService.GetCastingStats(employerID, requesterID)
 	if err != nil {
-		h.handleServiceError(c, err)
+		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -299,14 +354,32 @@ func (h *CastingHandler) GetMatchingCastings(c *gin.Context) {
 	modelID := middleware.GetUserID(c)
 	limit := h.parseLimit(c)
 	castings, err := h.castingService.FindMatchingCastings(modelID, limit)
-	h.handleListResponse(c, castings, err)
+	if err != nil {
+		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"castings": castings,
+		"total":    len(castings),
+	})
 }
 
 // Admin handlers
 
 func (h *CastingHandler) CloseExpiredCastings(c *gin.Context) {
 	if err := h.castingService.CloseExpiredCastings(); err != nil {
-		h.handleServiceError(c, err)
+		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -317,7 +390,12 @@ func (h *CastingHandler) GetPlatformStats(c *gin.Context) {
 	dateFrom, dateTo := h.parseDateRange(c)
 	stats, err := h.castingService.GetPlatformCastingStats(dateFrom, dateTo)
 	if err != nil {
-		h.handleServiceError(c, err)
+		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -328,7 +406,12 @@ func (h *CastingHandler) GetMatchingStats(c *gin.Context) {
 	dateFrom, dateTo := h.parseDateRange(c)
 	stats, err := h.castingService.GetMatchingStats(dateFrom, dateTo)
 	if err != nil {
-		h.handleServiceError(c, err)
+		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -338,7 +421,12 @@ func (h *CastingHandler) GetMatchingStats(c *gin.Context) {
 func (h *CastingHandler) GetCastingDistributionByCity(c *gin.Context) {
 	distribution, err := h.castingService.GetCastingDistributionByCity()
 	if err != nil {
-		h.handleServiceError(c, err)
+		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -348,7 +436,12 @@ func (h *CastingHandler) GetCastingDistributionByCity(c *gin.Context) {
 func (h *CastingHandler) GetActiveCastingsCount(c *gin.Context) {
 	count, err := h.castingService.GetActiveCastingsCount()
 	if err != nil {
-		h.handleServiceError(c, err)
+		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
@@ -359,7 +452,12 @@ func (h *CastingHandler) GetPopularCategories(c *gin.Context) {
 	limit := h.parseLimit(c)
 	categories, err := h.castingService.GetPopularCategories(limit)
 	if err != nil {
-		h.handleServiceError(c, err)
+		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 

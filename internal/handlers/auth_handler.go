@@ -27,17 +27,22 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	response, err := h.authService.Register(req)
+	// ИСПРАВЛЕНО: 'Register' возвращает только 'error' и принимает указатель '&req'
+	err := h.authService.Register(&req)
 	if err != nil {
-		if err == services.ErrEmailAlreadyExists {
-			appErrors.HandleError(c, appErrors.NewConflictError("Email already registered"))
-			return
+		var appErr *appErrors.AppError
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
 		}
-		appErrors.HandleError(c, appErrors.NewInternalError("Registration failed"))
 		return
 	}
 
-	c.JSON(http.StatusCreated, response)
+	// ИСПРАВЛЕНО: 'Register' не возвращает 'response', поэтому отправляем стандартное сообщение
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Registration successful. Please check your email to verify your account.",
+	})
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -47,17 +52,15 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	response, err := h.authService.Login(req)
+	// ИСПРАВЛЕНО: 'Login' принимает указатель '&req'
+	response, err := h.authService.Login(&req)
 	if err != nil {
-		if err == services.ErrInvalidCredentials {
-			appErrors.HandleError(c, appErrors.NewUnauthorizedError("Invalid email or password"))
-			return
+		var appErr *appErrors.AppError
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
 		}
-		if err == services.ErrUserNotVerified {
-			appErrors.HandleError(c, appErrors.NewForbiddenError("Email not verified"))
-			return
-		}
-		appErrors.HandleError(c, appErrors.NewInternalError("Login failed"))
 		return
 	}
 
@@ -71,13 +74,15 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
+	// Эта часть была корректной
 	response, err := h.authService.RefreshToken(req.RefreshToken)
 	if err != nil {
-		if err == services.ErrInvalidToken {
-			appErrors.HandleError(c, appErrors.NewUnauthorizedError("Invalid or expired refresh token"))
-			return
+		var appErr *appErrors.AppError
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
 		}
-		appErrors.HandleError(c, appErrors.NewInternalError("Token refresh failed"))
 		return
 	}
 
@@ -91,13 +96,22 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
+	// Эта часть была корректной
 	if err := h.authService.Logout(req.RefreshToken); err != nil {
-		appErrors.HandleError(c, appErrors.NewInternalError("Logout failed"))
+		var appErr *appErrors.AppError
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.MessageResponse{
-		Message: "Successfully logged out",
+	// ПРИМЕЧАНИЕ: dto.MessageResponse не был предоставлен в dto,
+	// но если он у вас есть, этот код корректен.
+	// Если его нет, используйте gin.H
+	c.JSON(http.StatusOK, gin.H{ // Заменено на gin.H на случай отсутствия dto.MessageResponse
+		"message": "Successfully logged out",
 	})
 }
 
@@ -108,13 +122,19 @@ func (h *AuthHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
+	// Эта часть была корректной
 	if err := h.authService.VerifyEmail(req.Token); err != nil {
-		appErrors.HandleError(c, appErrors.NewNotFoundError("Invalid verification token"))
+		var appErr *appErrors.AppError
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.MessageResponse{
-		Message: "Email successfully verified",
+	c.JSON(http.StatusOK, gin.H{ // Заменено на gin.H
+		"message": "Email successfully verified",
 	})
 }
 
@@ -125,11 +145,11 @@ func (h *AuthHandler) RequestPasswordReset(c *gin.Context) {
 		return
 	}
 
-	// Всегда возвращаем успех для безопасности (не раскрываем существование email)
+	// Эта часть была корректной
 	_ = h.authService.RequestPasswordReset(req.Email)
 
-	c.JSON(http.StatusOK, dto.MessageResponse{
-		Message: "If the email exists, a password reset link has been sent",
+	c.JSON(http.StatusOK, gin.H{ // Заменено на gin.H
+		"message": "If the email exists, a password reset link has been sent",
 	})
 }
 
@@ -140,13 +160,19 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
+	// Эта часть была корректtной
 	if err := h.authService.ResetPassword(req.Token, req.NewPassword); err != nil {
-		appErrors.HandleError(c, appErrors.NewNotFoundError("Invalid or expired reset token"))
+		var appErr *appErrors.AppError
+		if appErrors.As(err, &appErr) {
+			appErrors.HandleError(c, appErr)
+		} else {
+			appErrors.HandleError(c, appErrors.InternalError(err))
+		}
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.MessageResponse{
-		Message: "Password successfully reset",
+	c.JSON(http.StatusOK, gin.H{ // Заменено на gin.H
+		"message": "Password successfully reset",
 	})
 }
 
@@ -157,8 +183,7 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 		return
 	}
 
-	// Здесь можно добавить логику получения полной информации о пользователе
-	// Пока возвращаем базовые данные из токена
+	// Эта часть была корректной
 	c.JSON(http.StatusOK, gin.H{
 		"id":   userID,
 		"role": c.GetString("role"),

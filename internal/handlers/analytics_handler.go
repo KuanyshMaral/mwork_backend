@@ -21,6 +21,61 @@ func NewAnalyticsHandler(analyticsService services.AnalyticsService) *AnalyticsH
 	}
 }
 
+// RegisterRoutes registers all analytics routes for Gin
+func (h *AnalyticsHandler) RegisterRoutes(r *gin.RouterGroup) {
+	// All analytics routes will be under /api/v1/analytics
+	analytics := r.Group("/analytics")
+	{
+		// Platform overview
+		analytics.GET("/platform/overview", h.GetPlatformOverview)
+		analytics.GET("/platform/growth", h.GetPlatformGrowthMetrics)
+		analytics.GET("/platform/health", h.GetPlatformHealthMetrics)
+
+		// User analytics
+		analytics.GET("/users", h.GetUserAnalytics)
+		analytics.GET("/users/acquisition", h.GetUserAcquisitionMetrics)
+		analytics.GET("/users/retention", h.GetUserRetentionMetrics)
+		analytics.GET("/users/active/count", h.GetActiveUsersCount)
+
+		// Casting analytics
+		analytics.GET("/castings", h.GetCastingAnalytics)
+		analytics.GET("/castings/:employer_id/performance", h.GetCastingPerformanceMetrics)
+
+		// Matching analytics
+		analytics.GET("/matching", h.GetMatchingAnalytics)
+		analytics.GET("/matching/efficiency", h.GetMatchingEfficiencyMetrics)
+
+		// Financial analytics
+		analytics.GET("/financial", h.GetFinancialAnalytics)
+
+		// Geographic analytics
+		analytics.GET("/geographic", h.GetGeographicAnalytics)
+		analytics.GET("/geographic/cities", h.GetCityPerformanceMetrics)
+
+		// Category analytics
+		analytics.GET("/categories", h.GetCategoryAnalytics)
+		analytics.GET("/categories/popular", h.GetPopularCategories)
+
+		// Performance metrics
+		analytics.GET("/performance", h.GetPerformanceMetrics)
+		analytics.GET("/realtime", h.GetRealTimeMetrics)
+
+		// System health
+		analytics.GET("/system/health", h.GetSystemHealthMetrics)
+
+		// Admin dashboard
+		// TODO: Add authentication/authorization middleware for this route
+		analytics.GET("/admin/dashboard", h.GetAdminDashboard)
+
+		// Custom reports
+		// TODO: Add authentication/authorization middleware for this route
+		analytics.POST("/reports/custom", h.GenerateCustomReport)
+		analytics.GET("/reports/predefined", h.GetPredefinedReports)
+	}
+}
+
+// --- Handler Functions ---
+
 func (h *AnalyticsHandler) GetPlatformOverview(c *gin.Context) {
 	dateFrom, dateTo, err := h.parseDateRange(c)
 	if err != nil {
@@ -267,7 +322,7 @@ func (h *AnalyticsHandler) GetActiveUsersCount(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetAdminDashboard(c *gin.Context) {
-	adminID, exists := c.Get("user_id")
+	adminID, exists := c.Get("user_id") // Предполагаем, что middleware добавляет user_id
 	if !exists {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
 		return
@@ -324,11 +379,12 @@ func (h *AnalyticsHandler) parseDateRange(c *gin.Context) (time.Time, time.Time,
 	dateFromStr := c.Query("date_from")
 	dateToStr := c.Query("date_to")
 
+	// По умолчанию: последние 30 дней
 	dateTo := time.Now()
-	dateFrom := dateTo.AddDate(0, -1, 0)
+	dateFrom := dateTo.AddDate(0, 0, -30) // Изменено с -1 месяца на -30 дней для большей предсказуемости
 
 	if dateFromStr != "" {
-		parsed, err := time.Parse(time.RFC3339, dateFromStr)
+		parsed, err := time.Parse(time.RFC3339, dateFromStr) // Используем RFC3339 (YYYY-MM-DDTHH:MM:SSZ)
 		if err != nil {
 			return time.Time{}, time.Time{}, err
 		}
@@ -360,6 +416,7 @@ func (h *AnalyticsHandler) parseIntQuery(c *gin.Context, key string, defaultValu
 	return value
 }
 
+// ErrorResponse является общей структурой для ошибок
 type ErrorResponse struct {
 	Error string `json:"error"`
 }

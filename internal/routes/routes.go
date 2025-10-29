@@ -35,11 +35,12 @@ func NewHandlers(
 	searchService services.SearchService,
 	analyticsService services.AnalyticsService,
 	chatService services.ChatService,
+	authService services.AuthService,
 ) *Handlers {
 	return &Handlers{
-		UserHandler:         handlers.NewUserHandler(userService),
-		ProfileHandler:      handlers.NewProfileHandler(profileService),
-		CastingHandler:      handlers.NewCastingHandler(castingService),
+		UserHandler:         handlers.NewUserHandler(*userService, authService),
+		ProfileHandler:      handlers.NewProfileHandler(*profileService),
+		CastingHandler:      handlers.NewCastingHandler(*castingService),
 		ResponseHandler:     handlers.NewResponseHandler(responseService),
 		ReviewHandler:       handlers.NewReviewHandler(reviewService),
 		PortfolioHandler:    handlers.NewPortfolioHandler(portfolioService),
@@ -88,13 +89,7 @@ func (h *Handlers) RegisterGinRoutes(r *gin.Engine) {
 
 	// Analytics routes (if using Gin - needs conversion from current implementation)
 	h.registerAnalyticsRoutes(api)
-}
 
-// RegisterMuxRoutes registers all Gorilla Mux-based routes (for Chat handler)
-func (h *Handlers) RegisterMuxRoutes(r *mux.Router) {
-	api := r.PathPrefix("/api/v1").Subrouter()
-
-	// Chat routes
 	h.ChatHandler.RegisterRoutes(api)
 }
 
@@ -152,7 +147,4 @@ func (h *Handlers) registerAnalyticsRoutes(r *gin.RouterGroup) {
 func SetupRoutes(ginRouter *gin.Engine, muxRouter *mux.Router, handlers *Handlers) {
 	// Register Gin routes
 	handlers.RegisterGinRoutes(ginRouter)
-
-	// Register Mux routes (for Chat)
-	handlers.RegisterMuxRoutes(muxRouter)
 }
