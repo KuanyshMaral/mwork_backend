@@ -44,6 +44,10 @@ type UserRepository interface {
 	// Analytics methods
 	GetActiveUsersCount(minutes int) (int64, error)
 	GetUserDistributionByCity() (map[string]int64, error)
+
+	FindByVerificationToken(token string) (*models.User, error)
+	FindByResetToken(token string) (*models.User, error)
+	UpdateLastActive(userID string) error
 }
 
 type UserRepositoryImpl struct {
@@ -427,4 +431,47 @@ func (r *UserRepositoryImpl) GetUserDistributionByCity() (map[string]int64, erro
 	}
 
 	return result, nil
+}
+
+func (r *UserRepositoryImpl) FindByVerificationToken(token string) (*models.User, error) {
+	var user models.User
+	err := r.db.Where("verification_token = ? AND verification_token != ''", token).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+// FindByResetToken находит пользователя по токену сброса пароля
+func (r *UserRepositoryImpl) FindByResetToken(token string) (*models.User, error) {
+	var user models.User
+	err := r.db.Where("reset_token = ? AND reset_token_exp > ?", token, time.Now()).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+// UpdateLastActive обновляет время последней активности пользователя
+func (r *UserRepositoryImpl) UpdateLastActive(userID string) error {
+	// Проверяем наличие колонки
+	if !r.db.Migrator().HasColumn(&models.User{}, "last_active_at") {
+		// Если колонки нет, ничего не делаем
+		return nil
+	}
+
+	result := r.db.Model(&models.User{}).Where("id = ?", userID).Update("last_active_at", time.Now())
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrUserNotFound
+	}
+	return nil
 }

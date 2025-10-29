@@ -91,6 +91,7 @@ type CastingStats struct {
 	TotalResponses   int64 `json:"total_responses"`
 	PendingResponses int64 `json:"pending_responses"`
 }
+
 type PlatformCastingStats struct {
 	TotalCastings   int64   `json:"totalCastings"`
 	ActiveCastings  int64   `json:"activeCastings"`
@@ -222,7 +223,6 @@ func (r *CastingRepositoryImpl) IncrementCastingViews(castingID string) error {
 		Update("views", gorm.Expr("views + ?", 1)).Error
 }
 
-// 🎯 ИСПРАВЛЕННЫЙ метод поиска кастингов с PostgreSQL операциями
 func (r *CastingRepositoryImpl) SearchCastings(criteria CastingSearchCriteria) ([]models.Casting, int64, error) {
 	var castings []models.Casting
 	query := r.db.Model(&models.Casting{}).Preload("Employer")
@@ -449,6 +449,126 @@ func (r *CastingRepositoryImpl) FindCastingsForMatching(criteria MatchingCriteri
 
 	err := query.Order("created_at DESC").Limit(criteria.Limit).Find(&castings).Error
 	return castings, err
+}
+
+// Analytics methods
+
+func (r *CastingRepositoryImpl) GetPlatformCastingStats(dateFrom, dateTo time.Time) (*PlatformCastingStats, error) {
+	var stats PlatformCastingStats
+
+	// Total castings in period
+	if err := r.db.Model(&models.Casting{}).
+		Where("created_at BETWEEN ? AND ?", dateFrom, dateTo).
+		Count(&stats.TotalCastings).Error; err != nil {
+		return nil, err
+	}
+
+	// Active castings
+	if err := r.db.Model(&models.Casting{}).
+		Where("status = ? AND created_at BETWEEN ? AND ?", models.CastingStatusActive, dateFrom, dateTo).
+		Count(&stats.ActiveCastings).Error; err != nil {
+		return nil, err
+	}
+
+	// Calculate success rate (castings with responses)
+	var castingsWithResponses int64
+	subquery := r.db.Model(&models.CastingResponse{}).
+		Select("DISTINCT casting_id").
+		Where("created_at BETWEEN ? AND ?", dateFrom, dateTo)
+
+	if err := r.db.Model(&models.Casting{}).
+		Where("id IN (?) AND created_at BETWEEN ? AND ?", subquery, dateFrom, dateTo).
+		Count(&castingsWithResponses).Error; err != nil {
+		return nil, err
+	}
+
+	if stats.TotalCastings > 0 {
+		stats.SuccessRate = float64(castingsWithResponses) / float64(stats.TotalCastings) * 100
+	}
+
+	// Average response rate calculation would require more complex business logic
+	// For now, setting placeholder values
+	stats.AvgResponseRate = 0.0
+	stats.AvgResponseTime = 0.0
+
+	return &stats, nil
+}
+
+func (r *CastingRepositoryImpl) GetMatchingStats(dateFrom, dateTo time.Time) (*MatchingStats, error) {
+	var stats MatchingStats
+
+	// Total matches (responses in period)
+	if err := r.db.Model(&models.CastingResponse{}).
+		Where("created_at BETWEEN ? AND ?", dateFrom, dateTo).
+		Count(&stats.TotalMatches).Error; err != nil {
+		return nil, err
+	}
+
+	// Placeholder values for complex calculations
+	// These would require additional tables/fields for match scoring and satisfaction
+	stats.AvgMatchScore = 0.0
+	stats.AvgSatisfaction = 0.0
+	stats.MatchRate = 0.0
+	stats.ResponseRate = 0.0
+	stats.TimeToMatch = 0.0
+
+	return &stats, nil
+}
+
+func (r *CastingRepositoryImpl) GetCastingDistributionByCity() (map[string]int64, error) {
+	type CityCount struct {
+		City  string
+		Count int64
+	}
+
+	var cityCounts []CityCount
+	result := make(map[string]int64)
+
+	err := r.db.Model(&models.Casting{}).
+		Select("city, COUNT(*) as count").
+		Where("status = ?", models.CastingStatusActive).
+		Group("city").
+		Find(&cityCounts).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, cc := range cityCounts {
+		result[cc.City] = cc.Count
+	}
+
+	return result, nil
+}
+
+func (r *CastingRepositoryImpl) GetActiveCastingsCount() (int64, error) {
+	var count int64
+	err := r.db.Model(&models.Casting{}).
+		Where("status = ?", models.CastingStatusActive).
+		Count(&count).Error
+	return count, err
+}
+
+func (r *CastingRepositoryImpl) GetPopularCategories(limit int) ([]CategoryCount, error) {
+	// This is a simplified implementation
+	// In a real scenario, you'd need to extract categories from JSONB field
+	var categories []CategoryCount
+
+	// Using raw SQL for JSONB array extraction (PostgreSQL specific)
+	query := `
+		SELECT category as name, COUNT(*) as count
+		FROM (
+			SELECT jsonb_array_elements_text(categories) as category
+			FROM castings
+			WHERE status = ? AND categories IS NOT NULL
+		) as extracted_categories
+		GROUP BY category
+		ORDER BY count DESC
+		LIMIT ?
+	`
+
+	err := r.db.Raw(query, models.CastingStatusActive, limit).Scan(&categories).Error
+	return categories, err
 }
 
 // Helper functions

@@ -10,18 +10,19 @@ import (
 	"mwork_backend/internal/repositories"
 	"mwork_backend/internal/services/dto"
 
-	"gorm.io/datatypes"
 	"mwork_backend/internal/appErrors"
+
+	"gorm.io/datatypes"
 )
 
 type CastingService struct {
 	castingRepo      repositories.CastingRepository
-	responseRepo     repositories.ResponseRepository
 	userRepo         repositories.UserRepository
 	profileRepo      repositories.ProfileRepository
 	subscriptionRepo repositories.SubscriptionRepository
 	notificationRepo repositories.NotificationRepository
 	reviewRepo       repositories.ReviewRepository
+	responseRepo     repositories.ResponseRepository
 }
 
 func NewCastingService(
@@ -31,6 +32,7 @@ func NewCastingService(
 	subscriptionRepo repositories.SubscriptionRepository,
 	notificationRepo repositories.NotificationRepository,
 	reviewRepo repositories.ReviewRepository,
+	responseRepo repositories.ResponseRepository,
 ) *CastingService {
 	return &CastingService{
 		castingRepo:      castingRepo,
@@ -39,6 +41,7 @@ func NewCastingService(
 		subscriptionRepo: subscriptionRepo,
 		notificationRepo: notificationRepo,
 		reviewRepo:       reviewRepo,
+		responseRepo:     responseRepo,
 	}
 }
 
@@ -274,148 +277,6 @@ func (s *CastingService) DeleteCasting(castingID string, requesterID string) err
 	return s.castingRepo.DeleteCasting(castingID)
 }
 
-// Response Operations
-
-func (s *CastingService) CreateResponse(req *dto.CreateResponseRequest) error {
-	model, err := s.userRepo.FindByID(req.ModelID)
-	if err != nil {
-		return err
-	}
-
-	if model.Role != models.UserRoleModel {
-		return appErrors.ErrInsufficientPermissions
-	}
-
-	casting, err := s.castingRepo.FindCastingByID(req.CastingID)
-	if err != nil {
-		return err
-	}
-
-	if casting.Status != models.CastingStatusActive {
-		return appErrors.ErrCastingNotActive
-	}
-
-	if casting.CastingDate != nil && casting.CastingDate.Before(time.Now()) {
-		return appErrors.ErrCastingExpired
-	}
-
-	if casting.EmployerID == req.ModelID {
-		return appErrors.ErrCannotRespondToOwnCasting
-	}
-
-	canRespond, err := s.subscriptionRepo.CanUserRespond(req.ModelID)
-	if err != nil {
-		return err
-	}
-
-	if !canRespond {
-		return appErrors.ErrSubscriptionLimit
-	}
-
-	response := &models.CastingResponse{
-		CastingID: req.CastingID,
-		ModelID:   req.ModelID,
-		Message:   req.Message,
-		Status:    models.ResponseStatusPending,
-	}
-
-	err = s.responseRepo.CreateResponse(response)
-	if err != nil {
-		if errors.Is(err, repositories.ErrResponseAlreadyExists) {
-			return appErrors.ErrResponseAlreadyExists
-		}
-		return err
-	}
-
-	go s.subscriptionRepo.IncrementSubscriptionUsage(req.ModelID, "responses")
-	go s.notificationRepo.CreateNewResponseNotification(
-		casting.EmployerID,
-		casting.ID,
-		response.ID,
-		model.Email,
-	)
-
-	return nil
-}
-
-func (s *CastingService) UpdateResponseStatus(responseID string, requesterID string, req *dto.UpdateResponseStatusRequest) error {
-	response, err := s.responseRepo.FindResponseByID(responseID)
-	if err != nil {
-		return err
-	}
-
-	casting, err := s.castingRepo.FindCastingByID(response.CastingID)
-	if err != nil {
-		return err
-	}
-
-	if casting.EmployerID != requesterID {
-		return appErrors.ErrInsufficientPermissions
-	}
-
-	oldStatus := response.Status
-	response.Status = req.Status
-
-	err = s.responseRepo.UpdateResponseStatus(responseID, req.Status)
-	if err != nil {
-		return err
-	}
-
-	if oldStatus != req.Status {
-		go s.notificationRepo.CreateResponseStatusNotification(
-			response.ModelID,
-			casting.Title,
-			req.Status,
-		)
-	}
-
-	if req.Status == models.ResponseStatusAccepted {
-		go s.createReviewPlaceholder(casting, response)
-	}
-
-	return nil
-}
-
-func (s *CastingService) GetCastingResponses(castingID string, requesterID string) ([]dto.ResponseSummary, error) {
-	casting, err := s.castingRepo.FindCastingByID(castingID)
-	if err != nil {
-		return nil, err
-	}
-
-	if casting.EmployerID != requesterID {
-		return nil, appErrors.ErrInsufficientPermissions
-	}
-
-	responses, err := s.responseRepo.FindResponsesByCasting(castingID)
-	if err != nil {
-		return nil, err
-	}
-
-	var summaries []dto.ResponseSummary
-	for _, response := range responses {
-		summary := dto.ResponseSummary{
-			ID:        response.ID,
-			ModelID:   response.ModelID,
-			ModelName: response.Model.Name,
-			Message:   response.Message,
-			Status:    response.Status,
-			CreatedAt: response.CreatedAt,
-			Model:     &response.Model,
-		}
-		summaries = append(summaries, summary)
-	}
-
-	return summaries, nil
-}
-
-func (s *CastingService) GetModelResponses(modelID string, requesterID string) ([]models.CastingResponse, error) {
-	if modelID != requesterID {
-		return nil, appErrors.ErrInsufficientPermissions
-	}
-
-	return s.responseRepo.FindResponsesByModel(modelID)
-}
-
 // Search and Discovery
 
 func (s *CastingService) SearchCastings(criteria dto.CastingSearchCriteria) ([]*dto.CastingResponse, int64, error) {
@@ -526,17 +387,141 @@ func (s *CastingService) GetCastingStats(employerID string, requesterID string) 
 	return s.castingRepo.GetCastingStats(employerID)
 }
 
-func (s *CastingService) GetResponseStats(castingID string, requesterID string) (*repositories.ResponseStats, error) {
-	casting, err := s.castingRepo.FindCastingByID(castingID)
+// New Analytics Methods
+
+func (s *CastingService) GetPlatformCastingStats(dateFrom, dateTo time.Time) (*dto.PlatformCastingStatsResponse, error) {
+	stats, err := s.castingRepo.GetPlatformCastingStats(dateFrom, dateTo)
 	if err != nil {
 		return nil, err
 	}
 
-	if casting.EmployerID != requesterID {
-		return nil, appErrors.ErrInsufficientPermissions
+	return &dto.PlatformCastingStatsResponse{
+		TotalCastings:   stats.TotalCastings,
+		ActiveCastings:  stats.ActiveCastings,
+		SuccessRate:     stats.SuccessRate,
+		AvgResponseRate: stats.AvgResponseRate,
+		AvgResponseTime: stats.AvgResponseTime,
+		DateFrom:        dateFrom,
+		DateTo:          dateTo,
+	}, nil
+}
+
+func (s *CastingService) GetMatchingStats(dateFrom, dateTo time.Time) (*dto.MatchingStatsResponse, error) {
+	stats, err := s.castingRepo.GetMatchingStats(dateFrom, dateTo)
+	if err != nil {
+		return nil, err
 	}
 
-	return s.responseRepo.GetResponseStats(castingID)
+	return &dto.MatchingStatsResponse{
+		TotalMatches:    stats.TotalMatches,
+		AvgMatchScore:   stats.AvgMatchScore,
+		AvgSatisfaction: stats.AvgSatisfaction,
+		MatchRate:       stats.MatchRate,
+		ResponseRate:    stats.ResponseRate,
+		TimeToMatch:     stats.TimeToMatch,
+		DateFrom:        dateFrom,
+		DateTo:          dateTo,
+	}, nil
+}
+
+func (s *CastingService) GetCastingDistributionByCity() (map[string]int64, error) {
+	return s.castingRepo.GetCastingDistributionByCity()
+}
+
+func (s *CastingService) GetActiveCastingsCount() (int64, error) {
+	return s.castingRepo.GetActiveCastingsCount()
+}
+
+func (s *CastingService) GetPopularCategories(limit int) ([]dto.CategoryCountResponse, error) {
+	categories, err := s.castingRepo.GetPopularCategories(limit)
+	if err != nil {
+		return nil, err
+	}
+
+	var response []dto.CategoryCountResponse
+	for _, category := range categories {
+		response = append(response, dto.CategoryCountResponse{
+			Name:  category.Name,
+			Count: category.Count,
+		})
+	}
+
+	return response, nil
+}
+
+// Matching Operations
+
+func (s *CastingService) FindMatchingCastings(modelID string, limit int) ([]*dto.CastingResponse, error) {
+	// Получаем профиль модели
+	profile, err := s.profileRepo.FindModelProfileByUserID(modelID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Создаем критерии для мэтчинга
+	criteria := repositories.MatchingCriteria{
+		Limit: limit,
+	}
+
+	// Фильтруем по параметрам модели (используем прямое присвоение, так как поля не указатели)
+	if profile.Gender != "" {
+		criteria.Gender = profile.Gender
+	}
+
+	if profile.City != "" {
+		criteria.City = profile.City
+	}
+
+	// Для числовых полей создаем указатели
+	if profile.Age > 0 {
+		age := profile.Age
+		criteria.MinAge = &age
+		criteria.MaxAge = &age
+	}
+
+	if profile.Height > 0 {
+		height := int(profile.Height)
+		criteria.MinHeight = &height
+		criteria.MaxHeight = &height
+	}
+
+	// Получаем категории модели
+	var modelCategories []string
+	if len(profile.Categories) > 0 {
+		json.Unmarshal(profile.Categories, &modelCategories)
+	}
+	if len(modelCategories) > 0 {
+		criteria.Categories = modelCategories
+	}
+
+	// Поиск подходящих кастингов
+	castings, err := s.castingRepo.FindCastingsForMatching(criteria)
+	if err != nil {
+		return nil, err
+	}
+
+	// Дополнительная фильтрация по сложным критериям
+	var matchingCastings []models.Casting
+	for _, casting := range castings {
+		if s.isModelMatchesCasting(profile, &casting) {
+			matchingCastings = append(matchingCastings, casting)
+			if len(matchingCastings) >= limit {
+				break
+			}
+		}
+	}
+
+	// Преобразуем в ответы
+	var responses []*dto.CastingResponse
+	for _, casting := range matchingCastings {
+		response, err := s.buildCastingResponse(&casting, false)
+		if err != nil {
+			continue
+		}
+		responses = append(responses, response)
+	}
+
+	return responses, nil
 }
 
 // Helper Methods
@@ -615,15 +600,177 @@ func (s *CastingService) buildCastingResponse(casting *models.Casting, includeRe
 	return response, nil
 }
 
-func (s *CastingService) createReviewPlaceholder(casting *models.Casting, response *models.CastingResponse) {
-	review := &models.Review{
-		ModelID:    response.ModelID,
-		EmployerID: casting.EmployerID,
-		CastingID:  &casting.ID,
-		Rating:     0,
-		ReviewText: "",
-		Status:     models.ReviewStatusPending,
+// UpdateCastingStatus - обновление статуса кастинга
+func (s *CastingService) UpdateCastingStatus(castingID string, requesterID string, status models.CastingStatus) error {
+	casting, err := s.castingRepo.FindCastingByID(castingID)
+	if err != nil {
+		return err
 	}
 
-	s.reviewRepo.CreateReview(review)
+	if casting.EmployerID != requesterID {
+		return appErrors.ErrInsufficientPermissions
+	}
+
+	// Проверка допустимых переходов статусов
+	if !isValidStatusTransition(casting.Status, status) {
+		return appErrors.ErrInvalidCastingStatus
+	}
+
+	return s.castingRepo.UpdateCastingStatus(castingID, status)
+}
+
+// GetCastingStatsForCasting - получение статистики по конкретному кастингу
+func (s *CastingService) GetCastingStatsForCasting(castingID string, requesterID string) (*dto.CastingStatsResponse, error) {
+	casting, err := s.castingRepo.FindCastingByID(castingID)
+	if err != nil {
+		return nil, err
+	}
+
+	if casting.EmployerID != requesterID {
+		return nil, appErrors.ErrInsufficientPermissions
+	}
+
+	stats, err := s.responseRepo.GetResponseStats(castingID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dto.CastingStatsResponse{
+		TotalResponses:    stats.TotalResponses,
+		PendingResponses:  stats.PendingResponses,
+		AcceptedResponses: stats.AcceptedResponses,
+		RejectedResponses: stats.RejectedResponses,
+	}, nil
+}
+
+// CloseExpiredCastings - закрытие истекших кастингов
+func (s *CastingService) CloseExpiredCastings() error {
+	// Получаем все активные кастинги с истекшей датой
+	castings, err := s.castingRepo.FindExpiredCastings()
+	if err != nil {
+		return err
+	}
+
+	// Закрываем каждый истекший кастинг
+	for _, casting := range castings {
+		if err := s.castingRepo.UpdateCastingStatus(casting.ID, models.CastingStatusClosed); err != nil {
+			// Логируем ошибку, но продолжаем обработку остальных
+			continue
+		}
+	}
+
+	return nil
+}
+
+// Helper functions
+
+// isValidStatusTransition - проверка допустимых переходов статусов
+func isValidStatusTransition(currentStatus, newStatus models.CastingStatus) bool {
+	validTransitions := map[models.CastingStatus][]models.CastingStatus{
+		models.CastingStatusDraft: {
+			models.CastingStatusActive,
+		},
+		models.CastingStatusActive: {
+			models.CastingStatusClosed,
+		},
+		models.CastingStatusClosed: {
+			models.CastingStatusActive, // Можно переоткрыть
+		},
+	}
+
+	allowedStatuses, exists := validTransitions[currentStatus]
+	if !exists {
+		return false
+	}
+
+	for _, allowed := range allowedStatuses {
+		if allowed == newStatus {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isModelMatchesCasting - проверка соответствия модели требованиям кастинга
+func (s *CastingService) isModelMatchesCasting(profile *models.ModelProfile, casting *models.Casting) bool {
+	// Проверка пола
+	if casting.Gender != "" && profile.Gender != "" && casting.Gender != profile.Gender {
+		return false
+	}
+
+	// Проверка возраста
+	if profile.Age > 0 {
+		if casting.AgeMin != nil && profile.Age < *casting.AgeMin {
+			return false
+		}
+		if casting.AgeMax != nil && profile.Age > *casting.AgeMax {
+			return false
+		}
+	}
+
+	// Проверка роста
+	if profile.Height > 0 {
+		if casting.HeightMin != nil && profile.Height < *casting.HeightMin {
+			return false
+		}
+		if casting.HeightMax != nil && profile.Height > *casting.HeightMax {
+			return false
+		}
+	}
+
+	// Проверка веса
+	if profile.Weight > 0 {
+		if casting.WeightMin != nil && profile.Weight < *casting.WeightMin {
+			return false
+		}
+		if casting.WeightMax != nil && profile.Weight > *casting.WeightMax {
+			return false
+		}
+	}
+
+	// Проверка размера одежды
+	if casting.ClothingSize != nil && profile.ClothingSize != "" {
+		if *casting.ClothingSize != profile.ClothingSize {
+			return false
+		}
+	}
+
+	// Проверка размера обуви
+	if casting.ShoeSize != nil && profile.ShoeSize != "" {
+		if *casting.ShoeSize != profile.ShoeSize {
+			return false
+		}
+	}
+
+	// Проверка категорий
+	if len(casting.Categories) > 0 && len(profile.Categories) > 0 {
+		var castingCategories []string
+		var profileCategories []string
+
+		json.Unmarshal(casting.Categories, &castingCategories)
+		json.Unmarshal(profile.Categories, &profileCategories)
+
+		if !hasCommonElements(castingCategories, profileCategories) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// hasCommonElements - проверка наличия общих элементов в двух слайсах
+func hasCommonElements(slice1, slice2 []string) bool {
+	elementMap := make(map[string]bool)
+	for _, item := range slice1 {
+		elementMap[item] = true
+	}
+
+	for _, item := range slice2 {
+		if elementMap[item] {
+			return true
+		}
+	}
+
+	return false
 }

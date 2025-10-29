@@ -2,8 +2,9 @@ package models
 
 import (
 	"encoding/json"
-	"gorm.io/datatypes"
 	"time"
+
+	"gorm.io/datatypes"
 )
 
 type Casting struct {
@@ -76,4 +77,14 @@ type CastingResponse struct {
 	// Relations
 	Model   ModelProfile `gorm:"foreignKey:ModelID" json:"model,omitempty"`
 	Casting Casting      `gorm:"foreignKey:CastingID" json:"casting,omitempty"`
+}
+
+type PlatformStats struct {
+	TotalCastings    int64
+	ActiveCastings   int64
+	ClosedCastings   int64
+	DraftCastings    int64
+	TotalViews       int64
+	TotalResponses   int64
+	AverageResponses float64
 }

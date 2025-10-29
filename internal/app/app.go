@@ -2,35 +2,37 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"mwork_backend/database"
 	"mwork_backend/internal/config"
-	"mwork_backend/internal/handlers/old_shit"
-	"mwork_backend/internal/middlewares"
-	"mwork_backend/internal/repositories/old_bullshit"
-	"mwork_backend/internal/repositories/old_bullshit/chat"
-	"mwork_backend/internal/repositories/old_bullshit/subscription"
-	"mwork_backend/internal/routes"
+	"mwork_backend/internal/handlers"
+	"mwork_backend/internal/middleware"
+	"mwork_backend/internal/repositories"
 	"mwork_backend/internal/services"
-	"mwork_backend/internal/utils"
-	"mwork_backend/internal/workers"
+	"mwork_backend/ws"
 
 	"github.com/gin-gonic/gin"
-	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-
-	swaggerFiles "github.com/swaggo/files"
-	_ "github.com/swaggo/gin-swagger"
-	_ "mwork_backend/docs"
-
-	chatservices "mwork_backend/internal/services/chat"
-
-	subscriptionservices "mwork_backend/internal/services/subscription"
-
-	ws "mwork_backend/ws"
 )
+
+// AppHandlers содержит все хендлеры приложения
+type AppHandlers struct {
+	UserHandler         *handlers.UserHandler
+	ProfileHandler      *handlers.ProfileHandler
+	CastingHandler      *handlers.CastingHandler
+	ResponseHandler     *handlers.ResponseHandler
+	ReviewHandler       *handlers.ReviewHandler
+	PortfolioHandler    *handlers.PortfolioHandler
+	MatchingHandler     *handlers.MatchingHandler
+	NotificationHandler *handlers.NotificationHandler
+	SubscriptionHandler *handlers.SubscriptionHandler
+	SearchHandler       *handlers.SearchHandler
+	AnalyticsHandler    *handlers.AnalyticsHandler
+	ChatHandler         *handlers.ChatHandler
+}
 
 func Run() {
 	// Загружаем конфигурацию
@@ -40,7 +42,7 @@ func Run() {
 	// Подключение к БД
 	fmt.Println("👉 Строка подключения к БД:", cfg.Database.DSN)
 
-	//gorm
+	// GORM подключение
 	gormDB, err := gorm.Open(postgres.Open(cfg.Database.DSN), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("Ошибка подключения к GORM: %v", err)
@@ -52,7 +54,7 @@ func Run() {
 	}
 	fmt.Println("✅ AutoMigrate выполнен успешно")
 
-	//стандартный sql
+	// Стандартный sql.DB
 	sqlDB, err := gormDB.DB()
 	if err != nil {
 		log.Fatalf("Ошибка получения *sql.DB из GORM: %v", err)
@@ -64,172 +66,204 @@ func Run() {
 
 	ctx := context.Background()
 
-	castingWorker := workers.NewCastingWorker(gormDB)
-	go castingWorker.Start(ctx)
-	fmt.Println("✅ Casting worker started")
+	// Инициализация сервисов
+	serviceContainer := initializeServices(cfg, gormDB, sqlDB)
 
-	subscriptionWorker := workers.NewSubscriptionWorker(gormDB)
-	go subscriptionWorker.Start(ctx)
-	fmt.Println("✅ Subscription worker started")
-
-	// Инициализация email sender & service
-	emailSender := utils.NewEmailSender(cfg)
-	emailService := services.NewEmailService(emailSender)
-
-	// User
-	userRepo := old_bullshit.NewUserRepository(sqlDB)
-	userService := services.NewUserService(userRepo)
-	userHandler := old_shit.NewUserHandler(userService)
-
-	// Refresh token
-	refreshRepo := old_bullshit.NewRefreshTokenRepository(sqlDB)
-	refreshService := services.NewRefreshTokenService(refreshRepo, userRepo)
-
-	// Auth
-	authService := services.NewAuthService(userRepo, emailService, refreshService)
-	authHandler := old_shit.NewAuthHandler(authService)
-
-	// Model profile
-	modelProfileRepo := old_bullshit.NewModelProfileRepository(sqlDB)
-	modelProfileService := services.NewModelProfileService(modelProfileRepo)
-	modelProfileHandler := old_shit.NewModelProfileHandler(modelProfileService)
-
-	// Employer profile
-	employerProfileRepo := old_bullshit.NewEmployerProfileRepository(sqlDB)
-	employerProfileService := services.NewEmployerProfileService(employerProfileRepo)
-	employerProfileHandler := old_shit.NewEmployerProfileHandler(employerProfileService)
-
-	castingRepoGorm := old_bullshit.NewCastingRepository(sqlDB)
-	modelRepoGorm := old_bullshit.NewModelRepository(gormDB)
-	responseRepoGorm := old_bullshit.NewResponseRepository(gormDB)
-	notificationRepoGorm := old_bullshit.NewNotificationRepository(gormDB)
-	portfolioRepoGorm := old_bullshit.NewPortfolioRepository(gormDB)
-	reviewRepoGorm := old_bullshit.NewReviewRepository(gormDB)
-	uploadRepoGorm := old_bullshit.NewUploadRepository(sqlDB)
-	chatRepoGorm := old_bullshit.NewChatRepository(gormDB)
-
-	// Casting
-	castingRepo := old_bullshit.NewCastingRepository(sqlDB)
-	castingService := services.NewCastingService(castingRepo)
-	castingHandler := old_shit.NewCastingHandler(castingService)
-
-	// Casting response
-	responseRepo := old_bullshit.NewResponseRepository(sqlDB)
-	responseService := services.NewResponseService(responseRepo)
-	responseHandler := old_shit.NewResponseHandler(responseService)
-
-	// 💬 Chat: репозитории
-	dialogRepo := chat.NewDialogRepository(gormDB)
-	participantRepo := chat.NewDialogParticipantRepository(gormDB)
-	messageRepo := chat.NewMessageRepository(gormDB)
-	attachmentRepo := chat.NewMessageAttachmentRepository(gormDB)
-	reactionRepo := chat.NewMessageReactionRepository(gormDB)
-	readReceiptRepo := chat.NewMessageReadReceiptRepository(gormDB)
-
-	// 💬 Chat: сервисы
-	chatService := chatservices.NewChatService(dialogRepo, participantRepo, messageRepo, readReceiptRepo)
-	attachmentService := chatservices.NewAttachmentService(attachmentRepo)
-	reactionService := chatservices.NewReactionService(reactionRepo)
-	readReceiptService := chatservices.NewReadReceiptService(readReceiptRepo, messageRepo)
-
-	// 💬 Chat: handler
-	chatHandler := old_shit.NewChatHandler(chatService, attachmentService, reactionService, readReceiptService)
-
-	// Subscription
-	usersubscriptionRepo := subscription.NewUserSubscriptionRepository(sqlDB)
-	plansubscriptionRepo := subscription.NewSubscriptionPlanRepository(sqlDB)
-	usersubscriptionService := subscriptionservices.NewUserSubscriptionService(usersubscriptionRepo)
-	plansubscriptionService := subscriptionservices.NewPlanService(plansubscriptionRepo)
-	robokassaService := subscriptionservices.NewRobokassaService()
-
-	subscriptionHandler := old_shit.NewSubscriptionHandler(plansubscriptionService, usersubscriptionService, robokassaService)
-
-	notificationService := services.NewNotificationService(notificationRepoGorm, emailService)
-	usageService := services.NewUsageService(usersubscriptionRepo)
-	searchService := services.NewSearchService(castingRepoGorm, modelRepoGorm)
-	matchingService := services.NewMatchingService(castingRepoGorm, modelRepoGorm, notificationService)
-	portfolioService := services.NewPortfolioService(portfolioRepoGorm, uploadRepoGorm)
-	reviewService := services.NewReviewService(reviewRepoGorm, modelRepoGorm, notificationService)
-	moderationService := services.NewModerationService(userRepo, employerProfileRepo, castingRepoGorm)
-
-	// Enhanced casting service with validation and transactions
-	castingServiceEnhanced := services.NewCastingServiceEnhanced(
-		gormDB,
-		castingRepoGorm,
-		usersubscriptionRepo,
-		notificationService,
-	)
-
-	// Enhanced response service
-	responseServiceEnhanced := services.NewResponseService(responseRepoGorm)
-	responseServiceEnhanced.SetDependencies(castingRepoGorm, chatRepoGorm, notificationService, usersubscriptionRepo)
-
-	searchHandler := old_shit.NewSearchHandler(searchService)
-	matchingHandler := old_shit.NewMatchingHandler(matchingService)
-	notificationHandler := old_shit.NewNotificationHandler(notificationService)
-	portfolioHandler := old_shit.NewPortfolioHandler(portfolioService)
-	reviewHandler := old_shit.NewReviewHandler(reviewService)
-	moderationHandler := old_shit.NewModerationHandler(moderationService)
-
-	// Upload
-	uploadRepo := old_bullshit.NewUploadRepository(sqlDB)
-	uploadService := services.NewUploadService(uploadRepo, "/mwork-front-fn/uploads", "/mwork-front-fn/uploads")
-	uploadHandler := old_shit.NewUploadHandler(uploadService)
-
-	// Analytics
-	analyticsRepo := old_bullshit.NewAnalyticsRepository(sqlDB)
-	analyticsService := services.NewAnalyticsService(analyticsRepo)
-	analyticsHandler := old_shit.NewAnalyticsHandler(analyticsService, modelProfileRepo)
+	// Инициализация хендлеров
+	appHandlers := initializeHandlers(serviceContainer)
 
 	// 💬 WebSocket
-	wsManager := ws.NewWebSocketManager(chatService, attachmentService, reactionService, readReceiptService)
+	wsManager := ws.NewWebSocketManager(
+		serviceContainer.ChatService,
+	)
 	go wsManager.Run()
 
 	wsHandler := ws.NewWebSocketHandler(
 		wsManager,
-		chatService,
-		attachmentService,
-		reactionService,
-		readReceiptService,
+		serviceContainer.ChatService,
 	)
 
-	// Инициализируем Gin
-	router := gin.Default()
+	// Инициализация роутеров
+	ginRouter := initializeGinRouter()
 
-	router.Use(middlewares.ErrorHandler())
-	router.Use(middlewares.CORS())
-
-	// Подключение WebSocket-маршрутов
-	routes.SetupWebSocketRoutes(router, wsHandler)
-
-	routes.RegisterAllRoutes(
-		router,
-		userHandler,
-		authHandler,
-		modelProfileHandler,
-		employerProfileHandler,
-		castingHandler,
-		responseHandler,
-		chatHandler,
-		subscriptionHandler,
-		uploadHandler,
-		analyticsHandler,
-		searchHandler,
-		matchingHandler,
-		notificationHandler,
-		portfolioHandler,
-		reviewHandler,
-		moderationHandler,
-		usageService,
-	)
-
-	// Swagger UI
-	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	// Настройка маршрутов
+	setupRoutes(ginRouter, appHandlers, wsHandler)
 
 	// Запускаем сервер
 	address := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	fmt.Printf("🚀 Сервер запущен на %s\n", address)
-	if err := router.Run(address); err != nil {
+
+	if err := ginRouter.Run(address); err != nil {
 		log.Fatalf("Ошибка запуска сервера: %v", err)
+	}
+}
+
+// ServiceContainer содержит все сервисы приложения
+type ServiceContainer struct {
+	UserService         *services.UserService
+	ProfileService      *services.ProfileService
+	CastingService      *services.CastingService
+	ResponseService     *services.ResponseService
+	ReviewService       *services.ReviewService
+	PortfolioService    *services.PortfolioService
+	MatchingService     *services.MatchingService
+	NotificationService *services.NotificationService
+	SubscriptionService *services.SubscriptionService
+	SearchService       *services.SearchService
+	AnalyticsService    *services.AnalyticsService
+	ChatService         services.ChatService
+	EmailService        *services.EmailService
+}
+
+// initializeServices инициализирует все сервисы приложения
+func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB) *ServiceContainer {
+	// Инициализация email service
+	emailService := services.NewEmailService(cfg.SMTP)
+
+	// Репозитории
+	userRepo := repositories.NewUserRepository(gormDB)
+	refreshTokenRepo := repositories.NewRefreshTokenRepository(gormDB)
+	profileRepo := repositories.NewProfileRepository(gormDB)
+	castingRepo := repositories.NewCastingRepository(gormDB)
+	responseRepo := repositories.NewResponseRepository(gormDB)
+	notificationRepo := repositories.NewNotificationRepository(gormDB)
+	portfolioRepo := repositories.NewPortfolioRepository(gormDB)
+	reviewRepo := repositories.NewReviewRepository(gormDB)
+	uploadRepo := repositories.NewUploadRepository(gormDB)
+	analyticsRepo := repositories.NewAnalyticsRepository(gormDB)
+	subscriptionRepo := repositories.NewSubscriptionRepository(gormDB)
+	chatRepo := repositories.NewChatRepository(gormDB)
+
+	// Сервисы
+	userService := services.NewUserService(userRepo)
+	authService := services.NewAuthService(userRepo, refreshTokenRepo, emailService)
+	profileService := services.NewProfileService(profileRepo)
+	castingService := services.NewCastingService(castingRepo)
+	responseService := services.NewResponseService(responseRepo)
+	notificationService := services.NewNotificationService(notificationRepo, emailService)
+	portfolioService := services.NewPortfolioService(portfolioRepo)
+	reviewService := services.NewReviewService(reviewRepo)
+	searchService := services.NewSearchService(castingRepo, profileRepo)
+	matchingService := services.NewMatchingService(castingRepo, profileRepo, notificationService)
+	analyticsService := services.NewAnalyticsService(analyticsRepo)
+	uploadService := services.NewUploadService(uploadRepo)
+	moderationService := services.NewModerationService(userRepo, profileRepo, castingRepo)
+	usageService := services.NewUsageService(subscriptionRepo)
+	subscriptionService := services.NewSubscriptionService(subscriptionRepo)
+	chatService := services.NewChatService(chatRepo)
+
+	return &ServiceContainer{
+		UserService:         userService,
+		AuthService:         authService,
+		ProfileService:      profileService,
+		CastingService:      castingService,
+		ResponseService:     responseService,
+		ReviewService:       reviewService,
+		PortfolioService:    portfolioService,
+		MatchingService:     matchingService,
+		NotificationService: notificationService,
+		SubscriptionService: subscriptionService,
+		SearchService:       searchService,
+		AnalyticsService:    analyticsService,
+		ChatService:         chatService,
+		EmailService:        emailService,
+		UploadService:       uploadService,
+		ModerationService:   moderationService,
+		UsageService:        usageService,
+	}
+}
+
+// initializeHandlers инициализирует все хендлеры приложения
+func initializeHandlers(services *ServiceContainer) *AppHandlers {
+	return &AppHandlers{
+		UserHandler:         handlers.NewUserHandler(services.UserService, services.AuthService),
+		ProfileHandler:      handlers.NewProfileHandler(services.ProfileService),
+		CastingHandler:      handlers.NewCastingHandler(services.CastingService),
+		ResponseHandler:     handlers.NewResponseHandler(services.ResponseService),
+		ReviewHandler:       handlers.NewReviewHandler(services.ReviewService),
+		PortfolioHandler:    handlers.NewPortfolioHandler(services.PortfolioService),
+		MatchingHandler:     handlers.NewMatchingHandler(services.MatchingService),
+		NotificationHandler: handlers.NewNotificationHandler(services.NotificationService),
+		SubscriptionHandler: handlers.NewSubscriptionHandler(services.SubscriptionService),
+		SearchHandler:       handlers.NewSearchHandler(services.SearchService),
+		AnalyticsHandler:    handlers.NewAnalyticsHandler(services.AnalyticsService),
+		ChatHandler:         handlers.NewChatHandler(services.ChatService),
+		UploadHandler:       handlers.NewUploadHandler(services.UploadService),
+		ModerationHandler:   handlers.NewModerationHandler(services.ModerationService),
+	}
+}
+
+// initializeGinRouter инициализирует и настраивает Gin роутер
+func initializeGinRouter() *gin.Engine {
+	router := gin.Default()
+
+	// Middleware
+	router.Use(middleware.ErrorHandler())
+	router.Use(middleware.CORSMiddleware())
+
+	return router
+}
+
+// setupRoutes настраивает все маршруты приложения
+func setupRoutes(ginRouter *gin.Engine, handlers *AppHandlers, wsHandler *ws.WebSocketHandler) {
+	// Регистрация API маршрутов
+	api := ginRouter.Group("/api/v1")
+
+	// User and Auth routes
+	handlers.UserHandler.RegisterRoutes(api)
+
+	// Profile routes
+	handlers.ProfileHandler.RegisterRoutes(api)
+
+	// Casting routes
+	handlers.CastingHandler.RegisterRoutes(api)
+
+	// Response routes
+	handlers.ResponseHandler.RegisterRoutes(api)
+
+	// Review routes
+	handlers.ReviewHandler.RegisterRoutes(api)
+
+	// Portfolio routes
+	handlers.PortfolioHandler.RegisterRoutes(api)
+
+	// Matching routes
+	handlers.MatchingHandler.RegisterRoutes(api)
+
+	// Notification routes
+	handlers.NotificationHandler.RegisterRoutes(api)
+
+	// Subscription routes
+	handlers.SubscriptionHandler.RegisterRoutes(api)
+
+	// Search routes
+	handlers.SearchHandler.RegisterRoutes(api)
+
+	// Analytics routes
+	handlers.AnalyticsHandler.RegisterRoutes(api)
+
+	// Upload routes
+	handlers.UploadHandler.RegisterRoutes(api)
+
+	// Moderation routes
+	handlers.ModerationHandler.RegisterRoutes(api)
+
+	// Chat routes
+	handlers.ChatHandler.RegisterRoutes(api)
+
+	// WebSocket маршруты
+	setupWebSocketRoutes(ginRouter, wsHandler)
+}
+
+// setupWebSocketRoutes настраивает WebSocket маршруты
+func setupWebSocketRoutes(router *gin.Engine, wsHandler *ws.WebSocketHandler) {
+	wsGroup := router.Group("/ws")
+	{
+		wsGroup.GET("/chat", func(c *gin.Context) {
+			wsHandler.HandleWebSocket(c.Writer, c.Request)
+		})
+		wsGroup.GET("/chat/:dialog_id", func(c *gin.Context) {
+			wsHandler.HandleWebSocket(c.Writer, c.Request)
+		})
 	}
 }

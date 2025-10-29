@@ -10,23 +10,6 @@ import (
 // Auth DTOs
 // =======================
 
-// RegisterRequest содержит данные для регистрации пользователя
-type RegisterRequest struct {
-	Email       string          `json:"email" binding:"required,email"`
-	Password    string          `json:"password" binding:"required,min=6"`
-	Role        models.UserRole `json:"role" binding:"required,oneof=model employer"`
-	Name        string          `json:"name,omitempty"`
-	CompanyName string          `json:"company_name,omitempty"`
-	City        string          `json:"city,omitempty"`
-}
-
-// LoginRequest содержит данные для аутентификации пользователя
-type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
-}
-
-// LoginResponse содержит данные, возвращаемые после успешного логина
 type LoginResponse struct {
 	AccessToken  string        `json:"access_token"`
 	RefreshToken string        `json:"refresh_token"`

@@ -69,6 +69,7 @@ type MessageResponse struct {
 	ReadBy         []string              `json:"read_by"`
 	CreatedAt      time.Time             `json:"created_at"`
 	UpdatedAt      time.Time             `json:"updated_at"`
+	Message        string                `json:"message"`
 }
 
 type ParticipantResponse struct {

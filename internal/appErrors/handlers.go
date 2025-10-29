@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 // ErrorResponse - стандартный ответ об ошибке
@@ -55,4 +57,40 @@ func (h *HTTPErrorHandler) HandleError(w http.ResponseWriter, r *http.Request, e
 func HandleHTTPError(w http.ResponseWriter, r *http.Request, err error) {
 	handler := &HTTPErrorHandler{Debug: true} // В проде установить false
 	handler.HandleError(w, r, err)
+}
+
+// GinErrorHandler - обработчик ошибок для Gin
+type GinErrorHandler struct {
+	Debug bool
+}
+
+// HandleGinError - основная логика обработки ошибок для Gin
+func (h *GinErrorHandler) HandleGinError(c *gin.Context, err *AppError) {
+	// Логирование
+	if err.HTTPCode >= 500 {
+		log.Printf("Server error: %v", err)
+	}
+
+	// Отправка ответа
+	c.JSON(err.HTTPCode, ErrorResponse{Error: err})
+}
+
+// HandleError - обработка ошибок для Gin контекста
+func HandleError(c *gin.Context, err *AppError) {
+	handler := &GinErrorHandler{Debug: true} // В проде установить false
+	handler.HandleGinError(c, err)
+}
+
+// HandleValidationError - специальный обработчик для ошибок валидации
+func HandleValidationError(c *gin.Context, err error) {
+	// Преобразование ошибок валидации Gin в наш формат
+	validationErr := ErrValidationFailed.WithDetails(extractValidationDetails(err))
+	HandleError(c, validationErr)
+}
+
+// Вспомогательная функция для извлечения деталей валидации
+func extractValidationDetails(err error) interface{} {
+	// Здесь можно добавить логику для извлечения деталей валидации
+	// из ошибок Gin binding
+	return gin.H{"details": err.Error()}
 }

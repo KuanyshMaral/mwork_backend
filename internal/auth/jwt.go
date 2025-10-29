@@ -25,7 +25,7 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-// Генерация токена
+// GenerateToken создает JWT токен для пользователя
 func GenerateToken(userID, role string) (string, error) {
 	expirationTime := time.Now().Add(24 * time.Hour)
 
@@ -42,7 +42,7 @@ func GenerateToken(userID, role string) (string, error) {
 	return token.SignedString(jwtKey)
 }
 
-// Разбор и валидация токена
+// ParseToken разбирает и валидирует JWT токен
 func ParseToken(tokenStr string) (*Claims, error) {
 	claims := &Claims{}
 	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
@@ -54,4 +54,10 @@ func ParseToken(tokenStr string) (*Claims, error) {
 	}
 
 	return claims, nil
+}
+
+// ValidateToken проверяет валидность токена без разбора claims
+func ValidateToken(tokenStr string) bool {
+	_, err := ParseToken(tokenStr)
+	return err == nil
 }

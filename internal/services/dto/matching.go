@@ -2,8 +2,10 @@ package dto
 
 import (
 	"encoding/json"
-	"gorm.io/datatypes"
+	"mwork_backend/internal/models"
 	"time"
+
+	"gorm.io/datatypes"
 )
 
 // ========================
@@ -149,4 +151,34 @@ func FormatCategories(categories []string) datatypes.JSON {
 	}
 	jsonData, _ := json.Marshal(categories)
 	return datatypes.JSON(jsonData)
+}
+
+type MatchingCasting struct {
+	City       string   `json:"city"`
+	Categories []string `json:"categories"`
+	Gender     string   `json:"gender"`
+	AgeMin     *int     `json:"age_min,omitempty"`
+	AgeMax     *int     `json:"age_max,omitempty"`
+	HeightMin  *float64 `json:"height_min,omitempty"`
+	HeightMax  *float64 `json:"height_max,omitempty"`
+	WeightMin  *float64 `json:"weight_min,omitempty"`
+	WeightMax  *float64 `json:"weight_max,omitempty"`
+	JobType    string   `json:"job_type"`
+	Languages  []string `json:"languages,omitempty"`
+}
+
+func CastingToMatchingDTO(casting *models.Casting) *MatchingCasting {
+	return &MatchingCasting{
+		City:       casting.City,
+		Categories: casting.GetCategories(),
+		Gender:     casting.Gender,
+		AgeMin:     casting.AgeMin,
+		AgeMax:     casting.AgeMax,
+		HeightMin:  casting.HeightMin,
+		HeightMax:  casting.HeightMax,
+		WeightMin:  casting.WeightMin,
+		WeightMax:  casting.WeightMax,
+		JobType:    casting.JobType,
+		Languages:  casting.GetLanguages(),
+	}
 }

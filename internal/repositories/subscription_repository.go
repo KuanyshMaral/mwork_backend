@@ -38,6 +38,7 @@ type SubscriptionRepository interface {
 	CancelUserSubscription(userID string) error
 	RenewUserSubscription(userID string, newPlanID string, newEndDate time.Time) error
 	IncrementSubscriptionUsage(userID string, feature string) error
+	DecrementSubscriptionUsage(userID string, feature string) error
 	ResetSubscriptionUsage(userID string) error
 	FindExpiringSubscriptions(days int) ([]models.UserSubscription, error)
 	FindExpiredSubscriptions() ([]models.UserSubscription, error)
@@ -335,6 +336,35 @@ func (r *SubscriptionRepositoryImpl) IncrementSubscriptionUsage(userID string, f
 		}
 
 		usage[feature]++
+
+		newUsage, err := json.Marshal(usage)
+		if err != nil {
+			return fmt.Errorf("failed to marshal usage: %w", err)
+		}
+
+		subscription.CurrentUsage = datatypes.JSON(newUsage)
+		return tx.Save(&subscription).Error
+	})
+}
+
+func (r *SubscriptionRepositoryImpl) DecrementSubscriptionUsage(userID string, feature string) error {
+	// Используем транзакцию для атомарного обновления
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var subscription models.UserSubscription
+		if err := tx.Where("user_id = ?", userID).First(&subscription).Error; err != nil {
+			return ErrSubscriptionNotFound
+		}
+
+		// Обновляем usage
+		var usage map[string]int
+		if err := json.Unmarshal(subscription.CurrentUsage, &usage); err != nil {
+			return fmt.Errorf("failed to unmarshal usage: %w", err)
+		}
+
+		// Декрементируем, но не ниже 0
+		if usage[feature] > 0 {
+			usage[feature]--
+		}
 
 		newUsage, err := json.Marshal(usage)
 		if err != nil {

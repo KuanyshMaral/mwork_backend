@@ -5,7 +5,6 @@ import (
 	"math"
 	"sort"
 
-	"gorm.io/datatypes"
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/repositories"
 	"mwork_backend/internal/services/dto"
@@ -19,7 +18,8 @@ type MatchingService interface {
 	// Core matching operations
 	FindMatchingModels(castingID string, limit int, minScore float64) ([]*dto.MatchResult, error)
 	FindModelsForCasting(casting *models.Casting, limit int) ([]*dto.MatchResult, error)
-	CalculateMatchScore(model *models.ModelProfile, casting *models.Casting) (*dto.MatchScore, error)
+	CalculateMatchScore(model *models.ModelProfile, casting *dto.MatchingCasting) (*dto.MatchScore, error)
+	CalculateMatchScoreWithModel(model *models.ModelProfile, casting *models.Casting) (*dto.MatchScore, error)
 
 	// Advanced matching
 	FindModelsByCriteria(criteria *dto.MatchCriteria) ([]*dto.MatchResult, error)
@@ -98,20 +98,38 @@ func float64PtrToIntPtr(f *float64) *int {
 }
 
 func (s *matchingService) FindModelsForCasting(casting *models.Casting, limit int) ([]*dto.MatchResult, error) {
-	criteria := &dto.MatchCriteria{
+	// Конвертируем модель Casting в DTO MatchingCasting
+	criteria := &dto.MatchingCasting{
 		City:       casting.City,
-		Categories: s.parseCategories(casting.Categories),
+		Categories: casting.GetCategories(),
 		Gender:     casting.Gender,
-		MinAge:     casting.AgeMin,
-		MaxAge:     casting.AgeMax,
-		MinHeight:  float64PtrToIntPtr(casting.HeightMin),
-		MaxHeight:  float64PtrToIntPtr(casting.HeightMax),
+		AgeMin:     casting.AgeMin,
+		AgeMax:     casting.AgeMax,
+		HeightMin:  casting.HeightMin,
+		HeightMax:  casting.HeightMax,
+		WeightMin:  casting.WeightMin,
+		WeightMax:  casting.WeightMax,
 		JobType:    casting.JobType,
+		Languages:  casting.GetLanguages(),
+	}
+
+	// Создаем MatchCriteria из MatchingCasting
+	matchCriteria := &dto.MatchCriteria{
+		City:       criteria.City,
+		Categories: criteria.Categories,
+		Gender:     criteria.Gender,
+		MinAge:     criteria.AgeMin,
+		MaxAge:     criteria.AgeMax,
+		MinHeight:  float64PtrToIntPtr(criteria.HeightMin),
+		MaxHeight:  float64PtrToIntPtr(criteria.HeightMax),
+		MinWeight:  float64PtrToIntPtr(criteria.WeightMin),
+		MaxWeight:  float64PtrToIntPtr(criteria.WeightMax),
+		Languages:  criteria.Languages,
 		Limit:      limit,
 		MinScore:   50.0,
 	}
 
-	models, err := s.FindModelsByCriteria(criteria)
+	models, err := s.FindModelsByCriteria(matchCriteria)
 	if err != nil {
 		return nil, err
 	}
@@ -123,27 +141,27 @@ func (s *matchingService) FindModelsForCasting(casting *models.Casting, limit in
 	return models, nil
 }
 
-func (s *matchingService) CalculateMatchScore(model *models.ModelProfile, casting *models.Casting) (*dto.MatchScore, error) {
+func (s *matchingService) CalculateMatchScore(model *models.ModelProfile, casting *dto.MatchingCasting) (*dto.MatchScore, error) {
 	breakdown := &dto.CompatibilityBreakdown{}
 	categoryScores := make(map[string]float64)
 
-	demographicsScore := s.calculateDemographicsScore(model, casting)
+	demographicsScore := s.calculateDemographicsScoreDTO(model, casting)
 	breakdown.Demographics = demographicsScore
 	categoryScores["demographics"] = demographicsScore
 
-	physicalScore := s.calculatePhysicalScore(model, casting)
+	physicalScore := s.calculatePhysicalScoreDTO(model, casting)
 	breakdown.Physical = physicalScore
 	categoryScores["physical"] = physicalScore
 
-	professionalScore := s.calculateProfessionalScore(model, casting)
+	professionalScore := s.calculateProfessionalScoreDTO(model, casting)
 	breakdown.Professional = professionalScore
 	categoryScores["professional"] = professionalScore
 
-	geographicScore := s.calculateGeographicScore(model, casting)
+	geographicScore := s.calculateGeographicScoreDTO(model, casting)
 	breakdown.Geographic = geographicScore
 	categoryScores["geographic"] = geographicScore
 
-	specializedScore := s.calculateSpecializedScore(model, casting)
+	specializedScore := s.calculateSpecializedScoreDTO(model, casting)
 	breakdown.Specialized = specializedScore
 	categoryScores["specialized"] = specializedScore
 
@@ -158,6 +176,25 @@ func (s *matchingService) CalculateMatchScore(model *models.ModelProfile, castin
 		CategoryScores: categoryScores,
 		Breakdown:      breakdown,
 	}, nil
+}
+
+func (s *matchingService) CalculateMatchScoreWithModel(model *models.ModelProfile, casting *models.Casting) (*dto.MatchScore, error) {
+	// Конвертируем модель в DTO
+	castingDTO := &dto.MatchingCasting{
+		City:       casting.City,
+		Categories: casting.GetCategories(),
+		Gender:     casting.Gender,
+		AgeMin:     casting.AgeMin,
+		AgeMax:     casting.AgeMax,
+		HeightMin:  casting.HeightMin,
+		HeightMax:  casting.HeightMax,
+		WeightMin:  casting.WeightMin,
+		WeightMax:  casting.WeightMax,
+		JobType:    casting.JobType,
+		Languages:  casting.GetLanguages(),
+	}
+
+	return s.CalculateMatchScore(model, castingDTO)
 }
 
 // -------------------------------
@@ -189,15 +226,19 @@ func (s *matchingService) FindModelsByCriteria(criteria *dto.MatchCriteria) ([]*
 
 	var matchResults []*dto.MatchResult
 	for _, model := range models {
-		mockCasting := &models.Casting{
+		// Используем DTO вместо модели
+		mockCasting := &dto.MatchingCasting{
 			City:       criteria.City,
-			Categories: s.formatCategories(criteria.Categories),
+			Categories: criteria.Categories,
 			Gender:     criteria.Gender,
 			AgeMin:     criteria.MinAge,
 			AgeMax:     criteria.MaxAge,
 			HeightMin:  intPtrToFloat64Ptr(criteria.MinHeight),
 			HeightMax:  intPtrToFloat64Ptr(criteria.MaxHeight),
+			WeightMin:  intPtrToFloat64Ptr(criteria.MinWeight),
+			WeightMax:  intPtrToFloat64Ptr(criteria.MaxWeight),
 			JobType:    criteria.JobType,
+			Languages:  criteria.Languages,
 		}
 
 		score, err := s.CalculateMatchScore(&model, mockCasting)
@@ -238,7 +279,8 @@ func (s *matchingService) GetModelCompatibility(modelID, castingID string) (*dto
 		return nil, ErrCastingNotFound
 	}
 
-	score, err := s.CalculateMatchScore(model, casting)
+	// Используем метод для работы с моделями
+	score, err := s.CalculateMatchScoreWithModel(model, casting)
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +302,7 @@ func (s *matchingService) FindSimilarModels(modelID string, limit int) ([]*dto.S
 
 	criteria := &dto.MatchCriteria{
 		City:       targetModel.City,
-		Categories: s.parseCategories(targetModel.Categories),
+		Categories: targetModel.GetCategories(),
 		Gender:     targetModel.Gender,
 		Limit:      limit + 1,
 		MinScore:   30.0,
@@ -279,7 +321,7 @@ func (s *matchingService) FindSimilarModels(modelID string, limit int) ([]*dto.S
 				Name:             match.ModelName,
 				City:             targetModel.City,
 				Similarity:       match.Score,
-				CommonCategories: s.parseCategories(targetModel.Categories),
+				CommonCategories: targetModel.GetCategories(),
 			})
 		}
 	}
@@ -373,49 +415,195 @@ func (s *matchingService) GetMatchingLogs(criteria dto.MatchingLogCriteria) ([]*
 // Helpers
 // -------------------------------
 
-func (s *matchingService) parseCategories(categoriesData datatypes.JSON) []string {
-	return dto.ParseCategories(categoriesData)
-}
-
-func (s *matchingService) formatCategories(categories []string) datatypes.JSON {
-	return dto.FormatCategories(categories)
-}
-
-func getIntValue(ptr *int) int {
-	if ptr != nil {
-		return *ptr
+// Вспомогательная функция для конвертации *int в *float64
+func intPtrToFloat64Ptr(i *int) *float64 {
+	if i == nil {
+		return nil
 	}
-	return 0
+	f := float64(*i)
+	return &f
 }
 
 func (s *matchingService) notifyTopMatches(casting *models.Casting, matches []*dto.MatchResult) {
 	// Placeholder: notification logic here
 }
 
-func (s *matchingService) calculateDemographicsScore(model *models.ModelProfile, casting *models.Casting) float64 {
-	return 80.0
+// DTO-based scoring methods
+func (s *matchingService) calculateDemographicsScoreDTO(model *models.ModelProfile, casting *dto.MatchingCasting) float64 {
+	score := 0.0
+	criteriaCount := 0
+
+	// Gender match
+	if casting.Gender != "" && model.Gender == casting.Gender {
+		score += 30.0
+	}
+	criteriaCount++
+
+	// Age match
+	if casting.AgeMin != nil && casting.AgeMax != nil && model.Age >= *casting.AgeMin && model.Age <= *casting.AgeMax {
+		score += 40.0
+	}
+	criteriaCount++
+
+	// City match
+	if casting.City != "" && model.City == casting.City {
+		score += 30.0
+	}
+	criteriaCount++
+
+	return score / float64(criteriaCount)
 }
 
-func (s *matchingService) calculatePhysicalScore(model *models.ModelProfile, casting *models.Casting) float64 {
-	return 75.0
+func (s *matchingService) calculatePhysicalScoreDTO(model *models.ModelProfile, casting *dto.MatchingCasting) float64 {
+	score := 0.0
+	criteriaCount := 0
+
+	// Height match
+	if casting.HeightMin != nil && casting.HeightMax != nil {
+		if model.Height >= int(*casting.HeightMin) && model.Height <= int(*casting.HeightMax) {
+			score += 50.0
+		}
+		criteriaCount++
+	}
+
+	// Weight match
+	if casting.WeightMin != nil && casting.WeightMax != nil {
+		if model.Weight >= int(*casting.WeightMin) && model.Weight <= int(*casting.WeightMax) {
+			score += 50.0
+		}
+		criteriaCount++
+	}
+
+	if criteriaCount == 0 {
+		return 100.0 // No physical criteria specified
+	}
+
+	return score / float64(criteriaCount)
 }
 
-func (s *matchingService) calculateProfessionalScore(model *models.ModelProfile, casting *models.Casting) float64 {
-	return 70.0
+func (s *matchingService) calculateProfessionalScoreDTO(model *models.ModelProfile, casting *dto.MatchingCasting) float64 {
+	score := 0.0
+	criteriaCount := 0
+
+	// Experience level match (simplified)
+	if model.Experience > 2 {
+		score += 60.0
+	}
+	criteriaCount++
+
+	// Rating match
+	if model.Rating >= 4.0 {
+		score += 40.0
+	}
+	criteriaCount++
+
+	return score / float64(criteriaCount)
 }
 
-func (s *matchingService) calculateGeographicScore(model *models.ModelProfile, casting *models.Casting) float64 {
-	return 85.0
+func (s *matchingService) calculateGeographicScoreDTO(model *models.ModelProfile, casting *dto.MatchingCasting) float64 {
+	// Simple city-based scoring
+	if casting.City != "" && model.City == casting.City {
+		return 100.0
+	}
+	return 0.0
 }
 
-func (s *matchingService) calculateSpecializedScore(model *models.ModelProfile, casting *models.Casting) float64 {
-	return 90.0
+func (s *matchingService) calculateSpecializedScoreDTO(model *models.ModelProfile, casting *dto.MatchingCasting) float64 {
+	score := 0.0
+	criteriaCount := 0
+
+	// Category match
+	if len(casting.Categories) > 0 && len(model.GetCategories()) > 0 {
+		commonCategories := 0
+		for _, cat := range casting.Categories {
+			for _, modelCat := range model.GetCategories() {
+				if cat == modelCat {
+					commonCategories++
+					break
+				}
+			}
+		}
+		if commonCategories > 0 {
+			score += float64(commonCategories) / float64(len(casting.Categories)) * 60.0
+		}
+		criteriaCount++
+	}
+
+	// Language match
+	if len(casting.Languages) > 0 && len(model.GetLanguages()) > 0 {
+		commonLanguages := 0
+		for _, lang := range casting.Languages {
+			for _, modelLang := range model.GetLanguages() {
+				if lang == modelLang {
+					commonLanguages++
+					break
+				}
+			}
+		}
+		if commonLanguages > 0 {
+			score += float64(commonLanguages) / float64(len(casting.Languages)) * 40.0
+		}
+		criteriaCount++
+	}
+
+	if criteriaCount == 0 {
+		return 100.0 // No specialized criteria specified
+	}
+
+	return score / float64(criteriaCount)
 }
 
-func (s *matchingService) generateMatchReasons(score *dto.MatchScore, model *models.ModelProfile, casting *models.Casting) []string {
-	return []string{"Good demographic fit", "Matches physical criteria"}
+func (s *matchingService) generateMatchReasons(score *dto.MatchScore, model *models.ModelProfile, casting *dto.MatchingCasting) []string {
+	var reasons []string
+
+	if score.Breakdown != nil {
+		if score.Breakdown.Geographic > 80.0 {
+			reasons = append(reasons, "Идеальное географическое соответствие")
+		}
+		if score.Breakdown.Demographics > 70.0 {
+			reasons = append(reasons, "Соответствие демографическим требованиям")
+		}
+		if score.Breakdown.Physical > 60.0 {
+			reasons = append(reasons, "Подходящие физические параметры")
+		}
+		if score.Breakdown.Professional > 50.0 {
+			reasons = append(reasons, "Профессиональное соответствие")
+		}
+		if score.Breakdown.Specialized > 40.0 {
+			reasons = append(reasons, "Специализированные навыки")
+		}
+	}
+
+	// Дополнительные проверки на основе конкретных параметров
+	if model.City == casting.City {
+		reasons = append(reasons, "Находится в том же городе")
+	}
+
+	if len(model.GetCategories()) > 0 && len(casting.Categories) > 0 {
+		reasons = append(reasons, "Подходящие категории")
+	}
+
+	return reasons
 }
 
 func (s *matchingService) generateRecommendations(score *dto.MatchScore, model *models.ModelProfile, casting *models.Casting) []string {
-	return []string{"Recommended for this casting"}
+	var recommendations []string
+
+	if score.Breakdown != nil {
+		if score.Breakdown.Geographic < 50.0 {
+			recommendations = append(recommendations, "Рассмотрите модели из других городов")
+		}
+		if score.Breakdown.Physical < 60.0 {
+			recommendations = append(recommendations, "Расширьте физические критерии")
+		}
+		if score.Breakdown.Specialized < 40.0 {
+			recommendations = append(recommendations, "Ищите модели с более специализированными навыками")
+		}
+	}
+
+	if score.TotalScore > 80.0 {
+		recommendations = append(recommendations, "Высокий потенциал для сотрудничества")
+	}
+
+	return recommendations
 }

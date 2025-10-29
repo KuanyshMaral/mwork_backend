@@ -1,55 +1,61 @@
 package ws
 
 import (
+	"github.com/gorilla/websocket"
+	"log"
 	"net/http"
-
-	chat "mwork_backend/internal/services/chat"
 )
 
-// WebSocketHandler — структура для инициализации обработчика с зависимостями
-type WebSocketHandler struct {
-	Manager            *WebSocketManager
-	ChatService        *chat.ChatService
-	AttachmentService  *chat.AttachmentService
-	ReactionService    *chat.ReactionService
-	ReadReceiptService *chat.ReadReceiptService
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true // В продакшн добавьте проверку origin
+	},
 }
 
-// NewWebSocketHandler — инициализация хендлера
-func NewWebSocketHandler(
-	manager *WebSocketManager,
-	chatService *chat.ChatService,
-	attachmentService *chat.AttachmentService,
-	reactionService *chat.ReactionService,
-	readReceiptService *chat.ReadReceiptService,
-) *WebSocketHandler {
+type WebSocketHandler struct {
+	Manager *WebSocketManager
+}
+
+func NewWebSocketHandler(manager *WebSocketManager) *WebSocketHandler {
 	return &WebSocketHandler{
-		Manager:            manager,
-		ChatService:        chatService,
-		AttachmentService:  attachmentService,
-		ReactionService:    reactionService,
-		ReadReceiptService: readReceiptService,
+		Manager: manager,
 	}
 }
 
-// HandleWebSocketConnection — основной HTTP endpoint
-func (h *WebSocketHandler) HandleWebSocketConnection(w http.ResponseWriter, r *http.Request) {
-	// Пример: получить userID из middleware/jwt
-	userID := r.Context().Value("user_id")
-	if userID == nil {
+func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("user_id")
+	if userID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	// Обработка WebSocket соединения
-	ServeWS(
-		h.Manager,
-		w,
-		r,
-		userID.(string),
-		h.ChatService,
-		h.AttachmentService,
-		h.ReactionService,
-		h.ReadReceiptService,
-	)
+	// ChatService теперь передаётся через Manager
+	ServeWS(h.Manager, w, r, userID)
+}
+
+// ServeWS теперь принимает интерфейс
+func ServeWS(
+	manager *WebSocketManager,
+	w http.ResponseWriter,
+	r *http.Request,
+	userID string,
+) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println("WebSocket upgrade error:", err)
+		return
+	}
+
+	client := &Client{
+		ID:      userID,
+		Conn:    conn,
+		Send:    make(chan any, 256), // Буферизованный канал
+		Ctx:     r.Context(),
+		Manager: manager,
+	}
+
+	manager.register <- client
+
+	go client.readPump()
+	go client.writePump()
 }

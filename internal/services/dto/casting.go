@@ -108,7 +108,8 @@ type ResponseSummary struct {
 	Message   *string               `json:"message,omitempty"`
 	Status    models.ResponseStatus `json:"status"`
 	CreatedAt time.Time             `json:"created_at"`
-	Model     *models.ModelProfile  `json:"model,omitempty"`
+	Viewed    bool                  `json:"viewed"`
+	Model     interface{}           `json:"model,omitempty"`
 }
 
 type CastingStatsResponse struct {
@@ -140,4 +141,44 @@ type CastingSearchCriteria struct {
 	PageSize   int        `form:"page_size" binding:"min=1,max=100"`
 	SortBy     string     `form:"sort_by"`
 	SortOrder  string     `form:"sort_order"`
+}
+
+type PlatformStatsResponse struct {
+	TotalCastings    int64     `json:"total_castings"`
+	ActiveCastings   int64     `json:"active_castings"`
+	ClosedCastings   int64     `json:"closed_castings"`
+	DraftCastings    int64     `json:"draft_castings"`
+	TotalViews       int64     `json:"total_views"`
+	TotalResponses   int64     `json:"total_responses"`
+	AverageResponses float64   `json:"average_responses"`
+	DateFrom         time.Time `json:"date_from"`
+	DateTo           time.Time `json:"date_to"`
+}
+
+type PlatformCastingStatsResponse struct {
+	TotalCastings   int64     `json:"totalCastings"`
+	ActiveCastings  int64     `json:"activeCastings"`
+	SuccessRate     float64   `json:"successRate"`
+	AvgResponseRate float64   `json:"avgResponseRate"`
+	AvgResponseTime float64   `json:"avgResponseTime"`
+	DateFrom        time.Time `json:"dateFrom"`
+	DateTo          time.Time `json:"dateTo"`
+}
+
+// MatchingStatsResponse - ответ со статистикой мэтчинга
+type MatchingStatsResponse struct {
+	TotalMatches    int64     `json:"totalMatches"`
+	AvgMatchScore   float64   `json:"avgMatchScore"`
+	AvgSatisfaction float64   `json:"avgSatisfaction"`
+	MatchRate       float64   `json:"matchRate"`
+	ResponseRate    float64   `json:"responseRate"`
+	TimeToMatch     float64   `json:"timeToMatch"`
+	DateFrom        time.Time `json:"dateFrom"`
+	DateTo          time.Time `json:"dateTo"`
+}
+
+// CategoryCountResponse - ответ с количеством по категориям
+type CategoryCountResponse struct {
+	Name  string `json:"name"`
+	Count int64  `json:"count"`
 }

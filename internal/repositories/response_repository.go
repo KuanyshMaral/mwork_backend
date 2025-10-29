@@ -15,15 +15,14 @@ var (
 )
 
 type ResponseRepository interface {
-	// CastingResponse operations
 	CreateResponse(response *models.CastingResponse) error
 	FindResponseByID(id string) (*models.CastingResponse, error)
 	FindResponseByCastingAndModel(castingID, modelID string) (*models.CastingResponse, error)
 	FindResponsesByCasting(castingID string) ([]models.CastingResponse, error)
 	FindResponsesByModel(modelID string) ([]models.CastingResponse, error)
-	UpdateResponseStatus(id string, status models.ResponseStatus) error
-	UpdateResponseViewedByEmployer(responseID string, viewed bool) error
-	DeleteResponse(id string) error
+	UpdateResponseStatus(responseID string, status models.ResponseStatus) error
+	MarkResponseAsViewed(responseID string) error
+	DeleteResponse(responseID string) error
 	GetResponseStats(castingID string) (*ResponseStats, error)
 }
 
@@ -106,6 +105,21 @@ func (r *ResponseRepositoryImpl) UpdateResponseStatus(id string, status models.R
 	result := r.db.Model(&models.CastingResponse{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"status":     status,
 		"updated_at": time.Now(),
+	})
+
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrResponseNotFound
+	}
+	return nil
+}
+
+func (r *ResponseRepositoryImpl) MarkResponseAsViewed(responseID string) error {
+	result := r.db.Model(&models.CastingResponse{}).Where("id = ?", responseID).Updates(map[string]interface{}{
+		"employer_viewed": true,
+		"updated_at":      time.Now(),
 	})
 
 	if result.Error != nil {

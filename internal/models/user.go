@@ -4,6 +4,7 @@ import "time"
 
 type User struct {
 	BaseModel
+	Name              string     `gorm:"type:varchar(100);not null"` // Добавлено поле Name
 	Email             string     `gorm:"uniqueIndex;not null"`
 	PasswordHash      string     `gorm:"not null"`
 	Role              UserRole   `gorm:"type:varchar(20);not null"`
