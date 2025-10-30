@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"mwork_backend/internal/appErrors"
-	"mwork_backend/internal/middleware"
+	"mwork_backend/internal/middleware" // <-- Все еще нужен для RegisterRoutes
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/services"
 	"mwork_backend/internal/services/dto"
@@ -13,15 +13,19 @@ import (
 )
 
 type PortfolioHandler struct {
+	*BaseHandler     // <-- 1. Встраиваем BaseHandler
 	portfolioService services.PortfolioService
 }
 
-func NewPortfolioHandler(portfolioService services.PortfolioService) *PortfolioHandler {
+// 2. Обновляем конструктор
+func NewPortfolioHandler(base *BaseHandler, portfolioService services.PortfolioService) *PortfolioHandler {
 	return &PortfolioHandler{
+		BaseHandler:      base, // <-- 3. Сохраняем его
 		portfolioService: portfolioService,
 	}
 }
 
+// RegisterRoutes не требует изменений
 func (h *PortfolioHandler) RegisterRoutes(r *gin.RouterGroup) {
 	// Public routes
 	public := r.Group("/portfolio")
@@ -65,34 +69,31 @@ func (h *PortfolioHandler) RegisterRoutes(r *gin.RouterGroup) {
 	}
 }
 
-// Portfolio handlers
+// --- Portfolio handlers ---
 
 func (h *PortfolioHandler) CreatePortfolioItem(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	// 4. Используем GetAndAuthorizeUserID
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	var req dto.CreatePortfolioRequest
-	if err := c.ShouldBind(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	// 5. BindAndValidate_JSON также работает с multipart-form полями
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	file, err := c.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "File is required"})
+		appErrors.HandleError(c, appErrors.NewBadRequestError("File is required"))
 		return
 	}
 
 	response, err := h.portfolioService.CreatePortfolioItem(userID, &req, file)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if appErrors.Is(err, appErrors.ErrFileTooLarge) ||
-			appErrors.Is(err, appErrors.ErrInvalidFileType) ||
-			appErrors.Is(err, appErrors.ErrInvalidUploadUsage) {
-			statusCode = http.StatusBadRequest
-		} else if appErrors.Is(err, appErrors.ErrStorageLimitExceeded) {
-			statusCode = http.StatusPaymentRequired
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		// 6. Используем HandleServiceError
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -104,7 +105,7 @@ func (h *PortfolioHandler) GetPortfolioItem(c *gin.Context) {
 
 	response, err := h.portfolioService.GetPortfolioItem(itemID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Portfolio item not found"})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -116,7 +117,7 @@ func (h *PortfolioHandler) GetModelPortfolio(c *gin.Context) {
 
 	responses, err := h.portfolioService.GetModelPortfolio(modelID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -127,21 +128,19 @@ func (h *PortfolioHandler) GetModelPortfolio(c *gin.Context) {
 }
 
 func (h *PortfolioHandler) UpdatePortfolioItem(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	itemID := c.Param("itemId")
 
 	var req dto.UpdatePortfolioRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	if err := h.portfolioService.UpdatePortfolioItem(userID, itemID, &req); err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "access denied" {
-			statusCode = http.StatusForbidden
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -149,20 +148,18 @@ func (h *PortfolioHandler) UpdatePortfolioItem(c *gin.Context) {
 }
 
 func (h *PortfolioHandler) UpdatePortfolioOrder(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	var req dto.ReorderPortfolioRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	if err := h.portfolioService.UpdatePortfolioOrder(userID, &req); err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "access denied for some items" || err.Error() == "model profile not found" {
-			statusCode = http.StatusForbidden
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -170,15 +167,14 @@ func (h *PortfolioHandler) UpdatePortfolioOrder(c *gin.Context) {
 }
 
 func (h *PortfolioHandler) DeletePortfolioItem(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	itemID := c.Param("itemId")
 
 	if err := h.portfolioService.DeletePortfolioItem(userID, itemID); err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "access denied" {
-			statusCode = http.StatusForbidden
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -186,11 +182,15 @@ func (h *PortfolioHandler) DeletePortfolioItem(c *gin.Context) {
 }
 
 func (h *PortfolioHandler) GetPortfolioStats(c *gin.Context) {
+	// Защищенный маршрут, проверяем авторизацию
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
 	modelID := c.Param("modelId")
 
 	stats, err := h.portfolioService.GetPortfolioStats(modelID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -198,21 +198,19 @@ func (h *PortfolioHandler) GetPortfolioStats(c *gin.Context) {
 }
 
 func (h *PortfolioHandler) TogglePortfolioVisibility(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	itemID := c.Param("itemId")
 
 	var req dto.PortfolioVisibilityRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	if err := h.portfolioService.TogglePortfolioVisibility(userID, itemID, &req); err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "access denied" {
-			statusCode = http.StatusForbidden
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -220,16 +218,15 @@ func (h *PortfolioHandler) TogglePortfolioVisibility(c *gin.Context) {
 }
 
 func (h *PortfolioHandler) GetFeaturedPortfolio(c *gin.Context) {
-	limit := 10
-	if limitParam := c.Query("limit"); limitParam != "" {
-		if parsedLimit, err := parseIntParam(limitParam); err == nil {
-			limit = parsedLimit
-		}
+	// 7. Используем ParseQueryInt
+	limit := ParseQueryInt(c, "limit", 10)
+	if limit <= 0 {
+		limit = 10
 	}
 
 	response, err := h.portfolioService.GetFeaturedPortfolio(limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -237,50 +234,42 @@ func (h *PortfolioHandler) GetFeaturedPortfolio(c *gin.Context) {
 }
 
 func (h *PortfolioHandler) GetRecentPortfolio(c *gin.Context) {
-	limit := 10
-	if limitParam := c.Query("limit"); limitParam != "" {
-		if parsedLimit, err := parseIntParam(limitParam); err == nil {
-			limit = parsedLimit
-		}
+	limit := ParseQueryInt(c, "limit", 10)
+	if limit <= 0 {
+		limit = 10
 	}
 
 	response, err := h.portfolioService.GetRecentPortfolio(limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, response)
 }
 
-// Upload handlers
+// --- Upload handlers ---
 
 func (h *PortfolioHandler) UploadFile(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	var req dto.UploadRequest
-	if err := c.ShouldBind(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	file, err := c.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "File is required"})
+		appErrors.HandleError(c, appErrors.NewBadRequestError("File is required"))
 		return
 	}
 
 	response, err := h.portfolioService.UploadFile(userID, &req, file)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if appErrors.Is(err, appErrors.ErrFileTooLarge) ||
-			appErrors.Is(err, appErrors.ErrInvalidFileType) ||
-			appErrors.Is(err, appErrors.ErrInvalidUploadUsage) {
-			statusCode = http.StatusBadRequest
-		} else if appErrors.Is(err, appErrors.ErrStorageLimitExceeded) {
-			statusCode = http.StatusPaymentRequired
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -288,11 +277,15 @@ func (h *PortfolioHandler) UploadFile(c *gin.Context) {
 }
 
 func (h *PortfolioHandler) GetUpload(c *gin.Context) {
+	// Защищенный маршрут, проверяем авторизацию
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
 	uploadID := c.Param("uploadId")
 
 	upload, err := h.portfolioService.GetUpload(uploadID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Upload not found"})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -300,11 +293,14 @@ func (h *PortfolioHandler) GetUpload(c *gin.Context) {
 }
 
 func (h *PortfolioHandler) GetMyUploads(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	uploads, err := h.portfolioService.GetUserUploads(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -315,12 +311,15 @@ func (h *PortfolioHandler) GetMyUploads(c *gin.Context) {
 }
 
 func (h *PortfolioHandler) GetEntityUploads(c *gin.Context) {
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
 	entityType := c.Param("entityType")
 	entityID := c.Param("entityId")
 
 	uploads, err := h.portfolioService.GetEntityUploads(entityType, entityID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -331,15 +330,14 @@ func (h *PortfolioHandler) GetEntityUploads(c *gin.Context) {
 }
 
 func (h *PortfolioHandler) DeleteUpload(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	uploadID := c.Param("uploadId")
 
 	if err := h.portfolioService.DeleteUpload(userID, uploadID); err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "access denied" {
-			statusCode = http.StatusForbidden
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -347,22 +345,29 @@ func (h *PortfolioHandler) DeleteUpload(c *gin.Context) {
 }
 
 func (h *PortfolioHandler) GetStorageUsage(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	usage, err := h.portfolioService.GetUserStorageUsage(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, usage)
 }
 
-// Admin handlers
+// --- Admin handlers ---
 
 func (h *PortfolioHandler) CleanOrphanedUploads(c *gin.Context) {
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
 	if err := h.portfolioService.CleanOrphanedUploads(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -370,9 +375,13 @@ func (h *PortfolioHandler) CleanOrphanedUploads(c *gin.Context) {
 }
 
 func (h *PortfolioHandler) GetPlatformUploadStats(c *gin.Context) {
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
 	stats, err := h.portfolioService.GetPlatformUploadStats()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 

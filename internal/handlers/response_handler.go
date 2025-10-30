@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"mwork_backend/internal/middleware"
+	"mwork_backend/internal/middleware" // Still needed for RegisterRoutes
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/services"
 	"mwork_backend/internal/services/dto"
@@ -12,15 +12,19 @@ import (
 )
 
 type ResponseHandler struct {
+	*BaseHandler    // <-- 1. Embed BaseHandler
 	responseService services.ResponseService
 }
 
-func NewResponseHandler(responseService services.ResponseService) *ResponseHandler {
+// 2. Update the constructor
+func NewResponseHandler(base *BaseHandler, responseService services.ResponseService) *ResponseHandler {
 	return &ResponseHandler{
+		BaseHandler:     base, // <-- 3. Assign it
 		responseService: responseService,
 	}
 }
 
+// RegisterRoutes remains unchanged
 func (h *ResponseHandler) RegisterRoutes(r *gin.RouterGroup) {
 	responses := r.Group("/responses")
 	responses.Use(middleware.AuthMiddleware())
@@ -41,31 +45,26 @@ func (h *ResponseHandler) RegisterRoutes(r *gin.RouterGroup) {
 	}
 }
 
-// Model handlers
+// --- Model handlers ---
 
 func (h *ResponseHandler) CreateResponse(c *gin.Context) {
-	modelID := middleware.GetUserID(c)
+	// 4. Use GetAndAuthorizeUserID
+	modelID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	castingID := c.Param("castingId")
 
 	var req dto.CreateResponseRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	// 5. Use BindAndValidate_JSON
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	response, err := h.responseService.CreateResponse(modelID, castingID, &req)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "model profile not found" {
-			statusCode = http.StatusNotFound
-		} else if err.Error() == "casting not found" {
-			statusCode = http.StatusNotFound
-		} else if err.Error() == "casting is not active" {
-			statusCode = http.StatusBadRequest
-		} else if err.Error() == "You have already responded to this casting" {
-			statusCode = http.StatusConflict
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		// 6. Use HandleServiceError
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -73,11 +72,14 @@ func (h *ResponseHandler) CreateResponse(c *gin.Context) {
 }
 
 func (h *ResponseHandler) GetMyResponses(c *gin.Context) {
-	modelID := middleware.GetUserID(c)
+	modelID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	responses, err := h.responseService.GetModelResponses(modelID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -88,36 +90,32 @@ func (h *ResponseHandler) GetMyResponses(c *gin.Context) {
 }
 
 func (h *ResponseHandler) DeleteResponse(c *gin.Context) {
-	modelID := middleware.GetUserID(c)
+	modelID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	responseID := c.Param("responseId")
 
 	if err := h.responseService.DeleteResponse(modelID, responseID); err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "access denied" {
-			statusCode = http.StatusForbidden
-		} else if err.Error() == "cannot delete response that has been reviewed" {
-			statusCode = http.StatusBadRequest
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Response deleted successfully"})
 }
 
-// Employer handlers
+// --- Employer handlers ---
 
 func (h *ResponseHandler) GetCastingResponses(c *gin.Context) {
-	employerID := middleware.GetUserID(c)
+	employerID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	castingID := c.Param("castingId")
 
 	responses, err := h.responseService.GetCastingResponses(castingID, employerID)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "access denied" {
-			statusCode = http.StatusForbidden
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -128,23 +126,22 @@ func (h *ResponseHandler) GetCastingResponses(c *gin.Context) {
 }
 
 func (h *ResponseHandler) UpdateResponseStatus(c *gin.Context) {
-	employerID := middleware.GetUserID(c)
+	employerID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	responseID := c.Param("responseId")
 
 	var req struct {
 		Status models.ResponseStatus `json:"status" binding:"required"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	// Use BindAndValidate_JSON for the anonymous struct
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	if err := h.responseService.UpdateResponseStatus(employerID, responseID, req.Status); err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "access denied" {
-			statusCode = http.StatusForbidden
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -152,15 +149,14 @@ func (h *ResponseHandler) UpdateResponseStatus(c *gin.Context) {
 }
 
 func (h *ResponseHandler) MarkResponseAsViewed(c *gin.Context) {
-	employerID := middleware.GetUserID(c)
+	employerID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	responseID := c.Param("responseId")
 
 	if err := h.responseService.MarkResponseAsViewed(employerID, responseID); err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "access denied" {
-			statusCode = http.StatusForbidden
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -168,32 +164,33 @@ func (h *ResponseHandler) MarkResponseAsViewed(c *gin.Context) {
 }
 
 func (h *ResponseHandler) GetResponseStats(c *gin.Context) {
+	// This route is protected, so we must check authorization
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
 	castingID := c.Param("castingId")
 
 	stats, err := h.responseService.GetResponseStats(castingID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, stats)
 }
 
-// Common handlers
+// --- Common handlers ---
 
 func (h *ResponseHandler) GetResponse(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	responseID := c.Param("responseId")
 
 	response, err := h.responseService.GetResponse(responseID, userID)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "access denied" {
-			statusCode = http.StatusForbidden
-		} else if err.Error() == "response not found" {
-			statusCode = http.StatusNotFound
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 

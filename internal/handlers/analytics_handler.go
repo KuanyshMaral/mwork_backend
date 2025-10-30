@@ -2,9 +2,8 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
-	"time"
 
+	"mwork_backend/internal/appErrors" // <-- Added import
 	"mwork_backend/internal/services"
 	"mwork_backend/internal/services/dto"
 
@@ -12,11 +11,14 @@ import (
 )
 
 type AnalyticsHandler struct {
+	*BaseHandler     // <-- 1. Embed BaseHandler
 	analyticsService services.AnalyticsService
 }
 
-func NewAnalyticsHandler(analyticsService services.AnalyticsService) *AnalyticsHandler {
+// 2. Update the constructor
+func NewAnalyticsHandler(base *BaseHandler, analyticsService services.AnalyticsService) *AnalyticsHandler {
 	return &AnalyticsHandler{
+		BaseHandler:      base, // <-- 3. Assign it
 		analyticsService: analyticsService,
 	}
 }
@@ -77,15 +79,16 @@ func (h *AnalyticsHandler) RegisterRoutes(r *gin.RouterGroup) {
 // --- Handler Functions ---
 
 func (h *AnalyticsHandler) GetPlatformOverview(c *gin.Context) {
-	dateFrom, dateTo, err := h.parseDateRange(c)
+	// 4. Use BaseHandler parsers
+	dateFrom, dateTo, err := ParseQueryDateRange(c, 30) // 30-day default
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err) // 5. Use HandleServiceError
 		return
 	}
 
 	overview, err := h.analyticsService.GetPlatformOverview(dateFrom, dateTo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -93,11 +96,11 @@ func (h *AnalyticsHandler) GetPlatformOverview(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetPlatformGrowthMetrics(c *gin.Context) {
-	days := h.parseIntQuery(c, "days", 30)
+	days := ParseQueryInt(c, "days", 30) // 4. Use BaseHandler parser
 
 	metrics, err := h.analyticsService.GetPlatformGrowthMetrics(days)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err) // 5. Use HandleServiceError
 		return
 	}
 
@@ -105,15 +108,15 @@ func (h *AnalyticsHandler) GetPlatformGrowthMetrics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetUserAnalytics(c *gin.Context) {
-	dateFrom, dateTo, err := h.parseDateRange(c)
+	dateFrom, dateTo, err := ParseQueryDateRange(c, 30)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	analytics, err := h.analyticsService.GetUserAnalytics(dateFrom, dateTo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -121,15 +124,15 @@ func (h *AnalyticsHandler) GetUserAnalytics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetUserAcquisitionMetrics(c *gin.Context) {
-	dateFrom, dateTo, err := h.parseDateRange(c)
+	dateFrom, dateTo, err := ParseQueryDateRange(c, 30)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	metrics, err := h.analyticsService.GetUserAcquisitionMetrics(dateFrom, dateTo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -137,11 +140,11 @@ func (h *AnalyticsHandler) GetUserAcquisitionMetrics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetUserRetentionMetrics(c *gin.Context) {
-	days := h.parseIntQuery(c, "days", 30)
+	days := ParseQueryInt(c, "days", 30)
 
 	metrics, err := h.analyticsService.GetUserRetentionMetrics(days)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -149,15 +152,15 @@ func (h *AnalyticsHandler) GetUserRetentionMetrics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetCastingAnalytics(c *gin.Context) {
-	dateFrom, dateTo, err := h.parseDateRange(c)
+	dateFrom, dateTo, err := ParseQueryDateRange(c, 30)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	analytics, err := h.analyticsService.GetCastingAnalytics(dateFrom, dateTo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -167,19 +170,19 @@ func (h *AnalyticsHandler) GetCastingAnalytics(c *gin.Context) {
 func (h *AnalyticsHandler) GetCastingPerformanceMetrics(c *gin.Context) {
 	employerID := c.Param("employer_id")
 	if employerID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "employer_id is required"})
+		appErrors.HandleError(c, appErrors.NewBadRequestError("employer_id is required"))
 		return
 	}
 
-	dateFrom, dateTo, err := h.parseDateRange(c)
+	dateFrom, dateTo, err := ParseQueryDateRange(c, 30)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	metrics, err := h.analyticsService.GetCastingPerformanceMetrics(employerID, dateFrom, dateTo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -187,15 +190,15 @@ func (h *AnalyticsHandler) GetCastingPerformanceMetrics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetMatchingAnalytics(c *gin.Context) {
-	dateFrom, dateTo, err := h.parseDateRange(c)
+	dateFrom, dateTo, err := ParseQueryDateRange(c, 30)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	analytics, err := h.analyticsService.GetMatchingAnalytics(dateFrom, dateTo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -203,11 +206,11 @@ func (h *AnalyticsHandler) GetMatchingAnalytics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetMatchingEfficiencyMetrics(c *gin.Context) {
-	days := h.parseIntQuery(c, "days", 30)
+	days := ParseQueryInt(c, "days", 30)
 
 	metrics, err := h.analyticsService.GetMatchingEfficiencyMetrics(days)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -215,15 +218,15 @@ func (h *AnalyticsHandler) GetMatchingEfficiencyMetrics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetFinancialAnalytics(c *gin.Context) {
-	dateFrom, dateTo, err := h.parseDateRange(c)
+	dateFrom, dateTo, err := ParseQueryDateRange(c, 30)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	analytics, err := h.analyticsService.GetFinancialAnalytics(dateFrom, dateTo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -233,7 +236,7 @@ func (h *AnalyticsHandler) GetFinancialAnalytics(c *gin.Context) {
 func (h *AnalyticsHandler) GetGeographicAnalytics(c *gin.Context) {
 	analytics, err := h.analyticsService.GetGeographicAnalytics()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -241,11 +244,11 @@ func (h *AnalyticsHandler) GetGeographicAnalytics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetCityPerformanceMetrics(c *gin.Context) {
-	topN := h.parseIntQuery(c, "top_n", 10)
+	topN := ParseQueryInt(c, "top_n", 10)
 
 	metrics, err := h.analyticsService.GetCityPerformanceMetrics(topN)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -255,7 +258,7 @@ func (h *AnalyticsHandler) GetCityPerformanceMetrics(c *gin.Context) {
 func (h *AnalyticsHandler) GetCategoryAnalytics(c *gin.Context) {
 	analytics, err := h.analyticsService.GetCategoryAnalytics()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -263,12 +266,12 @@ func (h *AnalyticsHandler) GetCategoryAnalytics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetPopularCategories(c *gin.Context) {
-	days := h.parseIntQuery(c, "days", 30)
-	limit := h.parseIntQuery(c, "limit", 10)
+	days := ParseQueryInt(c, "days", 30)
+	limit := ParseQueryInt(c, "limit", 10)
 
 	categories, err := h.analyticsService.GetPopularCategories(days, limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -276,15 +279,15 @@ func (h *AnalyticsHandler) GetPopularCategories(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetPerformanceMetrics(c *gin.Context) {
-	dateFrom, dateTo, err := h.parseDateRange(c)
+	dateFrom, dateTo, err := ParseQueryDateRange(c, 30)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	metrics, err := h.analyticsService.GetPerformanceMetrics(dateFrom, dateTo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -294,7 +297,7 @@ func (h *AnalyticsHandler) GetPerformanceMetrics(c *gin.Context) {
 func (h *AnalyticsHandler) GetPlatformHealthMetrics(c *gin.Context) {
 	metrics, err := h.analyticsService.GetPlatformHealthMetrics()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -304,7 +307,7 @@ func (h *AnalyticsHandler) GetPlatformHealthMetrics(c *gin.Context) {
 func (h *AnalyticsHandler) GetRealTimeMetrics(c *gin.Context) {
 	metrics, err := h.analyticsService.GetRealTimeMetrics()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -314,7 +317,7 @@ func (h *AnalyticsHandler) GetRealTimeMetrics(c *gin.Context) {
 func (h *AnalyticsHandler) GetActiveUsersCount(c *gin.Context) {
 	count, err := h.analyticsService.GetActiveUsersCount()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -322,15 +325,15 @@ func (h *AnalyticsHandler) GetActiveUsersCount(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetAdminDashboard(c *gin.Context) {
-	adminID, exists := c.Get("user_id") // Предполагаем, что middleware добавляет user_id
-	if !exists {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "unauthorized"})
+	// 6. Use GetAndAuthorizeUserID
+	adminID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
 		return
 	}
 
-	dashboard, err := h.analyticsService.GetAdminDashboard(adminID.(string))
+	dashboard, err := h.analyticsService.GetAdminDashboard(adminID)
 	if err != nil {
-		c.JSON(http.StatusForbidden, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -340,7 +343,7 @@ func (h *AnalyticsHandler) GetAdminDashboard(c *gin.Context) {
 func (h *AnalyticsHandler) GetSystemHealthMetrics(c *gin.Context) {
 	metrics, err := h.analyticsService.GetSystemHealthMetrics()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -348,15 +351,20 @@ func (h *AnalyticsHandler) GetSystemHealthMetrics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GenerateCustomReport(c *gin.Context) {
+	// 6. Use GetAndAuthorizeUserID (as per TODO)
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
 	var req dto.CustomReportRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+	// 7. Use BindAndValidate_JSON
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	report, err := h.analyticsService.GenerateCustomReport(&req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -364,59 +372,16 @@ func (h *AnalyticsHandler) GenerateCustomReport(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetPredefinedReports(c *gin.Context) {
+	// 6. Use GetAndAuthorizeUserID (as per TODO)
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
 	reports, err := h.analyticsService.GetPredefinedReports()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, reports)
-}
-
-// Helper methods
-
-func (h *AnalyticsHandler) parseDateRange(c *gin.Context) (time.Time, time.Time, error) {
-	dateFromStr := c.Query("date_from")
-	dateToStr := c.Query("date_to")
-
-	// По умолчанию: последние 30 дней
-	dateTo := time.Now()
-	dateFrom := dateTo.AddDate(0, 0, -30) // Изменено с -1 месяца на -30 дней для большей предсказуемости
-
-	if dateFromStr != "" {
-		parsed, err := time.Parse(time.RFC3339, dateFromStr) // Используем RFC3339 (YYYY-MM-DDTHH:MM:SSZ)
-		if err != nil {
-			return time.Time{}, time.Time{}, err
-		}
-		dateFrom = parsed
-	}
-
-	if dateToStr != "" {
-		parsed, err := time.Parse(time.RFC3339, dateToStr)
-		if err != nil {
-			return time.Time{}, time.Time{}, err
-		}
-		dateTo = parsed
-	}
-
-	return dateFrom, dateTo, nil
-}
-
-func (h *AnalyticsHandler) parseIntQuery(c *gin.Context, key string, defaultValue int) int {
-	valueStr := c.Query(key)
-	if valueStr == "" {
-		return defaultValue
-	}
-
-	value, err := strconv.Atoi(valueStr)
-	if err != nil {
-		return defaultValue
-	}
-
-	return value
-}
-
-// ErrorResponse является общей структурой для ошибок
-type ErrorResponse struct {
-	Error string `json:"error"`
 }

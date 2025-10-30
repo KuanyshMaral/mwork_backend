@@ -1,9 +1,11 @@
 package middleware
 
 import (
+	"mwork_backend/internal/appErrors" // <-- 1. ДОБАВЛЕН ИМПОРТ
 	"mwork_backend/internal/auth"
+	"mwork_backend/internal/logger" // <-- 2. ДОБАВЛЕН ИМПОРТ
 	"mwork_backend/internal/models"
-	"net/http"
+	// "net/http" // <-- Больше не нужен
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -14,20 +16,33 @@ func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authorization header missing or invalid"})
+			// 3. Стандартизируем ошибку
+			appErrors.HandleError(c, appErrors.NewUnauthorizedError("Authorization header missing or invalid"))
+			c.Abort() // Abort, т.к. HandleError не прерывает
 			return
 		}
 
 		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 		claims, err := auth.ParseToken(tokenStr)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			// 3. Стандартизируем ошибку
+			appErrors.HandleError(c, appErrors.NewUnauthorizedError("Invalid token"))
+			c.Abort()
 			return
 		}
 
-		// Сохраняем claims в контекст
+		// --- 4. 📍 ВОТ ГЛАВНОЕ ИЗМЕНЕНИЕ ---
+
+		// а) Поместить ID в Gin-контекст (для h.GetAndAuthorizeUserID)
 		c.Set("userID", claims.UserID)
 		c.Set("role", claims.Role)
+
+		// б) Поместить ID в Context (для logger.Ctx...)
+		ctx := logger.WithUserID(c.Request.Context(), claims.UserID)
+		c.Request = c.Request.WithContext(ctx)
+
+		// --- Конец ---
+
 		c.Next()
 	}
 }
@@ -37,7 +52,9 @@ func RoleMiddleware(requiredRole models.UserRole) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roleVal, exists := c.Get("role")
 		if !exists {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Access denied: no role"})
+			// 3. Стандартизируем ошибку
+			appErrors.HandleError(c, appErrors.NewForbiddenError("Access denied: no role"))
+			c.Abort()
 			return
 		}
 
@@ -46,14 +63,16 @@ func RoleMiddleware(requiredRole models.UserRole) gin.HandlerFunc {
 			// Попытка преобразовать из string, если роль сохранена как строка
 			roleStr, isString := roleVal.(string)
 			if !isString {
-				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Access denied: invalid role type"})
+				appErrors.HandleError(c, appErrors.NewForbiddenError("Access denied: invalid role type"))
+				c.Abort()
 				return
 			}
 			role = models.UserRole(roleStr)
 		}
 
 		if role != requiredRole {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Access denied: insufficient permissions"})
+			appErrors.HandleError(c, appErrors.NewForbiddenError("Access denied: insufficient permissions"))
+			c.Abort()
 			return
 		}
 
@@ -71,7 +90,8 @@ func RequireRoles(roles ...models.UserRole) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roleVal, exists := c.Get("role")
 		if !exists {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Access denied: no role"})
+			appErrors.HandleError(c, appErrors.NewForbiddenError("Access denied: no role"))
+			c.Abort()
 			return
 		}
 
@@ -79,14 +99,16 @@ func RequireRoles(roles ...models.UserRole) gin.HandlerFunc {
 		if !ok {
 			roleStr, isString := roleVal.(string)
 			if !isString {
-				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Access denied: invalid role type"})
+				appErrors.HandleError(c, appErrors.NewForbiddenError("Access denied: invalid role type"))
+				c.Abort()
 				return
 			}
 			role = models.UserRole(roleStr)
 		}
 
 		if !roleSet[role] {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Access denied: insufficient role"})
+			appErrors.HandleError(c, appErrors.NewForbiddenError("Access denied: insufficient role"))
+			c.Abort()
 			return
 		}
 
@@ -94,17 +116,10 @@ func RequireRoles(roles ...models.UserRole) gin.HandlerFunc {
 	}
 }
 
-// GetUserID извлекает ID пользователя из контекста
-func GetUserID(c *gin.Context) string {
-	userID, exists := c.Get("userID")
-	if !exists {
-		return ""
-	}
-
-	id, ok := userID.(string)
-	if !ok {
-		return ""
-	}
-
-	return id
-}
+// 5. --- ФУНКЦИЯ GetUserID() УДАЛЕНА ---
+//
+// ❗️ Она больше не нужна.
+// Все хэндлеры теперь должны использовать h.GetAndAuthorizeUserID(c)
+// из BaseHandler, который автоматически проверяет наличие userID и
+// отправляет 401 ошибку, если его нет.
+//

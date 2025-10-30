@@ -7,20 +7,36 @@ import "time"
 // ======================
 
 type CreateReviewRequest struct {
-	ModelID    string  `json:"model_id" binding:"required"`
-	EmployerID string  `json:"employer_id" binding:"required"`
+	ModelID    string  `json:"model_id" validate:"required"`
+	EmployerID string  `json:"employer_id" validate:"-"` // Set by server from auth
 	CastingID  *string `json:"casting_id,omitempty"`
-	Rating     int     `json:"rating" binding:"required,min=1,max=5"`
-	ReviewText string  `json:"review_text" binding:"max=2000"`
+	Rating     int     `json:"rating" validate:"required,min=1,max=5"`
+	ReviewText string  `json:"review_text" validate:"omitempty,max=2000"`
 }
 
 type UpdateReviewRequest struct {
-	Rating     *int    `json:"rating,omitempty"`
-	ReviewText *string `json:"review_text,omitempty"`
+	Rating     *int    `json:"rating,omitempty" validate:"omitempty,min=1,max=5"`
+	ReviewText *string `json:"review_text,omitempty" validate:"omitempty,max=2000"`
 }
 
 // ======================
-// Response DTOs
+// Search Criteria DTO (for Query Params)
+// ======================
+
+type ReviewSearchCriteria struct {
+	UserID    string    `form:"user_id"`
+	UserRole  string    `form:"user_role" validate:"omitempty,is-user-role"` // Custom rule
+	MinRating int       `form:"min_rating" validate:"omitempty,min=1,max=5"`
+	MaxRating int       `form:"max_rating" validate:"omitempty,min=1,max=5,gtefield=MinRating"`
+	DateFrom  time.Time `form:"date_from" validate:"omitempty"`
+	DateTo    time.Time `form:"date_to" validate:"omitempty,gtefield=DateFrom"`
+	HasText   *bool     `form:"has_text"`
+	Page      int       `form:"page" validate:"omitempty,min=1"`
+	PageSize  int       `form:"page_size" validate:"omitempty,min=1,max=100"`
+}
+
+// ======================
+// Response DTOs (No validation needed)
 // ======================
 
 type ReviewResponse struct {
@@ -59,18 +75,6 @@ type UserReviewStats struct {
 	PositiveReviews int64   `json:"positive_reviews"` // 4-5 stars
 	ResponseRate    float64 `json:"response_rate"`
 	Ranking         int     `json:"ranking"` // Among peers
-}
-
-type ReviewSearchCriteria struct {
-	UserID    string    `form:"user_id"`
-	UserRole  string    `form:"user_role"`
-	MinRating int       `form:"min_rating" binding:"min=1,max=5"`
-	MaxRating int       `form:"max_rating" binding:"min=1,max=5"`
-	DateFrom  time.Time `form:"date_from"`
-	DateTo    time.Time `form:"date_to"`
-	HasText   *bool     `form:"has_text"`
-	Page      int       `form:"page" binding:"min=1"`
-	PageSize  int       `form:"page_size" binding:"min=1,max=100"`
 }
 
 // ======================

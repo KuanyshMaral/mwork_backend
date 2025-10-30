@@ -7,23 +7,23 @@ import (
 // Portfolio Request DTOs
 
 type CreatePortfolioRequest struct {
-	ModelID     string `json:"model_id" binding:"required"`
-	Title       string `json:"title" binding:"required"`
-	Description string `json:"description"`
-	OrderIndex  int    `json:"order_index"`
+	ModelID     string `json:"model_id" validate:"-"` // Set by server from auth
+	Title       string `json:"title" validate:"required,min=3,max=100"`
+	Description string `json:"description" validate:"omitempty,max=1000"`
+	OrderIndex  int    `json:"order_index" validate:"omitempty,min=0"`
 }
 
 type UpdatePortfolioRequest struct {
-	Title       *string `json:"title,omitempty"`
-	Description *string `json:"description,omitempty"`
-	OrderIndex  *int    `json:"order_index,omitempty"`
+	Title       *string `json:"title,omitempty" validate:"omitempty,min=3,max=100"`
+	Description *string `json:"description,omitempty" validate:"omitempty,max=1000"`
+	OrderIndex  *int    `json:"order_index,omitempty" validate:"omitempty,min=0"`
 }
 
 type UploadRequest struct {
-	EntityType string `json:"entity_type" binding:"required"` // model_profile, portfolio, casting
-	EntityID   string `json:"entity_id" binding:"required"`
-	FileType   string `json:"file_type" binding:"required"` // image, video, document
-	Usage      string `json:"usage" binding:"required"`     // avatar, portfolio_photo, casting_attachment
+	EntityType string `json:"entity_type" validate:"required"` // model_profile, portfolio, casting
+	EntityID   string `json:"entity_id" validate:"required"`
+	FileType   string `json:"file_type" validate:"required"` // image, video, document
+	Usage      string `json:"usage" validate:"required"`     // avatar, portfolio_photo, casting_attachment
 	IsPublic   bool   `json:"is_public"`
 }
 

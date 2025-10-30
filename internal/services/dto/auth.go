@@ -1,58 +1,44 @@
 package dto
 
 import (
-	"time"
-
 	"mwork_backend/internal/models"
+	"time"
 )
 
-// RegisterRequest - запрос регистрации
 type RegisterRequest struct {
-	Email    string          `json:"email" binding:"required,email"`
-	Password string          `json:"password" binding:"required,min=8"`
-	Role     models.UserRole `json:"role" binding:"required,oneof=model employer"`
-
-	// Общие поля
-	City string `json:"city" binding:"required"`
-
-	// Поля для модели
-	Name string `json:"name,omitempty" binding:"required_if=Role model"`
-
-	// Поля для работодателя
-	CompanyName string `json:"company_name,omitempty" binding:"required_if=Role employer"`
+	Email       string          `json:"email" validate:"required,email"`
+	Password    string          `json:"password" validate:"required,min=8"`
+	Role        models.UserRole `json:"role" validate:"required,is-user-role"` // Используем кастомное правило
+	City        string          `json:"city" validate:"required"`
+	Name        string          `json:"name,omitempty" validate:"required_if=Role model"`
+	CompanyName string          `json:"company_name,omitempty" validate:"required_if=Role employer"`
 }
 
-// LoginRequest - запрос входа
 type LoginRequest struct {
-	Email               string `json:"email" binding:"required,email"`
-	Password            string `json:"password" binding:"required"`
-	RequireVerification bool   `json:"require_verification"` // опционально
+	Email               string `json:"email" validate:"required,email"`
+	Password            string `json:"password" validate:"required"`
+	RequireVerification bool   `json:"require_verification"` // (опционально, нет валидации)
 }
 
-// RefreshTokenRequest - запрос обновления токена
 type RefreshTokenRequest struct {
-	RefreshToken string `json:"refresh_token" binding:"required"`
+	RefreshToken string `json:"refresh_token" validate:"required"`
 }
 
-// LogoutRequest - запрос выхода
 type LogoutRequest struct {
-	RefreshToken string `json:"refresh_token" binding:"required"`
+	RefreshToken string `json:"refresh_token" validate:"required"`
 }
 
-// VerifyEmailRequest - запрос подтверждения email
 type VerifyEmailRequest struct {
-	Token string `json:"token" binding:"required"`
+	Token string `json:"token" validate:"required"`
 }
 
-// PasswordResetRequest - запрос сброса пароля
 type PasswordResetRequest struct {
-	Email string `json:"email" binding:"required,email"`
+	Email string `json:"email" validate:"required,email"`
 }
 
-// PasswordResetConfirm - подтверждение сброса пароля
 type PasswordResetConfirm struct {
-	Token       string `json:"token" binding:"required"`
-	NewPassword string `json:"new_password" binding:"required,min=8"`
+	Token       string `json:"token" validate:"required"`
+	NewPassword string `json:"new_password" validate:"required,min=8"`
 }
 
 // AuthResponse - ответ с токенами

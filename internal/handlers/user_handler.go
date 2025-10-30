@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"mwork_backend/internal/appErrors"
+	"mwork_backend/internal/logger" // <-- Добавлен импорт
 	"mwork_backend/internal/middleware"
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/services"
@@ -9,20 +10,25 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	// "mwork_backend/internal/middleware" // <-- Больше не нужен
 )
 
 type UserHandler struct {
-	userService services.UserService // <-- Изменено
-	authService services.AuthService // <-- Добавлено
+	*BaseHandler // <-- 1. Встраиваем BaseHandler
+	userService  services.UserService
+	authService  services.AuthService
 }
 
-func NewUserHandler(userService services.UserService, authService services.AuthService) *UserHandler { // <-- Обновлен конструктор
+// 2. Обновляем конструктор
+func NewUserHandler(base *BaseHandler, userService services.UserService, authService services.AuthService) *UserHandler {
 	return &UserHandler{
+		BaseHandler: base, // <-- 3. Сохраняем его
 		userService: userService,
 		authService: authService,
 	}
 }
 
+// RegisterRoutes не требует изменений
 func (h *UserHandler) RegisterRoutes(r *gin.RouterGroup) {
 	auth := r.Group("/auth")
 	{
@@ -36,11 +42,13 @@ func (h *UserHandler) RegisterRoutes(r *gin.RouterGroup) {
 	}
 
 	profile := r.Group("/profile")
+	// AuthMiddleware все еще нужен здесь, чтобы gin.Context получил "userID"
+	// (Если вы не вынесли его на более высокий уровень)
 	profile.Use(middleware.AuthMiddleware())
 	{
 		profile.GET("", h.GetProfile)
 		profile.PUT("", h.UpdateProfile)
-		profile.POST("/password/change", h.ChangePassword) // <-- Этот метод относится к auth
+		profile.POST("/password/change", h.ChangePassword)
 	}
 
 	admin := r.Group("/admin/users")
@@ -53,23 +61,18 @@ func (h *UserHandler) RegisterRoutes(r *gin.RouterGroup) {
 	}
 }
 
-// Auth handlers
+// --- Auth handlers ---
 
 func (h *UserHandler) Register(c *gin.Context) {
 	var req dto.RegisterRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		appErrors.HandleValidationError(c, err)
-		return
+	// 4. Используем BindAndValidate_JSON
+	if !h.BindAndValidate_JSON(c, &req) {
+		return // Ошибка уже залоггирована и отправлена
 	}
 
-	// Используем authService
+	// 5. Используем HandleServiceError
 	if err := h.authService.Register(&req); err != nil {
-		var appErr *appErrors.AppError
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -80,20 +83,13 @@ func (h *UserHandler) Register(c *gin.Context) {
 
 func (h *UserHandler) Login(c *gin.Context) {
 	var req dto.LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		appErrors.HandleValidationError(c, err)
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
-	// Используем authService
 	response, err := h.authService.Login(&req)
 	if err != nil {
-		var appErr *appErrors.AppError
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -104,20 +100,13 @@ func (h *UserHandler) RefreshToken(c *gin.Context) {
 	var req struct {
 		RefreshToken string `json:"refresh_token" binding:"required"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		appErrors.HandleValidationError(c, err)
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
-	// Используем authService
 	response, err := h.authService.RefreshToken(req.RefreshToken)
 	if err != nil {
-		var appErr *appErrors.AppError
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -128,19 +117,12 @@ func (h *UserHandler) Logout(c *gin.Context) {
 	var req struct {
 		RefreshToken string `json:"refresh_token" binding:"required"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		appErrors.HandleValidationError(c, err)
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
-	// Используем authService
 	if err := h.authService.Logout(req.RefreshToken); err != nil {
-		var appErr *appErrors.AppError
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -150,18 +132,13 @@ func (h *UserHandler) Logout(c *gin.Context) {
 func (h *UserHandler) VerifyEmail(c *gin.Context) {
 	token := c.Query("token")
 	if token == "" {
+		// Для простых проверок можно по-прежнему использовать appErrors
 		appErrors.HandleError(c, appErrors.NewBadRequestError("Token is required"))
 		return
 	}
 
-	// Используем authService
 	if err := h.authService.VerifyEmail(token); err != nil {
-		var appErr *appErrors.AppError
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -172,20 +149,22 @@ func (h *UserHandler) RequestPasswordReset(c *gin.Context) {
 	var req struct {
 		Email string `json:"email" binding:"required,email"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		appErrors.HandleError(c, appErrors.NewBadRequestError("Invalid email").WithDetails(err.Error()))
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
-	// Используем authService
+	// Особый случай: мы не хотим возвращать ошибку пользователю,
+	// но хотим ее залоггировать.
 	if err := h.authService.RequestPasswordReset(req.Email); err != nil {
-		// Always return success to prevent email enumeration
-		c.JSON(http.StatusOK, gin.H{
-			"message": "If an account exists with this email, a password reset link has been sent.",
-		})
-		return
+		// Не используем h.HandleServiceError, т.к. он отправит ответ.
+		// Логгируем вручную.
+		logger.CtxWarn(c.Request.Context(), "Password reset request failed (hiding from user)",
+			"error", err.Error(),
+			"email", req.Email,
+		)
 	}
 
+	// Всегда возвращаем OK для безопасности
 	c.JSON(http.StatusOK, gin.H{
 		"message": "If an account exists with this email, a password reset link has been sent.",
 	})
@@ -196,39 +175,30 @@ func (h *UserHandler) ResetPassword(c *gin.Context) {
 		Token       string `json:"token" binding:"required"`
 		NewPassword string `json:"new_password" binding:"required,min=6"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		appErrors.HandleValidationError(c, err)
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
-	// Используем authService
 	if err := h.authService.ResetPassword(req.Token, req.NewPassword); err != nil {
-		var appErr *appErrors.AppError
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Password reset successfully"})
 }
 
-// Profile handlers
+// --- Profile handlers ---
 
 func (h *UserHandler) GetProfile(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	// 6. Используем GetAndAuthorizeUserID
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return // Ошибка уже отправлена
+	}
 
-	// Используем userService (корректно)
 	profile, err := h.userService.GetProfile(userID)
 	if err != nil {
-		var appErr *appErrors.AppError
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -236,22 +206,18 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 }
 
 func (h *UserHandler) UpdateProfile(c *gin.Context) {
-	userID := middleware.GetUserID(c)
-
-	var req dto.UpdateProfileRequestUser
-	if err := c.ShouldBindJSON(&req); err != nil {
-		appErrors.HandleValidationError(c, err)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
 		return
 	}
 
-	// Используем userService (корректно)
+	var req dto.UpdateProfileRequestUser
+	if !h.BindAndValidate_JSON(c, &req) {
+		return
+	}
+
 	if err := h.userService.UpdateProfile(userID, &req); err != nil {
-		var appErr *appErrors.AppError
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -259,57 +225,42 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 }
 
 func (h *UserHandler) ChangePassword(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	var req struct {
 		CurrentPassword string `json:"current_password" binding:"required"`
 		NewPassword     string `json:"new_password" binding:"required,min=6"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		appErrors.HandleValidationError(c, err)
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
-	// Используем authService
 	if err := h.authService.ChangePassword(userID, req.CurrentPassword, req.NewPassword); err != nil {
-		var appErr *appErrors.AppError
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Password changed successfully"})
 }
 
-// Admin handlers
+// --- Admin handlers ---
 
 func (h *UserHandler) GetUsers(c *gin.Context) {
 	var filter dto.AdminUserFilter
-	if err := c.ShouldBindQuery(&filter); err != nil {
-		appErrors.HandleError(c, appErrors.NewBadRequestError("Invalid query parameters").WithDetails(err.Error()))
+	// 7. Используем BindAndValidate_Query для фильтров
+	if !h.BindAndValidate_Query(c, &filter) {
 		return
 	}
 
-	// Set defaults
-	if filter.Page == 0 {
-		filter.Page = 1
-	}
-	if filter.PageSize == 0 {
-		filter.PageSize = 20
-	}
+	// 8. Используем ParsePagination для пагинации
+	filter.Page, filter.PageSize = ParsePagination(c)
 
-	// Используем userService (корректно)
 	users, total, err := h.userService.GetUsers(filter)
 	if err != nil {
-		var appErr *appErrors.AppError
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -322,25 +273,21 @@ func (h *UserHandler) GetUsers(c *gin.Context) {
 }
 
 func (h *UserHandler) UpdateUserStatus(c *gin.Context) {
-	adminID := middleware.GetUserID(c)
+	adminID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	userID := c.Param("userId")
 
 	var req struct {
 		Status models.UserStatus `json:"status" binding:"required"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		appErrors.HandleValidationError(c, err)
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
-	// Используем userService (корректно)
 	if err := h.userService.UpdateUserStatus(adminID, userID, req.Status); err != nil {
-		var appErr *appErrors.AppError
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -348,17 +295,14 @@ func (h *UserHandler) UpdateUserStatus(c *gin.Context) {
 }
 
 func (h *UserHandler) VerifyEmployer(c *gin.Context) {
-	adminID := middleware.GetUserID(c)
+	adminID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	employerID := c.Param("userId")
 
-	// Используем userService (корректно)
 	if err := h.userService.VerifyEmployer(adminID, employerID); err != nil {
-		var appErr *appErrors.AppError
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -366,22 +310,12 @@ func (h *UserHandler) VerifyEmployer(c *gin.Context) {
 }
 
 func (h *UserHandler) GetRegistrationStats(c *gin.Context) {
-	days := 30
-	if daysParam := c.Query("days"); daysParam != "" {
-		if parsedDays, err := parseIntParam(daysParam); err == nil {
-			days = parsedDays
-		}
-	}
+	// 9. Используем ParseQueryInt из base_handler
+	days := ParseQueryInt(c, "days", 30)
 
-	// Используем userService (корректно)
 	stats, err := h.userService.GetRegistrationStats(days)
 	if err != nil {
-		var appErr *appErrors.AppError
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 

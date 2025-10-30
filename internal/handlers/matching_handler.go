@@ -2,8 +2,9 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
+	"strconv" // <-- Kept for ParseFloat
 
+	"mwork_backend/internal/appErrors" // <-- Added import
 	"mwork_backend/internal/middleware"
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/services"
@@ -13,15 +14,19 @@ import (
 )
 
 type MatchingHandler struct {
+	*BaseHandler    // <-- 1. Embed BaseHandler
 	matchingService services.MatchingService
 }
 
-func NewMatchingHandler(matchingService services.MatchingService) *MatchingHandler {
+// 2. Update the constructor
+func NewMatchingHandler(base *BaseHandler, matchingService services.MatchingService) *MatchingHandler {
 	return &MatchingHandler{
+		BaseHandler:     base, // <-- 3. Assign it
 		matchingService: matchingService,
 	}
 }
 
+// RegisterRoutes remains unchanged
 func (h *MatchingHandler) RegisterRoutes(r *gin.RouterGroup) {
 	// Protected routes - All authenticated users
 	matching := r.Group("/matching")
@@ -48,20 +53,24 @@ func (h *MatchingHandler) RegisterRoutes(r *gin.RouterGroup) {
 	}
 }
 
-// Core matching handlers
+// --- Core matching handlers ---
 
 func (h *MatchingHandler) FindMatchingModels(c *gin.Context) {
+	// 4. Use GetAndAuthorizeUserID
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
 	castingID := c.Param("castingId")
 
-	limit := 20
-	if limitParam := c.Query("limit"); limitParam != "" {
-		if parsed, err := strconv.Atoi(limitParam); err == nil && parsed > 0 && parsed <= 100 {
-			limit = parsed
-		}
+	// 5. Use ParseQueryInt
+	limit := ParseQueryInt(c, "limit", 20)
+	if limit <= 0 || limit > 100 {
+		limit = 20 // Enforce bounds
 	}
 
 	minScore := 50.0
 	if scoreParam := c.Query("min_score"); scoreParam != "" {
+		// ParseFloat is not in BaseHandler, so we keep manual parsing
 		if parsed, err := strconv.ParseFloat(scoreParam, 64); err == nil && parsed >= 0 && parsed <= 100 {
 			minScore = parsed
 		}
@@ -69,11 +78,8 @@ func (h *MatchingHandler) FindMatchingModels(c *gin.Context) {
 
 	matches, err := h.matchingService.FindMatchingModels(castingID, limit, minScore)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "casting not found" {
-			statusCode = http.StatusNotFound
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		// 6. Use HandleServiceError
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -84,9 +90,13 @@ func (h *MatchingHandler) FindMatchingModels(c *gin.Context) {
 }
 
 func (h *MatchingHandler) FindModelsByCriteria(c *gin.Context) {
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
 	var criteria dto.MatchCriteria
-	if err := c.ShouldBindJSON(&criteria); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	// 7. Use BindAndValidate_JSON
+	if !h.BindAndValidate_JSON(c, &criteria) {
 		return
 	}
 
@@ -99,7 +109,7 @@ func (h *MatchingHandler) FindModelsByCriteria(c *gin.Context) {
 
 	matches, err := h.matchingService.FindModelsByCriteria(&criteria)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -110,21 +120,21 @@ func (h *MatchingHandler) FindModelsByCriteria(c *gin.Context) {
 }
 
 func (h *MatchingHandler) GetModelCompatibility(c *gin.Context) {
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
 	modelID := c.Query("model_id")
 	castingID := c.Query("casting_id")
 
 	if modelID == "" || castingID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "model_id and casting_id are required"})
+		// 8. Use appErrors
+		appErrors.HandleError(c, appErrors.NewBadRequestError("model_id and casting_id are required"))
 		return
 	}
 
 	compatibility, err := h.matchingService.GetModelCompatibility(modelID, castingID)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "model not found" || err.Error() == "casting not found" {
-			statusCode = http.StatusNotFound
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -132,22 +142,19 @@ func (h *MatchingHandler) GetModelCompatibility(c *gin.Context) {
 }
 
 func (h *MatchingHandler) FindSimilarModels(c *gin.Context) {
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
 	modelID := c.Param("modelId")
 
-	limit := 10
-	if limitParam := c.Query("limit"); limitParam != "" {
-		if parsed, err := strconv.Atoi(limitParam); err == nil && parsed > 0 && parsed <= 50 {
-			limit = parsed
-		}
+	limit := ParseQueryInt(c, "limit", 10)
+	if limit <= 0 || limit > 50 {
+		limit = 10
 	}
 
 	similarModels, err := h.matchingService.FindSimilarModels(modelID, limit)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "model not found" {
-			statusCode = http.StatusNotFound
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -158,9 +165,13 @@ func (h *MatchingHandler) FindSimilarModels(c *gin.Context) {
 }
 
 func (h *MatchingHandler) GetMatchingWeights(c *gin.Context) {
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
 	weights, err := h.matchingService.GetMatchingWeights()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -168,11 +179,14 @@ func (h *MatchingHandler) GetMatchingWeights(c *gin.Context) {
 }
 
 func (h *MatchingHandler) GetMatchingStats(c *gin.Context) {
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
 	castingID := c.Param("castingId")
 
 	stats, err := h.matchingService.GetMatchingStats(castingID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -180,36 +194,35 @@ func (h *MatchingHandler) GetMatchingStats(c *gin.Context) {
 }
 
 func (h *MatchingHandler) GetModelMatchingStats(c *gin.Context) {
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
 	modelID := c.Param("modelId")
 
 	stats, err := h.matchingService.GetModelMatchingStats(modelID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, stats)
 }
 
-// Admin handlers
+// --- Admin handlers ---
 
 func (h *MatchingHandler) UpdateMatchingWeights(c *gin.Context) {
-	adminID := middleware.GetUserID(c)
+	adminID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	var weights dto.MatchingWeights
-	if err := c.ShouldBindJSON(&weights); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if !h.BindAndValidate_JSON(c, &weights) {
 		return
 	}
 
 	if err := h.matchingService.UpdateMatchingWeights(adminID, &weights); err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "insufficient permissions" {
-			statusCode = http.StatusForbidden
-		} else if err.Error() == "weights must sum to 1.0" {
-			statusCode = http.StatusBadRequest
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -217,9 +230,13 @@ func (h *MatchingHandler) UpdateMatchingWeights(c *gin.Context) {
 }
 
 func (h *MatchingHandler) GetPlatformMatchingStats(c *gin.Context) {
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
 	stats, err := h.matchingService.GetPlatformMatchingStats()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -227,10 +244,13 @@ func (h *MatchingHandler) GetPlatformMatchingStats(c *gin.Context) {
 }
 
 func (h *MatchingHandler) RecalculateAllMatches(c *gin.Context) {
-	adminID := middleware.GetUserID(c)
+	adminID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	if err := h.matchingService.RecalculateAllMatches(adminID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -238,20 +258,12 @@ func (h *MatchingHandler) RecalculateAllMatches(c *gin.Context) {
 }
 
 func (h *MatchingHandler) GetMatchingLogs(c *gin.Context) {
-	page := 1
-	pageSize := 50
-
-	if pageParam := c.Query("page"); pageParam != "" {
-		if parsed, err := strconv.Atoi(pageParam); err == nil && parsed > 0 {
-			page = parsed
-		}
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
 	}
 
-	if pageSizeParam := c.Query("page_size"); pageSizeParam != "" {
-		if parsed, err := strconv.Atoi(pageSizeParam); err == nil && parsed > 0 && parsed <= 100 {
-			pageSize = parsed
-		}
-	}
+	// 9. Use ParsePagination
+	page, pageSize := ParsePagination(c)
 
 	criteria := dto.MatchingLogCriteria{
 		Page:     page,
@@ -260,7 +272,7 @@ func (h *MatchingHandler) GetMatchingLogs(c *gin.Context) {
 
 	logs, total, err := h.matchingService.GetMatchingLogs(criteria)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -279,18 +291,21 @@ func (h *MatchingHandler) GetMatchingLogs(c *gin.Context) {
 }
 
 func (h *MatchingHandler) BatchMatchModels(c *gin.Context) {
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
 	var req struct {
 		CastingIDs []string `json:"casting_ids" binding:"required"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	results, err := h.matchingService.BatchMatchModels(req.CastingIDs)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 

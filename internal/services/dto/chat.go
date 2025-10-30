@@ -10,32 +10,32 @@ import (
 
 type CreateDialogRequest struct {
 	IsGroup   bool     `json:"is_group"`
-	Title     *string  `json:"title,omitempty"`
-	ImageURL  *string  `json:"image_url,omitempty"`
+	Title     *string  `json:"title,omitempty" validate:"omitempty,max=100"`
+	ImageURL  *string  `json:"image_url,omitempty" validate:"omitempty,url"`
 	CastingID *string  `json:"casting_id,omitempty"`
-	UserIDs   []string `json:"user_ids" binding:"required,min=1"`
+	UserIDs   []string `json:"user_ids" validate:"required,min=1"`
 }
 
 type UpdateDialogRequest struct {
-	Title    *string `json:"title,omitempty"`
-	ImageURL *string `json:"image_url,omitempty"`
+	Title    *string `json:"title,omitempty" validate:"omitempty,max=100"`
+	ImageURL *string `json:"image_url,omitempty" validate:"omitempty,url"`
 }
 
 type SendMessageRequest struct {
-	DialogID      string  `json:"dialog_id" binding:"required"`
-	Type          string  `json:"type" binding:"required"` // text, image, video, file, system
-	Content       string  `json:"content"`
+	DialogID      string  `json:"dialog_id" validate:"required"`
+	Type          string  `json:"type" validate:"required"`                 // text, image, video, file, system
+	Content       string  `json:"content" validate:"required_if=Type text"` // Обязательно, если тип = text
 	ReplyToID     *string `json:"reply_to_id,omitempty"`
 	ForwardFromID *string `json:"forward_from_id,omitempty"`
 }
 
 type UpdateMessageRequest struct {
-	Content string `json:"content" binding:"required"`
+	Content string `json:"content" validate:"required,max=5000"`
 }
 
 type ForwardMessageRequest struct {
-	MessageID string   `json:"message_id" binding:"required"`
-	DialogIDs []string `json:"dialog_ids" binding:"required,min=1"`
+	MessageID string   `json:"message_id" validate:"required"`
+	DialogIDs []string `json:"dialog_ids" validate:"required,min=1"`
 }
 
 type DialogResponse struct {

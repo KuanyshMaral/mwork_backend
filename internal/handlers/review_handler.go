@@ -3,25 +3,30 @@ package handlers
 import (
 	"net/http"
 
-	"mwork_backend/internal/middleware"
+	"mwork_backend/internal/appErrors"  // <-- Добавлен импорт
+	"mwork_backend/internal/middleware" // <-- Все еще нужен для RegisterRoutes
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/services"
 	"mwork_backend/internal/services/dto"
-	"strconv"
+	// "strconv" // <-- Больше не нужен
 
 	"github.com/gin-gonic/gin"
 )
 
 type ReviewHandler struct {
+	*BaseHandler  // <-- 1. Встраиваем BaseHandler
 	reviewService services.ReviewService
 }
 
-func NewReviewHandler(reviewService services.ReviewService) *ReviewHandler {
+// 2. Обновляем конструктор
+func NewReviewHandler(base *BaseHandler, reviewService services.ReviewService) *ReviewHandler {
 	return &ReviewHandler{
+		BaseHandler:   base, // <-- 3. Сохраняем его
 		reviewService: reviewService,
 	}
 }
 
+// RegisterRoutes не требует изменений
 func (h *ReviewHandler) RegisterRoutes(r *gin.RouterGroup) {
 	// Public routes
 	public := r.Group("/reviews")
@@ -52,14 +57,14 @@ func (h *ReviewHandler) RegisterRoutes(r *gin.RouterGroup) {
 	}
 }
 
-// Public handlers
+// --- Public handlers ---
 
 func (h *ReviewHandler) GetReview(c *gin.Context) {
 	reviewID := c.Param("reviewId")
 
 	review, err := h.reviewService.GetReview(reviewID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Review not found"})
+		h.HandleServiceError(c, err) // <-- 4. Используем HandleServiceError
 		return
 	}
 
@@ -69,24 +74,12 @@ func (h *ReviewHandler) GetReview(c *gin.Context) {
 func (h *ReviewHandler) GetModelReviews(c *gin.Context) {
 	modelID := c.Param("modelId")
 
-	page := 1
-	pageSize := 10
-
-	if pageParam := c.Query("page"); pageParam != "" {
-		if parsed, err := strconv.Atoi(pageParam); err == nil && parsed > 0 {
-			page = parsed
-		}
-	}
-
-	if pageSizeParam := c.Query("page_size"); pageSizeParam != "" {
-		if parsed, err := strconv.Atoi(pageSizeParam); err == nil && parsed > 0 && parsed <= 100 {
-			pageSize = parsed
-		}
-	}
+	// 5. Используем ParsePagination
+	page, pageSize := ParsePagination(c)
 
 	reviews, err := h.reviewService.GetModelReviews(modelID, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -103,7 +96,7 @@ func (h *ReviewHandler) GetModelRatingStats(c *gin.Context) {
 
 	stats, err := h.reviewService.GetModelRatingStats(modelID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -115,21 +108,25 @@ func (h *ReviewHandler) GetReviewSummary(c *gin.Context) {
 
 	summary, err := h.reviewService.GetReviewSummary(modelID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, summary)
 }
 
-// Employer handlers
+// --- Employer handlers ---
 
 func (h *ReviewHandler) CreateReview(c *gin.Context) {
-	employerID := middleware.GetUserID(c)
+	// 6. Используем GetAndAuthorizeUserID
+	employerID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	var req dto.CreateReviewRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	// 7. Используем BindAndValidate_JSON
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
@@ -138,11 +135,7 @@ func (h *ReviewHandler) CreateReview(c *gin.Context) {
 
 	review, err := h.reviewService.CreateReview(employerID, &req)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "cannot create review for this casting" {
-			statusCode = http.StatusBadRequest
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -150,26 +143,16 @@ func (h *ReviewHandler) CreateReview(c *gin.Context) {
 }
 
 func (h *ReviewHandler) GetMyReviews(c *gin.Context) {
-	employerID := middleware.GetUserID(c)
-
-	page := 1
-	pageSize := 10
-
-	if pageParam := c.Query("page"); pageParam != "" {
-		if parsed, err := strconv.Atoi(pageParam); err == nil && parsed > 0 {
-			page = parsed
-		}
+	employerID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
 	}
 
-	if pageSizeParam := c.Query("page_size"); pageSizeParam != "" {
-		if parsed, err := strconv.Atoi(pageSizeParam); err == nil && parsed > 0 && parsed <= 100 {
-			pageSize = parsed
-		}
-	}
+	page, pageSize := ParsePagination(c)
 
 	reviews, err := h.reviewService.GetEmployerReviews(employerID, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -182,21 +165,19 @@ func (h *ReviewHandler) GetMyReviews(c *gin.Context) {
 }
 
 func (h *ReviewHandler) UpdateReview(c *gin.Context) {
-	employerID := middleware.GetUserID(c)
+	employerID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	reviewID := c.Param("reviewId")
 
 	var req dto.UpdateReviewRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	if err := h.reviewService.UpdateReview(employerID, reviewID, &req); err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "access denied" {
-			statusCode = http.StatusForbidden
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -204,15 +185,14 @@ func (h *ReviewHandler) UpdateReview(c *gin.Context) {
 }
 
 func (h *ReviewHandler) DeleteReview(c *gin.Context) {
-	employerID := middleware.GetUserID(c)
+	employerID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	reviewID := c.Param("reviewId")
 
 	if err := h.reviewService.DeleteReview(employerID, reviewID); err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "access denied" {
-			statusCode = http.StatusForbidden
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -220,17 +200,22 @@ func (h *ReviewHandler) DeleteReview(c *gin.Context) {
 }
 
 func (h *ReviewHandler) CanCreateReview(c *gin.Context) {
-	employerID := middleware.GetUserID(c)
+	employerID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	modelID := c.Query("model_id")
 	castingID := c.Query("casting_id")
 
 	if modelID == "" || castingID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "model_id and casting_id are required"})
+		// 8. Используем appErrors
+		appErrors.HandleError(c, appErrors.NewBadRequestError("model_id and casting_id are required"))
 		return
 	}
 
 	canCreate, err := h.reviewService.CanUserReview(employerID, modelID, castingID)
 	if err != nil {
+		// Особый случай: отправляем ошибку как часть ответа, а не как HTTP-ошибку
 		c.JSON(http.StatusBadRequest, gin.H{
 			"can_create": false,
 			"reason":     err.Error(),
@@ -243,12 +228,17 @@ func (h *ReviewHandler) CanCreateReview(c *gin.Context) {
 	})
 }
 
-// Admin handlers
+// --- Admin handlers ---
 
 func (h *ReviewHandler) GetPlatformReviewStats(c *gin.Context) {
+	// 9. Добавляем проверку авторизации для админских ручек
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
 	stats, err := h.reviewService.GetPlatformReviewStats()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -256,16 +246,19 @@ func (h *ReviewHandler) GetPlatformReviewStats(c *gin.Context) {
 }
 
 func (h *ReviewHandler) GetRecentReviews(c *gin.Context) {
-	limit := 20
-	if limitParam := c.Query("limit"); limitParam != "" {
-		if parsed, err := strconv.Atoi(limitParam); err == nil && parsed > 0 {
-			limit = parsed
-		}
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
+	// 10. Используем ParseQueryInt
+	limit := ParseQueryInt(c, "limit", 20)
+	if limit <= 0 {
+		limit = 20
 	}
 
 	reviews, err := h.reviewService.GetRecentReviews(limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 

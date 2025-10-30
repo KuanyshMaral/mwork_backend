@@ -2,10 +2,7 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
-	"time"
 
-	"mwork_backend/internal/appErrors" // <-- Добавлен импорт
 	"mwork_backend/internal/middleware"
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/services"
@@ -15,15 +12,19 @@ import (
 )
 
 type CastingHandler struct {
+	*BaseHandler   // <-- 1. Embed BaseHandler
 	castingService services.CastingService
 }
 
-func NewCastingHandler(castingService services.CastingService) *CastingHandler {
+// 2. Update the constructor
+func NewCastingHandler(base *BaseHandler, castingService services.CastingService) *CastingHandler {
 	return &CastingHandler{
+		BaseHandler:    base, // <-- 3. Assign it
 		castingService: castingService,
 	}
 }
 
+// RegisterRoutes remains unchanged
 func (h *CastingHandler) RegisterRoutes(r *gin.RouterGroup) {
 	// Public routes
 	public := r.Group("/castings")
@@ -67,64 +68,24 @@ func (h *CastingHandler) RegisterRoutes(r *gin.RouterGroup) {
 	}
 }
 
-// Helper functions
+// 4. --- Helper functions removed ---
 
-func (h *CastingHandler) parseLimit(c *gin.Context) int {
-	limit := 10
-	if limitParam := c.Query("limit"); limitParam != "" {
-		if parsedLimit, err := strconv.Atoi(limitParam); err == nil && parsedLimit > 0 {
-			limit = parsedLimit
-		}
-	}
-	return limit
-}
-
-func (h *CastingHandler) parseDateRange(c *gin.Context) (time.Time, time.Time) {
-	dateFrom := time.Now().AddDate(0, -1, 0) // Default: last month
-	dateTo := time.Now()
-
-	if dateFromParam := c.Query("date_from"); dateFromParam != "" {
-		if parsed, err := time.Parse("2006-01-02", dateFromParam); err == nil {
-			dateFrom = parsed
-		}
-	}
-
-	if dateToParam := c.Query("date_to"); dateToParam != "" {
-		if parsed, err := time.Parse("2006-01-02", dateToParam); err == nil {
-			dateTo = parsed
-		}
-	}
-
-	return dateFrom, dateTo
-}
-
-// --- УДАЛЕНЫ УСТАРЕВШИЕ handleServiceError и handleListResponse ---
-
-// Public handlers
+// --- Public handlers ---
 
 func (h *CastingHandler) SearchCastings(c *gin.Context) {
 	var criteria dto.CastingSearchCriteria
-	if err := c.ShouldBindQuery(&criteria); err != nil {
-		appErrors.HandleValidationError(c, err) // <-- ИСПРАВЛЕНО
+	// 5. Use BindAndValidate_Query
+	if !h.BindAndValidate_Query(c, &criteria) {
 		return
 	}
 
-	// Set defaults
-	if criteria.Page == 0 {
-		criteria.Page = 1
-	}
-	if criteria.PageSize == 0 {
-		criteria.PageSize = 20
-	}
+	// 6. Use ParsePagination
+	criteria.Page, criteria.PageSize = ParsePagination(c)
 
 	castings, total, err := h.castingService.SearchCastings(criteria)
 	if err != nil {
-		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		// 7. Use HandleServiceError
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -140,19 +101,14 @@ func (h *CastingHandler) GetCasting(c *gin.Context) {
 	castingID := c.Param("castingId")
 	userID := ""
 
-	// Get userID if authenticated
+	// Public route, so auth is optional
 	if authUserID, exists := c.Get("userID"); exists {
 		userID = authUserID.(string)
 	}
 
 	casting, err := h.castingService.GetCasting(castingID, userID)
 	if err != nil {
-		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -160,15 +116,15 @@ func (h *CastingHandler) GetCasting(c *gin.Context) {
 }
 
 func (h *CastingHandler) GetActiveCastings(c *gin.Context) {
-	limit := h.parseLimit(c)
+	// 8. Use ParseQueryInt
+	limit := ParseQueryInt(c, "limit", 10)
+	if limit <= 0 {
+		limit = 10
+	}
+
 	castings, err := h.castingService.GetActiveCastings(limit)
 	if err != nil {
-		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -180,15 +136,14 @@ func (h *CastingHandler) GetActiveCastings(c *gin.Context) {
 
 func (h *CastingHandler) GetCastingsByCity(c *gin.Context) {
 	city := c.Param("city")
-	limit := h.parseLimit(c)
+	limit := ParseQueryInt(c, "limit", 10)
+	if limit <= 0 {
+		limit = 10
+	}
+
 	castings, err := h.castingService.GetCastingsByCity(city, limit)
 	if err != nil {
-		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -198,14 +153,17 @@ func (h *CastingHandler) GetCastingsByCity(c *gin.Context) {
 	})
 }
 
-// Employer handlers
+// --- Employer handlers ---
 
 func (h *CastingHandler) CreateCasting(c *gin.Context) {
-	employerID := middleware.GetUserID(c)
+	// 9. Use GetAndAuthorizeUserID
+	employerID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	var req dto.CreateCastingRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		appErrors.HandleValidationError(c, err) // <-- ИСПРАВЛЕНО
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
@@ -214,12 +172,7 @@ func (h *CastingHandler) CreateCasting(c *gin.Context) {
 
 	err := h.castingService.CreateCasting(&req)
 	if err != nil {
-		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -227,17 +180,15 @@ func (h *CastingHandler) CreateCasting(c *gin.Context) {
 }
 
 func (h *CastingHandler) GetMyCastings(c *gin.Context) {
-	employerID := middleware.GetUserID(c)
+	employerID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	requesterID := employerID // For employer, requester ID is the same as employer ID
 
 	castings, err := h.castingService.GetEmployerCastings(employerID, requesterID)
 	if err != nil {
-		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -248,22 +199,19 @@ func (h *CastingHandler) GetMyCastings(c *gin.Context) {
 }
 
 func (h *CastingHandler) UpdateCasting(c *gin.Context) {
-	employerID := middleware.GetUserID(c)
+	employerID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	castingID := c.Param("castingId")
 
 	var req dto.UpdateCastingRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		appErrors.HandleValidationError(c, err) // <-- ИСПРАВЛЕНО
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	if err := h.castingService.UpdateCasting(castingID, employerID, &req); err != nil {
-		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -271,16 +219,14 @@ func (h *CastingHandler) UpdateCasting(c *gin.Context) {
 }
 
 func (h *CastingHandler) DeleteCasting(c *gin.Context) {
-	employerID := middleware.GetUserID(c)
+	employerID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	castingID := c.Param("castingId")
 
 	if err := h.castingService.DeleteCasting(castingID, employerID); err != nil {
-		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -288,24 +234,21 @@ func (h *CastingHandler) DeleteCasting(c *gin.Context) {
 }
 
 func (h *CastingHandler) UpdateCastingStatus(c *gin.Context) {
-	employerID := middleware.GetUserID(c)
+	employerID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	castingID := c.Param("castingId")
 
 	var req struct {
 		Status models.CastingStatus `json:"status" binding:"required"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		appErrors.HandleValidationError(c, err) // <-- ИСПРАВЛЕНО
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	if err := h.castingService.UpdateCastingStatus(castingID, employerID, req.Status); err != nil {
-		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -313,17 +256,15 @@ func (h *CastingHandler) UpdateCastingStatus(c *gin.Context) {
 }
 
 func (h *CastingHandler) GetCastingStatsForCasting(c *gin.Context) {
-	employerID := middleware.GetUserID(c)
+	employerID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	castingID := c.Param("castingId")
 
 	stats, err := h.castingService.GetCastingStatsForCasting(castingID, employerID)
 	if err != nil {
-		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -331,36 +272,36 @@ func (h *CastingHandler) GetCastingStatsForCasting(c *gin.Context) {
 }
 
 func (h *CastingHandler) GetMyStats(c *gin.Context) {
-	employerID := middleware.GetUserID(c)
+	employerID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	requesterID := employerID // For employer, requester ID is the same as employer ID
 
 	stats, err := h.castingService.GetCastingStats(employerID, requesterID)
 	if err != nil {
-		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, stats)
 }
 
-// Model handlers
+// --- Model handlers ---
 
 func (h *CastingHandler) GetMatchingCastings(c *gin.Context) {
-	modelID := middleware.GetUserID(c)
-	limit := h.parseLimit(c)
+	modelID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
+	limit := ParseQueryInt(c, "limit", 10)
+	if limit <= 0 {
+		limit = 10
+	}
+
 	castings, err := h.castingService.FindMatchingCastings(modelID, limit)
 	if err != nil {
-		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -370,16 +311,15 @@ func (h *CastingHandler) GetMatchingCastings(c *gin.Context) {
 	})
 }
 
-// Admin handlers
+// --- Admin handlers ---
 
 func (h *CastingHandler) CloseExpiredCastings(c *gin.Context) {
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
 	if err := h.castingService.CloseExpiredCastings(); err != nil {
-		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -387,15 +327,20 @@ func (h *CastingHandler) CloseExpiredCastings(c *gin.Context) {
 }
 
 func (h *CastingHandler) GetPlatformStats(c *gin.Context) {
-	dateFrom, dateTo := h.parseDateRange(c)
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
+	// 10. Use ParseQueryDateRange (30-day default)
+	dateFrom, dateTo, err := ParseQueryDateRange(c, 30)
+	if err != nil {
+		h.HandleServiceError(c, err)
+		return
+	}
+
 	stats, err := h.castingService.GetPlatformCastingStats(dateFrom, dateTo)
 	if err != nil {
-		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -403,15 +348,19 @@ func (h *CastingHandler) GetPlatformStats(c *gin.Context) {
 }
 
 func (h *CastingHandler) GetMatchingStats(c *gin.Context) {
-	dateFrom, dateTo := h.parseDateRange(c)
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
+	dateFrom, dateTo, err := ParseQueryDateRange(c, 30)
+	if err != nil {
+		h.HandleServiceError(c, err)
+		return
+	}
+
 	stats, err := h.castingService.GetMatchingStats(dateFrom, dateTo)
 	if err != nil {
-		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -419,14 +368,13 @@ func (h *CastingHandler) GetMatchingStats(c *gin.Context) {
 }
 
 func (h *CastingHandler) GetCastingDistributionByCity(c *gin.Context) {
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
 	distribution, err := h.castingService.GetCastingDistributionByCity()
 	if err != nil {
-		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -434,14 +382,13 @@ func (h *CastingHandler) GetCastingDistributionByCity(c *gin.Context) {
 }
 
 func (h *CastingHandler) GetActiveCastingsCount(c *gin.Context) {
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
 	count, err := h.castingService.GetActiveCastingsCount()
 	if err != nil {
-		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -449,15 +396,18 @@ func (h *CastingHandler) GetActiveCastingsCount(c *gin.Context) {
 }
 
 func (h *CastingHandler) GetPopularCategories(c *gin.Context) {
-	limit := h.parseLimit(c)
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
+	limit := ParseQueryInt(c, "limit", 10)
+	if limit <= 0 {
+		limit = 10
+	}
+
 	categories, err := h.castingService.GetPopularCategories(limit)
 	if err != nil {
-		var appErr *appErrors.AppError // <-- ИСПРАВЛЕНО
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 

@@ -2,9 +2,10 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
 
-	"mwork_backend/internal/middleware"
+	"mwork_backend/internal/appErrors" // <-- Добавлен импорт
+
+	"mwork_backend/internal/middleware" // <-- Все еще нужен для RegisterRoutes
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/services"
 	"mwork_backend/internal/services/dto"
@@ -13,15 +14,19 @@ import (
 )
 
 type SearchHandler struct {
+	*BaseHandler  // <-- 1. Встраиваем BaseHandler
 	searchService services.SearchService
 }
 
-func NewSearchHandler(searchService services.SearchService) *SearchHandler {
+// 2. Обновляем конструктор
+func NewSearchHandler(base *BaseHandler, searchService services.SearchService) *SearchHandler {
 	return &SearchHandler{
+		BaseHandler:   base, // <-- 3. Сохраняем его
 		searchService: searchService,
 	}
 }
 
+// RegisterRoutes не требует изменений
 func (h *SearchHandler) RegisterRoutes(r *gin.RouterGroup) {
 	// Public search routes
 	search := r.Group("/search")
@@ -60,15 +65,16 @@ func (h *SearchHandler) RegisterRoutes(r *gin.RouterGroup) {
 	}
 }
 
-// Casting search handlers
+// --- Casting search handlers ---
 
 func (h *SearchHandler) SearchCastings(c *gin.Context) {
 	var req dto.SearchCastingsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	// 4. Используем BindAndValidate_JSON
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
+	// Пагинация (оставляем, т.к. она часть request body, а не query)
 	if req.Page == 0 {
 		req.Page = 1
 	}
@@ -78,7 +84,7 @@ func (h *SearchHandler) SearchCastings(c *gin.Context) {
 
 	response, err := h.searchService.SearchCastings(&req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err) // <-- 5. Используем HandleServiceError
 		return
 	}
 
@@ -87,8 +93,7 @@ func (h *SearchHandler) SearchCastings(c *gin.Context) {
 
 func (h *SearchHandler) SearchCastingsAdvanced(c *gin.Context) {
 	var req dto.AdvancedCastingSearchRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
@@ -101,7 +106,7 @@ func (h *SearchHandler) SearchCastingsAdvanced(c *gin.Context) {
 
 	response, err := h.searchService.SearchCastingsAdvanced(&req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -111,20 +116,20 @@ func (h *SearchHandler) SearchCastingsAdvanced(c *gin.Context) {
 func (h *SearchHandler) GetCastingSearchSuggestions(c *gin.Context) {
 	query := c.Query("query")
 	if query == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "query parameter is required"})
+		// 6. Используем appErrors
+		appErrors.HandleError(c, appErrors.NewBadRequestError("query parameter is required"))
 		return
 	}
 
-	limit := 10
-	if limitParam := c.Query("limit"); limitParam != "" {
-		if parsed, err := strconv.Atoi(limitParam); err == nil && parsed > 0 && parsed <= 50 {
-			limit = parsed
-		}
+	// 7. Используем ParseQueryInt
+	limit := ParseQueryInt(c, "limit", 10)
+	if limit <= 0 || limit > 50 {
+		limit = 10 // Восстанавливаем default, если значение некорректно
 	}
 
 	suggestions, err := h.searchService.GetCastingSearchSuggestions(query, limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -134,12 +139,11 @@ func (h *SearchHandler) GetCastingSearchSuggestions(c *gin.Context) {
 	})
 }
 
-// Model search handlers
+// --- Model search handlers ---
 
 func (h *SearchHandler) SearchModels(c *gin.Context) {
 	var req dto.SearchModelsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
@@ -152,7 +156,7 @@ func (h *SearchHandler) SearchModels(c *gin.Context) {
 
 	response, err := h.searchService.SearchModels(&req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -161,8 +165,7 @@ func (h *SearchHandler) SearchModels(c *gin.Context) {
 
 func (h *SearchHandler) SearchModelsAdvanced(c *gin.Context) {
 	var req dto.AdvancedModelSearchRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
@@ -175,7 +178,7 @@ func (h *SearchHandler) SearchModelsAdvanced(c *gin.Context) {
 
 	response, err := h.searchService.SearchModelsAdvanced(&req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -185,20 +188,18 @@ func (h *SearchHandler) SearchModelsAdvanced(c *gin.Context) {
 func (h *SearchHandler) GetModelSearchSuggestions(c *gin.Context) {
 	query := c.Query("query")
 	if query == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "query parameter is required"})
+		appErrors.HandleError(c, appErrors.NewBadRequestError("query parameter is required"))
 		return
 	}
 
-	limit := 10
-	if limitParam := c.Query("limit"); limitParam != "" {
-		if parsed, err := strconv.Atoi(limitParam); err == nil && parsed > 0 && parsed <= 50 {
-			limit = parsed
-		}
+	limit := ParseQueryInt(c, "limit", 10)
+	if limit <= 0 || limit > 50 {
+		limit = 10
 	}
 
 	suggestions, err := h.searchService.GetModelSearchSuggestions(query, limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -208,12 +209,11 @@ func (h *SearchHandler) GetModelSearchSuggestions(c *gin.Context) {
 	})
 }
 
-// Employer search handlers
+// --- Employer search handlers ---
 
 func (h *SearchHandler) SearchEmployers(c *gin.Context) {
 	var req dto.SearchEmployersRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
@@ -226,19 +226,18 @@ func (h *SearchHandler) SearchEmployers(c *gin.Context) {
 
 	response, err := h.searchService.SearchEmployers(&req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, response)
 }
 
-// Unified search handlers
+// --- Unified search handlers ---
 
 func (h *SearchHandler) UnifiedSearch(c *gin.Context) {
 	var req dto.UnifiedSearchRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
@@ -251,7 +250,7 @@ func (h *SearchHandler) UnifiedSearch(c *gin.Context) {
 
 	response, err := h.searchService.UnifiedSearch(&req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -261,32 +260,30 @@ func (h *SearchHandler) UnifiedSearch(c *gin.Context) {
 func (h *SearchHandler) GetSearchAutoComplete(c *gin.Context) {
 	query := c.Query("query")
 	if query == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "query parameter is required"})
+		appErrors.HandleError(c, appErrors.NewBadRequestError("query parameter is required"))
 		return
 	}
 
 	response, err := h.searchService.GetSearchAutoComplete(query)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, response)
 }
 
-// Search analytics and features
+// --- Search analytics and features ---
 
 func (h *SearchHandler) GetPopularSearches(c *gin.Context) {
-	limit := 20
-	if limitParam := c.Query("limit"); limitParam != "" {
-		if parsed, err := strconv.Atoi(limitParam); err == nil && parsed > 0 && parsed <= 100 {
-			limit = parsed
-		}
+	limit := ParseQueryInt(c, "limit", 20)
+	if limit <= 0 || limit > 100 {
+		limit = 20
 	}
 
 	searches, err := h.searchService.GetPopularSearches(limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -297,16 +294,14 @@ func (h *SearchHandler) GetPopularSearches(c *gin.Context) {
 }
 
 func (h *SearchHandler) GetSearchTrends(c *gin.Context) {
-	days := 7
-	if daysParam := c.Query("days"); daysParam != "" {
-		if parsed, err := strconv.Atoi(daysParam); err == nil && parsed > 0 && parsed <= 365 {
-			days = parsed
-		}
+	days := ParseQueryInt(c, "days", 7)
+	if days <= 0 || days > 365 {
+		days = 7
 	}
 
 	trends, err := h.searchService.GetSearchTrends(days)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -314,18 +309,20 @@ func (h *SearchHandler) GetSearchTrends(c *gin.Context) {
 }
 
 func (h *SearchHandler) GetSearchHistory(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	// 8. Используем GetAndAuthorizeUserID
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
-	limit := 20
-	if limitParam := c.Query("limit"); limitParam != "" {
-		if parsed, err := strconv.Atoi(limitParam); err == nil && parsed > 0 && parsed <= 100 {
-			limit = parsed
-		}
+	limit := ParseQueryInt(c, "limit", 20)
+	if limit <= 0 || limit > 100 {
+		limit = 20
 	}
 
 	history, err := h.searchService.GetSearchHistory(userID, limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -336,29 +333,35 @@ func (h *SearchHandler) GetSearchHistory(c *gin.Context) {
 }
 
 func (h *SearchHandler) ClearSearchHistory(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	if err := h.searchService.ClearSearchHistory(userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Search history cleared successfully"})
 }
 
-// Admin handlers
+// --- Admin handlers ---
 
 func (h *SearchHandler) GetSearchAnalytics(c *gin.Context) {
-	days := 30
-	if daysParam := c.Query("days"); daysParam != "" {
-		if parsed, err := strconv.Atoi(daysParam); err == nil && parsed > 0 && parsed <= 365 {
-			days = parsed
-		}
+	// Админские ручки также должны проверять авторизацию
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
+	days := ParseQueryInt(c, "days", 30)
+	if days <= 0 || days > 365 {
+		days = 30
 	}
 
 	analytics, err := h.searchService.GetSearchAnalytics(days)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -366,10 +369,13 @@ func (h *SearchHandler) GetSearchAnalytics(c *gin.Context) {
 }
 
 func (h *SearchHandler) ReindexSearchData(c *gin.Context) {
-	adminID := middleware.GetUserID(c)
+	adminID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	if err := h.searchService.ReindexSearchData(adminID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 

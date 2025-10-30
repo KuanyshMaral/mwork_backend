@@ -1,5 +1,6 @@
 server:
   port: 4000
+  env: "development" # <-- ✅ ДОБАВЬТЕ ЭТУ СТРОКУ (или "production")
 
 database:
   driver: "postgres"

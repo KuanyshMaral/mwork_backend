@@ -43,16 +43,8 @@ func New() *Validator {
 		return name
 	})
 
-	// === ЗДЕСЬ МЫ БУДЕМ РЕГИСТРИРОВАТЬ КАСТОМНЫЕ ПРАВИЛА ИЗ rules.go ===
-	//
-	// Пример (когда rules.go будет написан):
-	// if err := registerCustomRules(v); err != nil {
-	// 	// Здесь лучше использовать логгер и паниковать,
-	// 	// так как это ошибка времени запуска приложения.
-	// 	log.Fatalf("failed to register custom validation rules: %v", err)
-	// }
-	//
-	// =================================================================
+	// Регистрируем все наши кастомные правила валидации из rules.go
+	registerCustomRules(v)
 
 	return &Validator{
 		validate: v,
@@ -83,8 +75,6 @@ func (v *Validator) Validate(i interface{}) error {
 		fieldName := fe.Field()
 
 		// Генерируем простое сообщение об ошибке
-		// В реальном проекте здесь можно добавить i18n-ключи
-		// или более подробные сообщения на основе fe.Tag()
 		customErrors[fieldName] = v.getErrorMessage(fe)
 	}
 
@@ -92,9 +82,9 @@ func (v *Validator) Validate(i interface{}) error {
 }
 
 // getErrorMessage - вспомогательная функция для генерации сообщений.
-// (Можно вынести в отдельный файл или расширить).
 func (v *Validator) getErrorMessage(fe validator.FieldError) string {
 	switch fe.Tag() {
+	// --- Стандартные правила ---
 	case "required":
 		return "This field is required"
 	case "email":
@@ -115,8 +105,29 @@ func (v *Validator) getErrorMessage(fe validator.FieldError) string {
 		return fmt.Sprintf("Must be one of: %s", strings.Replace(fe.Param(), " ", ", ", -1))
 	case "url":
 		return "Must be a valid URL"
+
+	// --- Правила сравнения полей ---
+	case "lefield":
+		return fmt.Sprintf("Must be less than or equal to %s", fe.Param())
+	case "gefield":
+		return fmt.Sprintf("Must be greater than or equal to %s", fe.Param())
+
+	// --- Кастомные правила из rules.go ---
+	case "is-user-role":
+		return "Invalid user role"
+	case "is-casting-status":
+		return "Invalid casting status"
+	case "is-response-status":
+		return "Invalid response status"
+	case "is-payment-status":
+		return "Invalid payment status"
+	case "is-gender":
+		return "Invalid gender (must be male, female, other, or any)"
+	case "is-job-type":
+		return "Invalid job type (must be one_time or permanent)"
+
 	default:
-		// Для кастомных или необработанных тегов
+		// Для необработанных тегов
 		return fmt.Sprintf("Invalid value (failed on '%s' tag)", fe.Tag())
 	}
 }

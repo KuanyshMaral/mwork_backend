@@ -9,18 +9,18 @@ type SearchCastingsRequest struct {
 	Query      string   `form:"query"`
 	City       string   `form:"city"`
 	Categories []string `form:"categories"`
-	MinSalary  *int     `form:"min_salary"`
-	MaxSalary  *int     `form:"max_salary"`
-	Gender     string   `form:"gender"`
-	MinAge     *int     `form:"min_age"`
-	MaxAge     *int     `form:"max_age"`
-	JobType    string   `form:"job_type"`
-	Status     string   `form:"status"`
+	MinSalary  *int     `form:"min_salary" validate:"omitempty,min=0"`
+	MaxSalary  *int     `form:"max_salary" validate:"omitempty,gtefield=MinSalary"`
+	Gender     string   `form:"gender" validate:"omitempty,is-gender"` // Custom rule
+	MinAge     *int     `form:"min_age" validate:"omitempty,min=0"`
+	MaxAge     *int     `form:"max_age" validate:"omitempty,gtefield=MinAge"`
+	JobType    string   `form:"job_type" validate:"omitempty,is-job-type"`     // Custom rule
+	Status     string   `form:"status" validate:"omitempty,is-casting-status"` // Custom rule
 	EmployerID string   `form:"employer_id"`
-	Page       int      `form:"page" binding:"min=1"`
-	PageSize   int      `form:"page_size" binding:"min=1,max=100"`
+	Page       int      `form:"page" validate:"omitempty,min=1"`
+	PageSize   int      `form:"page_size" validate:"omitempty,min=1,max=100"`
 	SortBy     string   `form:"sort_by"`
-	SortOrder  string   `form:"sort_order"`
+	SortOrder  string   `form:"sort_order" validate:"omitempty,oneof=asc desc"`
 }
 
 type AdvancedCastingSearchRequest struct {
@@ -37,24 +37,24 @@ type SearchModelsRequest struct {
 	Query         string   `form:"query"`
 	City          string   `form:"city"`
 	Categories    []string `form:"categories"`
-	Gender        string   `form:"gender"`
-	MinAge        *int     `form:"min_age"`
-	MaxAge        *int     `form:"max_age"`
-	MinHeight     *int     `form:"min_height"`
-	MaxHeight     *int     `form:"max_height"`
-	MinWeight     *int     `form:"min_weight"`
-	MaxWeight     *int     `form:"max_weight"`
-	MinPrice      *int     `form:"min_price"`
-	MaxPrice      *int     `form:"max_price"`
-	MinExperience *int     `form:"min_experience"`
+	Gender        string   `form:"gender" validate:"omitempty,is-gender"` // Custom rule
+	MinAge        *int     `form:"min_age" validate:"omitempty,min=0"`
+	MaxAge        *int     `form:"max_age" validate:"omitempty,gtefield=MinAge"`
+	MinHeight     *int     `form:"min_height" validate:"omitempty,min=0"`
+	MaxHeight     *int     `form:"max_height" validate:"omitempty,gtefield=MinHeight"`
+	MinWeight     *int     `form:"min_weight" validate:"omitempty,min=0"`
+	MaxWeight     *int     `form:"max_weight" validate:"omitempty,gtefield=MinWeight"`
+	MinPrice      *int     `form:"min_price" validate:"omitempty,min=0"`
+	MaxPrice      *int     `form:"max_price" validate:"omitempty,gtefield=MinPrice"`
+	MinExperience *int     `form:"min_experience" validate:"omitempty,min=0"`
 	Languages     []string `form:"languages"`
 	AcceptsBarter *bool    `form:"accepts_barter"`
-	MinRating     *float64 `form:"min_rating"`
+	MinRating     *float64 `form:"min_rating" validate:"omitempty,min=0,max=5"`
 	IsPublic      *bool    `form:"is_public"`
-	Page          int      `form:"page" binding:"min=1"`
-	PageSize      int      `form:"page_size" binding:"min=1,max=100"`
+	Page          int      `form:"page" validate:"omitempty,min=1"`
+	PageSize      int      `form:"page_size" validate:"omitempty,min=1,max=100"`
 	SortBy        string   `form:"sort_by"`
-	SortOrder     string   `form:"sort_order"`
+	SortOrder     string   `form:"sort_order" validate:"omitempty,oneof=asc desc"`
 }
 
 type AdvancedModelSearchRequest struct {
@@ -72,17 +72,17 @@ type SearchEmployersRequest struct {
 	City        string `form:"city"`
 	CompanyType string `form:"company_type"`
 	IsVerified  *bool  `form:"is_verified"`
-	Page        int    `form:"page" binding:"min=1"`
-	PageSize    int    `form:"page_size" binding:"min=1,max=100"`
+	Page        int    `form:"page" validate:"omitempty,min=1"`
+	PageSize    int    `form:"page_size" validate:"omitempty,min=1,max=100"`
 }
 
 // --- Unified search ---
 type UnifiedSearchRequest struct {
-	Query    string `form:"query" binding:"required"`
-	Type     string `form:"type"`
+	Query    string `form:"query" validate:"required"`
+	Type     string `form:"type" validate:"omitempty,oneof=castings models employers"` // Assumed types
 	City     string `form:"city"`
-	Page     int    `form:"page" binding:"min=1"`
-	PageSize int    `form:"page_size" binding:"min=1,max=50"`
+	Page     int    `form:"page" validate:"omitempty,min=1"`
+	PageSize int    `form:"page_size" validate:"omitempty,min=1,max=50"`
 }
 
 // ====================

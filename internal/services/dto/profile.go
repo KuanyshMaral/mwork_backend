@@ -7,18 +7,18 @@ import "time"
 // ==========================
 
 type CreateModelProfileRequest struct {
-	UserID         string   `json:"user_id" binding:"required"`
-	Name           string   `json:"name" binding:"required"`
-	Age            int      `json:"age" binding:"required,min=16,max=70"`
-	Height         float64  `json:"height" binding:"min=100,max=250"`
-	Weight         float64  `json:"weight" binding:"min=30,max=200"`
-	Gender         string   `json:"gender"`
-	Experience     int      `json:"experience"`
-	HourlyRate     float64  `json:"hourly_rate" binding:"min=0"`
-	Description    string   `json:"description"`
+	UserID         string   `json:"user_id" validate:"-"` // Устанавливается сервером
+	Name           string   `json:"name" validate:"required"`
+	Age            int      `json:"age" validate:"required,min=16,max=70"`
+	Height         float64  `json:"height" validate:"omitempty,min=100,max=250"`
+	Weight         float64  `json:"weight" validate:"omitempty,min=30,max=200"`
+	Gender         string   `json:"gender" validate:"omitempty,is-gender"` // Кастомное правило
+	Experience     int      `json:"experience" validate:"omitempty,min=0"`
+	HourlyRate     float64  `json:"hourly_rate" validate:"omitempty,min=0"`
+	Description    string   `json:"description" validate:"omitempty,max=2000"`
 	ClothingSize   string   `json:"clothing_size"`
 	ShoeSize       string   `json:"shoe_size"`
-	City           string   `json:"city" binding:"required"`
+	City           string   `json:"city" validate:"required"`
 	Languages      []string `json:"languages"`
 	Categories     []string `json:"categories"`
 	BarterAccepted bool     `json:"barter_accepted"`
@@ -26,14 +26,14 @@ type CreateModelProfileRequest struct {
 }
 
 type CreateEmployerProfileRequest struct {
-	UserID        string `json:"user_id" binding:"required"`
-	CompanyName   string `json:"company_name" binding:"required"`
+	UserID        string `json:"user_id" validate:"-"` // Устанавливается сервером
+	CompanyName   string `json:"company_name" validate:"required"`
 	ContactPerson string `json:"contact_person"`
-	Phone         string `json:"phone"`
-	Website       string `json:"website"`
+	Phone         string `json:"phone" validate:"omitempty,e164"` // (Пример: можно добавить `e164` для тел. номеров)
+	Website       string `json:"website" validate:"omitempty,url"`
 	City          string `json:"city"`
 	CompanyType   string `json:"company_type"`
-	Description   string `json:"description"`
+	Description   string `json:"description" validate:"omitempty,max=2000"`
 }
 
 // ==========================
@@ -41,17 +41,14 @@ type CreateEmployerProfileRequest struct {
 // ==========================
 
 type UpdateProfileRequest struct {
-	// Common fields
-	Name        *string `json:"name,omitempty"`
-	City        *string `json:"city,omitempty"`
-	Description *string `json:"description,omitempty"`
-
-	// Model-specific fields
-	Age            *int     `json:"age,omitempty"`
-	Height         *float64 `json:"height,omitempty"`
-	Weight         *float64 `json:"weight,omitempty"`
-	Gender         *string  `json:"gender,omitempty"`
-	Experience     *int     `json:"experience,omitempty"`
+	Name           *string  `json:"name,omitempty" validate:"omitempty,min=2"`
+	City           *string  `json:"city,omitempty"`
+	Description    *string  `json:"description,omitempty,max=2000"`
+	Age            *int     `json:"age,omitempty" validate:"omitempty,min=16,max=70"`
+	Height         *float64 `json:"height,omitempty" validate:"omitempty,min=100,max=250"`
+	Weight         *float64 `json:"weight,omitempty" validate:"omitempty,min=30,max=200"`
+	Gender         *string  `json:"gender,omitempty" validate:"omitempty,is-gender"` // Кастомное правило
+	Experience     *int     `json:"experience,omitempty" validate:"omitempty,min=0"`
 	HourlyRate     *float64 `json:"hourly_rate,omitempty"`
 	ClothingSize   *string  `json:"clothing_size,omitempty"`
 	ShoeSize       *string  `json:"shoe_size,omitempty"`
@@ -61,10 +58,10 @@ type UpdateProfileRequest struct {
 	IsPublic       *bool    `json:"is_public,omitempty"`
 
 	// Employer-specific fields
-	CompanyName   *string `json:"company_name,omitempty"`
+	CompanyName   *string `json:"company_name,omitempty" validate:"omitempty,min=2"`
 	ContactPerson *string `json:"contact_person,omitempty"`
 	Phone         *string `json:"phone,omitempty"`
-	Website       *string `json:"website,omitempty"`
+	Website       *string `json:"website,omitempty" validate:"omitempty,url"`
 	CompanyType   *string `json:"company_type,omitempty"`
 }
 
@@ -76,23 +73,23 @@ type ProfileSearchCriteria struct {
 	Query         string   `form:"query"`
 	City          string   `form:"city"`
 	Categories    []string `form:"categories[]"`
-	Gender        string   `form:"gender"`
-	MinAge        *int     `form:"min_age"`
-	MaxAge        *int     `form:"max_age"`
-	MinHeight     *int     `form:"min_height"`
-	MaxHeight     *int     `form:"max_height"`
-	MinWeight     *int     `form:"min_weight"`
-	MaxWeight     *int     `form:"max_weight"`
-	MinPrice      *int     `form:"min_price"`
-	MaxPrice      *int     `form:"max_price"`
-	MinExperience *int     `form:"min_experience"`
+	Gender        string   `form:"gender" validate:"omitempty,is-gender"` // Кастомное правило
+	MinAge        *int     `form:"min_age" validate:"omitempty,min=0"`
+	MaxAge        *int     `form:"max_age" validate:"omitempty,gtefield=MinAge"`
+	MinHeight     *int     `form:"min_height" validate:"omitempty,min=0"`
+	MaxHeight     *int     `form:"max_height" validate:"omitempty,gtefield=MinHeight"`
+	MinWeight     *int     `form:"min_weight" validate:"omitempty,min=0"`
+	MaxWeight     *int     `form:"max_weight" validate:"omitempty,gtefield=MinWeight"`
+	MinPrice      *int     `form:"min_price" validate:"omitempty,min=0"`
+	MaxPrice      *int     `form:"max_price" validate:"omitempty,gtefield=MinPrice"`
+	MinExperience *int     `form:"min_experience" validate:"omitempty,min=0"`
 	Languages     []string `form:"languages[]"`
 	AcceptsBarter *bool    `form:"accepts_barter"`
-	MinRating     *float64 `form:"min_rating"`
-	Page          int      `form:"page" binding:"min=1"`
-	PageSize      int      `form:"page_size" binding:"min=1,max=100"`
+	MinRating     *float64 `form:"min_rating" validate:"omitempty,min=0,max=5"`
+	Page          int      `form:"page" validate:"omitempty,min=1"`
+	PageSize      int      `form:"page_size" validate:"omitempty,min=1,max=100"`
 	SortBy        string   `form:"sort_by"`
-	SortOrder     string   `form:"sort_order"`
+	SortOrder     string   `form:"sort_order" validate:"omitempty,oneof=asc desc"`
 }
 
 // ==========================

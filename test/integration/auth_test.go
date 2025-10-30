@@ -19,13 +19,19 @@ var testServer *helpers.TestServer
 // TestMain - это главный "хаб". Он запускается ОДИН РАЗ
 // для всех тестов в этом файле.
 func TestMain(m *testing.M) {
-	// 1. Создаем сервер (он внутри создает БД, мигрирует и запускает Gin)
+	// Устанавливаем тестовые environment variables
+	os.Setenv("SERVER_PORT", "4001")
+	os.Setenv("SERVER_ENV", "test")
+	os.Setenv("DATABASE_URL", "postgres://postgres:Sagster-2020@localhost:5432/mwork?sslmode=disable")
+	// os.Setenv("DATABASE_DRIVER", "postgres") // (Это не используется в config.go)
+
+	// 👇👇👇 ДОБАВЬ ЭТУ СТРОКУ 👇👇👇
+	os.Setenv("JWT_SECRET", "my_super_secret_key_for_tests_12345")
+
 	testServer = helpers.NewTestServer(&testing.T{})
 
-	// 2. Запускаем ВСЕ тесты (m.Run())
 	code := m.Run()
 
-	// 3. Останавливаем сервер и чистим за собой
 	testServer.Close()
 	os.Exit(code)
 }

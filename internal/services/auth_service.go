@@ -491,17 +491,17 @@ func (s *AuthServiceImpl) sendPasswordResetEmail(email, token string) {
 func (s *AuthServiceImpl) validateRegisterRequest(req *dto.RegisterRequest) error {
 	if req.Role == models.UserRoleModel {
 		if req.Name == "" {
-			return appErrors.NewValidationError("name is required for model role")
+			return appErrors.ValidationError("name is required for model role")
 		}
 		if req.City == "" {
-			return appErrors.NewValidationError("city is required for model role")
+			return appErrors.ValidationError("city is required for model role")
 		}
 	} else if req.Role == models.UserRoleEmployer {
 		if req.CompanyName == "" {
-			return appErrors.NewValidationError("company_name is required for employer role")
+			return appErrors.ValidationError("company_name is required for employer role")
 		}
 		if req.City == "" {
-			return appErrors.NewValidationError("city is required for employer role")
+			return appErrors.ValidationError("city is required for employer role")
 		}
 	}
 	return nil

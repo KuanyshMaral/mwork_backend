@@ -2,9 +2,10 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
+	// "strconv" // <-- Больше не нужен
+	"mwork_backend/internal/appErrors" // <-- Добавлен импорт
 
-	"mwork_backend/internal/middleware"
+	"mwork_backend/internal/middleware" // <-- Все еще нужен для RegisterRoutes
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/services"
 
@@ -12,15 +13,19 @@ import (
 )
 
 type SubscriptionHandler struct {
+	*BaseHandler        // <-- 1. Встраиваем BaseHandler
 	subscriptionService services.SubscriptionService
 }
 
-func NewSubscriptionHandler(subscriptionService services.SubscriptionService) *SubscriptionHandler {
+// 2. Обновляем конструктор
+func NewSubscriptionHandler(base *BaseHandler, subscriptionService services.SubscriptionService) *SubscriptionHandler {
 	return &SubscriptionHandler{
+		BaseHandler:         base, // <-- 3. Сохраняем его
 		subscriptionService: subscriptionService,
 	}
 }
 
+// RegisterRoutes не требует изменений
 func (h *SubscriptionHandler) RegisterRoutes(r *gin.RouterGroup) {
 	// Public routes - Plan information
 	plans := r.Group("/plans")
@@ -81,7 +86,7 @@ func (h *SubscriptionHandler) RegisterRoutes(r *gin.RouterGroup) {
 	}
 }
 
-// Plan handlers
+// --- Plan handlers ---
 
 func (h *SubscriptionHandler) GetPlans(c *gin.Context) {
 	roleParam := c.Query("role")
@@ -93,7 +98,7 @@ func (h *SubscriptionHandler) GetPlans(c *gin.Context) {
 
 	plans, err := h.subscriptionService.GetPlans(role)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err) // <-- 4. Используем HandleServiceError
 		return
 	}
 
@@ -108,7 +113,7 @@ func (h *SubscriptionHandler) GetPlan(c *gin.Context) {
 
 	plan, err := h.subscriptionService.GetPlan(planID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Plan not found"})
+		h.HandleServiceError(c, err) // <-- 4. Используем HandleServiceError
 		return
 	}
 
@@ -116,20 +121,20 @@ func (h *SubscriptionHandler) GetPlan(c *gin.Context) {
 }
 
 func (h *SubscriptionHandler) CreatePlan(c *gin.Context) {
-	adminID := middleware.GetUserID(c)
+	// 5. Используем GetAndAuthorizeUserID
+	adminID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	var req models.CreatePlanRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	// 6. Используем BindAndValidate_JSON
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	if err := h.subscriptionService.CreatePlan(adminID, &req); err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "insufficient permissions" {
-			statusCode = http.StatusForbidden
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -137,23 +142,19 @@ func (h *SubscriptionHandler) CreatePlan(c *gin.Context) {
 }
 
 func (h *SubscriptionHandler) UpdatePlan(c *gin.Context) {
-	adminID := middleware.GetUserID(c)
+	adminID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	planID := c.Param("planId")
 
 	var req models.UpdatePlanRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	if err := h.subscriptionService.UpdatePlan(adminID, planID, &req); err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "insufficient permissions" {
-			statusCode = http.StatusForbidden
-		} else if err.Error() == "plan not found" {
-			statusCode = http.StatusNotFound
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -161,31 +162,31 @@ func (h *SubscriptionHandler) UpdatePlan(c *gin.Context) {
 }
 
 func (h *SubscriptionHandler) DeletePlan(c *gin.Context) {
-	adminID := middleware.GetUserID(c)
+	adminID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	planID := c.Param("planId")
 
 	if err := h.subscriptionService.DeletePlan(adminID, planID); err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "insufficient permissions" {
-			statusCode = http.StatusForbidden
-		} else if err.Error() == "plan not found" {
-			statusCode = http.StatusNotFound
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Plan deleted successfully"})
 }
 
-// User subscription handlers
+// --- User subscription handlers ---
 
 func (h *SubscriptionHandler) GetUserSubscription(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	subscription, err := h.subscriptionService.GetUserSubscription(userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Subscription not found"})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -193,11 +194,14 @@ func (h *SubscriptionHandler) GetUserSubscription(c *gin.Context) {
 }
 
 func (h *SubscriptionHandler) GetUserSubscriptionStats(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	stats, err := h.subscriptionService.GetUserSubscriptionStats(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -205,24 +209,22 @@ func (h *SubscriptionHandler) GetUserSubscriptionStats(c *gin.Context) {
 }
 
 func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	var req struct {
 		PlanID string `json:"plan_id" binding:"required"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	subscription, err := h.subscriptionService.CreateSubscription(userID, req.PlanID)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "plan not found" {
-			statusCode = http.StatusNotFound
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -230,16 +232,13 @@ func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
 }
 
 func (h *SubscriptionHandler) CancelSubscription(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	if err := h.subscriptionService.CancelSubscription(userID); err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "subscription already cancelled" {
-			statusCode = http.StatusBadRequest
-		} else if err.Error() == "subscription not found" {
-			statusCode = http.StatusNotFound
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -247,23 +246,21 @@ func (h *SubscriptionHandler) CancelSubscription(c *gin.Context) {
 }
 
 func (h *SubscriptionHandler) RenewSubscription(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	var req struct {
 		PlanID string `json:"plan_id" binding:"required"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	if err := h.subscriptionService.RenewSubscription(userID, req.PlanID); err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "plan not found" {
-			statusCode = http.StatusNotFound
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -271,17 +268,20 @@ func (h *SubscriptionHandler) RenewSubscription(c *gin.Context) {
 }
 
 func (h *SubscriptionHandler) CheckSubscriptionLimit(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 	feature := c.Query("feature")
 
 	if feature == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "feature parameter is required"})
+		appErrors.HandleError(c, appErrors.NewBadRequestError("feature parameter is required"))
 		return
 	}
 
 	canUse, err := h.subscriptionService.CheckSubscriptionLimit(userID, feature)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -292,19 +292,21 @@ func (h *SubscriptionHandler) CheckSubscriptionLimit(c *gin.Context) {
 }
 
 func (h *SubscriptionHandler) IncrementUsage(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	var req struct {
 		Feature string `json:"feature" binding:"required"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	if err := h.subscriptionService.IncrementUsage(userID, req.Feature); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -312,37 +314,38 @@ func (h *SubscriptionHandler) IncrementUsage(c *gin.Context) {
 }
 
 func (h *SubscriptionHandler) ResetUsage(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	if err := h.subscriptionService.ResetUsage(userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Usage reset successfully"})
 }
 
-// Payment handlers
+// --- Payment handlers ---
 
 func (h *SubscriptionHandler) CreatePayment(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	var req struct {
 		PlanID string `json:"plan_id" binding:"required"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	payment, err := h.subscriptionService.CreatePayment(userID, req.PlanID)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "plan not found" {
-			statusCode = http.StatusNotFound
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -350,11 +353,14 @@ func (h *SubscriptionHandler) CreatePayment(c *gin.Context) {
 }
 
 func (h *SubscriptionHandler) GetPaymentHistory(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	payments, err := h.subscriptionService.GetPaymentHistory(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -365,38 +371,41 @@ func (h *SubscriptionHandler) GetPaymentHistory(c *gin.Context) {
 }
 
 func (h *SubscriptionHandler) GetPaymentStatus(c *gin.Context) {
+	// Проверяем, что пользователь авторизован,
+	// даже если userID не передается в сервис
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
 	paymentID := c.Param("paymentId")
 
 	payment, err := h.subscriptionService.GetPaymentStatus(paymentID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Payment not found"})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, payment)
 }
 
-// Robokassa handlers
+// --- Robokassa handlers ---
 
 func (h *SubscriptionHandler) InitRobokassaPayment(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	var req struct {
 		PlanID string `json:"plan_id" binding:"required"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	response, err := h.subscriptionService.InitRobokassaPayment(userID, req.PlanID)
 	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "plan not found" {
-			statusCode = http.StatusNotFound
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -405,20 +414,15 @@ func (h *SubscriptionHandler) InitRobokassaPayment(c *gin.Context) {
 
 func (h *SubscriptionHandler) ProcessRobokassaCallback(c *gin.Context) {
 	var data models.RobokassaCallbackData
-	if err := c.ShouldBindJSON(&data); err != nil {
-		// Try form binding for URL-encoded data
-		if err := c.ShouldBind(&data); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid callback data"})
-			return
-		}
+	// BindAndValidate_JSON использует c.ShouldBind(),
+	// который автоматически определяет JSON или Form,
+	// поэтому двойная проверка не нужна.
+	if !h.BindAndValidate_JSON(c, &data) {
+		return
 	}
 
 	if err := h.subscriptionService.ProcessRobokassaCallback(&data); err != nil {
-		statusCode := http.StatusInternalServerError
-		if err.Error() == "invalid signature" || err.Error() == "invalid payment amount" {
-			statusCode = http.StatusBadRequest
-		}
-		c.JSON(statusCode, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -426,23 +430,30 @@ func (h *SubscriptionHandler) ProcessRobokassaCallback(c *gin.Context) {
 }
 
 func (h *SubscriptionHandler) CheckRobokassaPayment(c *gin.Context) {
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
 	paymentID := c.Param("paymentId")
 
 	response, err := h.subscriptionService.CheckRobokassaPayment(paymentID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Payment not found"})
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, response)
 }
 
-// Admin handlers
+// --- Admin handlers ---
 
 func (h *SubscriptionHandler) GetPlatformSubscriptionStats(c *gin.Context) {
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
 	stats, err := h.subscriptionService.GetPlatformSubscriptionStats()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -450,16 +461,19 @@ func (h *SubscriptionHandler) GetPlatformSubscriptionStats(c *gin.Context) {
 }
 
 func (h *SubscriptionHandler) GetRevenueStats(c *gin.Context) {
-	days := 30
-	if daysParam := c.Query("days"); daysParam != "" {
-		if parsed, err := strconv.Atoi(daysParam); err == nil && parsed > 0 && parsed <= 365 {
-			days = parsed
-		}
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
+	// 7. Используем ParseQueryInt
+	days := ParseQueryInt(c, "days", 30)
+	if days <= 0 || days > 365 {
+		days = 30
 	}
 
 	stats, err := h.subscriptionService.GetRevenueStats(days)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -467,16 +481,18 @@ func (h *SubscriptionHandler) GetRevenueStats(c *gin.Context) {
 }
 
 func (h *SubscriptionHandler) GetExpiringSubscriptions(c *gin.Context) {
-	days := 7
-	if daysParam := c.Query("days"); daysParam != "" {
-		if parsed, err := strconv.Atoi(daysParam); err == nil && parsed > 0 && parsed <= 90 {
-			days = parsed
-		}
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
+	days := ParseQueryInt(c, "days", 7)
+	if days <= 0 || days > 90 {
+		days = 7
 	}
 
 	subscriptions, err := h.subscriptionService.GetExpiringSubscriptions(days)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -488,9 +504,13 @@ func (h *SubscriptionHandler) GetExpiringSubscriptions(c *gin.Context) {
 }
 
 func (h *SubscriptionHandler) GetExpiredSubscriptions(c *gin.Context) {
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
 	subscriptions, err := h.subscriptionService.GetExpiredSubscriptions()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -501,8 +521,12 @@ func (h *SubscriptionHandler) GetExpiredSubscriptions(c *gin.Context) {
 }
 
 func (h *SubscriptionHandler) ProcessExpiredSubscriptions(c *gin.Context) {
+	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
+		return
+	}
+
 	if err := h.subscriptionService.ProcessExpiredSubscriptions(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.HandleServiceError(c, err)
 		return
 	}
 

@@ -3,22 +3,28 @@ package app
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
+	"time"
+
 	"mwork_backend/internal/config"
 	"mwork_backend/internal/email"
 	"mwork_backend/internal/handlers"
+	"mwork_backend/internal/logger"
 	"mwork_backend/internal/middleware"
 	"mwork_backend/internal/repositories"
 	"mwork_backend/internal/services"
+	"mwork_backend/internal/validator"
 	"mwork_backend/ws"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-// AppHandlers содержит все хендлеры приложения
+// AppHandlers (без изменений)
 type AppHandlers struct {
+	// ...
 	UserHandler         *handlers.UserHandler
 	ProfileHandler      *handlers.ProfileHandler
 	CastingHandler      *handlers.CastingHandler
@@ -30,47 +36,58 @@ type AppHandlers struct {
 	SubscriptionHandler *handlers.SubscriptionHandler
 	SearchHandler       *handlers.SearchHandler
 	AnalyticsHandler    *handlers.AnalyticsHandler
-	ChatHandler         *handlers.ChatHandler // Этот хендлер теперь будет для /api/v1/chat/... (не-WS)
+	ChatHandler         *handlers.ChatHandler
 }
 
 func Run() {
-	// Загружаем конфигурацию
+	// 1. Загружаем конфигурацию
 	config.LoadConfig()
 	cfg := config.AppConfig
 
-	// Подключение к БД
-	fmt.Println("👉 Строка подключения к БД:", cfg.Database.DSN)
+	// 2. Инициализируем логгер
+	logger.Init(cfg.Server.Env)
+	logger.Info("Logger initialized", "env", cfg.Server.Env)
 
-	// GORM подключение
+	// 3. Подключение к БД
+	logger.Info("Connecting to database...", "dsn", cfg.Database.DSN)
+
 	gormDB, err := gorm.Open(postgres.Open(cfg.Database.DSN), &gorm.Config{})
 	if err != nil {
-		log.Fatalf("Ошибка подключения к GORM: %v", err)
+		logger.Fatal("Failed to connect to GORM", "error", err)
 	}
 
-	/*// Автоматическая миграция моделей
-	if err := database.AutoMigrate(); err != nil {
-		log.Fatalf("❌ AutoMigrate ошибка: %v", err)
-	}
-	fmt.Println("✅ AutoMigrate выполнен успешно")
-	*/
-
-	// Стандартный sql.DB
 	sqlDB, err := gormDB.DB()
 	if err != nil {
-		log.Fatalf("Ошибка получения *sql.DB из GORM: %v", err)
+		logger.Fatal("Failed to get *sql.DB from GORM", "error", err)
 	}
 	if err = sqlDB.Ping(); err != nil {
-		log.Fatalf("База данных недоступна: %v", err)
+		logger.Fatal("Database unavailable", "error", err)
 	}
-	fmt.Println("✅ База данных подключена")
+	logger.Info("Database connected")
 
+	// 4. ✅ Инициализация роутера (теперь вызывает новую функцию)
+	ginRouter := SetupRouter(cfg, gormDB, sqlDB)
+
+	// 5. Запускаем сервер
+	address := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+	logger.Info(fmt.Sprintf("🚀 Server starting on %s", address))
+
+	if err := ginRouter.Run(address); err != nil {
+		logger.Fatal("Server startup error", "error", err)
+	}
+}
+
+// ✅
+// 5. ✅ НОВАЯ ЭКСПОРТИРУЕМАЯ ФУНКЦИЯ, КОТОРУЮ БУДЕТ ИСПОЛЬЗОВАТЬ ТЕСТ
+// ✅
+func SetupRouter(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB) *gin.Engine {
 	// Инициализация сервисов
 	serviceContainer := initializeServices(cfg, gormDB, sqlDB)
 
-	// Инициализация хендлеров
+	// Инициализация хендлеров (с BaseHandler)
 	appHandlers := initializeHandlers(serviceContainer)
 
-	// 💬 WebSocket
+	// WebSocket
 	wsManager := ws.NewWebSocketManager(
 		serviceContainer.ChatService,
 	)
@@ -84,20 +101,14 @@ func Run() {
 	ginRouter := initializeGinRouter()
 
 	// Настройка маршрутов
-	// ПРИМЕЧАНИЕ: wsHandler передается отдельно от appHandlers
 	setupRoutes(ginRouter, appHandlers, wsHandler)
 
-	// Запускаем сервер
-	address := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
-	fmt.Printf("🚀 Сервер запущен на %s\n", address)
-
-	if err := ginRouter.Run(address); err != nil {
-		log.Fatalf("Ошибка запуска сервера: %v", err)
-	}
+	return ginRouter
 }
 
-// ServiceContainer содержит все сервисы приложения
+// ServiceContainer (без изменений)
 type ServiceContainer struct {
+	// ...
 	UserService         services.UserService
 	AuthService         services.AuthService
 	ProfileService      services.ProfileService
@@ -114,9 +125,9 @@ type ServiceContainer struct {
 	EmailService        email.Provider
 }
 
-// initializeServices инициализирует все сервисы приложения
+// initializeServices (без изменений)
 func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB) *ServiceContainer {
-	// 1. Создаем структуру конфигурации для EmailService
+	// ... (без изменений) ...
 	emailServiceConfig := services.EmailServiceConfig{
 		SMTPHost:     cfg.Email.SMTPHost,
 		SMTPPort:     cfg.Email.SMTPPort,
@@ -128,13 +139,12 @@ func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB) *Ser
 		TemplatesDir: cfg.Email.TemplatesDir,
 	}
 
-	// 2. Используем правильный конструктор NewEmailServiceWithConfig
 	emailService, err := services.NewEmailServiceWithConfig(emailServiceConfig)
 	if err != nil {
-		log.Fatalf("Ошибка инициализации EmailService: %v", err)
+		logger.Fatal("Failed to initialize EmailService", "error", err)
 	}
 
-	// Репозитории
+	// ... (все репозитории и сервисы как были) ...
 	userRepo := repositories.NewUserRepository(gormDB)
 	refreshTokenRepo := repositories.NewRefreshTokenRepository(gormDB)
 	profileRepo := repositories.NewProfileRepository(gormDB)
@@ -233,7 +243,6 @@ func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB) *Ser
 		profileRepo,
 		notificationRepo,
 	)
-
 	return &ServiceContainer{
 		UserService:         userService,
 		AuthService:         authService,
@@ -252,44 +261,40 @@ func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB) *Ser
 	}
 }
 
-// initializeHandlers инициализирует все хендлеры приложения
+// initializeHandlers (без изменений)
 func initializeHandlers(services *ServiceContainer) *AppHandlers {
+	customValidator := validator.New()
+	baseHandler := handlers.NewBaseHandler(customValidator)
 	return &AppHandlers{
-		// <-- ИСПРАВЛЕНО: Добавлен services.AuthService
-		UserHandler:         handlers.NewUserHandler(services.UserService, services.AuthService),
-		ProfileHandler:      handlers.NewProfileHandler(services.ProfileService),
-		CastingHandler:      handlers.NewCastingHandler(services.CastingService),
-		ResponseHandler:     handlers.NewResponseHandler(services.ResponseService),
-		ReviewHandler:       handlers.NewReviewHandler(services.ReviewService),
-		PortfolioHandler:    handlers.NewPortfolioHandler(services.PortfolioService),
-		MatchingHandler:     handlers.NewMatchingHandler(services.MatchingService),
-		NotificationHandler: handlers.NewNotificationHandler(services.NotificationService),
-		SubscriptionHandler: handlers.NewSubscriptionHandler(services.SubscriptionService),
-		SearchHandler:       handlers.NewSearchHandler(services.SearchService),
-		AnalyticsHandler:    handlers.NewAnalyticsHandler(services.AnalyticsService),
-		// ChatHandler используется для API-маршрутов чата (например, /api/v1/chat/history)
-		ChatHandler: handlers.NewChatHandler(services.ChatService),
+		UserHandler:         handlers.NewUserHandler(baseHandler, services.UserService, services.AuthService),
+		ProfileHandler:      handlers.NewProfileHandler(baseHandler, services.ProfileService),
+		CastingHandler:      handlers.NewCastingHandler(baseHandler, services.CastingService),
+		ResponseHandler:     handlers.NewResponseHandler(baseHandler, services.ResponseService),
+		ReviewHandler:       handlers.NewReviewHandler(baseHandler, services.ReviewService),
+		PortfolioHandler:    handlers.NewPortfolioHandler(baseHandler, services.PortfolioService),
+		MatchingHandler:     handlers.NewMatchingHandler(baseHandler, services.MatchingService),
+		NotificationHandler: handlers.NewNotificationHandler(baseHandler, services.NotificationService),
+		SubscriptionHandler: handlers.NewSubscriptionHandler(baseHandler, services.SubscriptionService),
+		SearchHandler:       handlers.NewSearchHandler(baseHandler, services.SearchService),
+		AnalyticsHandler:    handlers.NewAnalyticsHandler(baseHandler, services.AnalyticsService),
+		ChatHandler:         handlers.NewChatHandler(baseHandler, services.ChatService),
 	}
 }
 
-// initializeGinRouter инициализирует и настраивает Gin роутер
+// initializeGinRouter (без изменений)
 func initializeGinRouter() *gin.Engine {
-	router := gin.Default()
-
-	// Middleware
+	router := gin.New()
+	router.Use(gin.Recovery())
+	router.Use(RequestIDMiddleware())
+	router.Use(LoggingMiddleware())
 	router.Use(middleware.CORSMiddleware())
-
 	return router
 }
 
-// setupRoutes настраивает все маршруты приложения
+// setupRoutes (без изменений)
 func setupRoutes(ginRouter *gin.Engine, handlers *AppHandlers, wsHandler *ws.WebSocketHandler) {
-	// Регистрация API маршрутов
 	api := ginRouter.Group("/api/v1")
 
-	// ВСЕ handler.RegisterRoutes ДОЛЖНЫ принимать *gin.RouterGroup
-	// Убедитесь, что *каждый* хендлер в пакете 'handlers'
-	// имеет метод RegisterRoutes(router *gin.RouterGroup)
 	handlers.UserHandler.RegisterRoutes(api)
 	handlers.ProfileHandler.RegisterRoutes(api)
 	handlers.CastingHandler.RegisterRoutes(api)
@@ -301,24 +306,52 @@ func setupRoutes(ginRouter *gin.Engine, handlers *AppHandlers, wsHandler *ws.Web
 	handlers.SubscriptionHandler.RegisterRoutes(api)
 	handlers.SearchHandler.RegisterRoutes(api)
 	handlers.AnalyticsHandler.RegisterRoutes(api)
-
-	// ИСПРАВЛЕНИЕ: ChatHandler регистрирует свои *API* маршруты (например, история чата)
-	// WebSocket маршрут регистрируется отдельно ниже.
 	handlers.ChatHandler.RegisterRoutes(api)
 
-	// WebSocket маршруты
-	// ИСПРАВЛЕНИЕ: Вызываем функцию, которая теперь определена
 	setupWebSocketRoutes(ginRouter, wsHandler)
 }
 
-// setupWebSocketRoutes настраивает маршруты для WebSocket
-// ИСПРАВЛЕНИЕ: Реализация недостающей функции
+// setupWebSocketRoutes (без изменений)
 func setupWebSocketRoutes(ginRouter *gin.Engine, wsHandler *ws.WebSocketHandler) {
-	// Вы можете поместить /ws в /api/v1/ws, если хотите
-	// apiV1 := ginRouter.Group("/api/v1")
-	// apiV1.GET("/ws", wsHandler.ServeWS)
-
-	// Или оставить его в корне
+	// ... (без изменений) ...
 	ginRouter.GET("/ws", wsHandler.ServeWS)
-	fmt.Println("🔌 WebSocket маршрут /ws зарегистрирован")
+	logger.Info("WebSocket route /ws registered")
+}
+
+// Middleware (RequestIDMiddleware, LoggingMiddleware) (без изменений)
+func RequestIDMiddleware() gin.HandlerFunc {
+	// ... (без изменений) ...
+	return func(c *gin.Context) {
+		requestID := uuid.NewString()
+		ctx := logger.WithRequestID(c.Request.Context(), requestID)
+		c.Request = c.Request.WithContext(ctx)
+		c.Header("X-Request-ID", requestID)
+		c.Next()
+	}
+}
+
+func LoggingMiddleware() gin.HandlerFunc {
+	// ... (без изменений) ...
+	return func(c *gin.Context) {
+		start := time.Now()
+		c.Next()
+		duration := time.Since(start)
+		log := logger.FromContext(c.Request.Context())
+		fields := []any{
+			slog.String("client_ip", c.ClientIP()),
+			slog.String("user_agent", c.Request.UserAgent()),
+			slog.Int("status", c.Writer.Status()),
+			slog.String("method", c.Request.Method),
+			slog.String("path", c.Request.URL.Path),
+			slog.Duration("duration", duration),
+			slog.Int("size_bytes", c.Writer.Size()),
+		}
+		if c.Writer.Status() >= 500 {
+			log.Error("HTTP Server Error", fields...)
+		} else if c.Writer.Status() >= 400 {
+			log.Warn("HTTP Client Error", fields...)
+		} else {
+			log.Info("HTTP Request", fields...)
+		}
+	}
 }

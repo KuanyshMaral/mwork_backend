@@ -5,37 +5,38 @@ import "time"
 // ---------------- Requests ----------------
 
 type CreateNotificationRequest struct {
-	UserID  string                 `json:"user_id" binding:"required"`
-	Type    string                 `json:"type" binding:"required"`
-	Title   string                 `json:"title" binding:"required"`
-	Message string                 `json:"message"`
+	UserID  string                 `json:"user_id" validate:"-"` // Set by server
+	Type    string                 `json:"type" validate:"required"`
+	Title   string                 `json:"title" validate:"required,max=100"`
+	Message string                 `json:"message" validate:"omitempty,max=1000"`
 	Data    map[string]interface{} `json:"data"`
 }
 
 type CreateBulkNotificationsRequest struct {
-	Notifications []*CreateNotificationRequest `json:"notifications" binding:"required"`
+	// 'dive' validates each element in the slice
+	Notifications []*CreateNotificationRequest `json:"notifications" validate:"required,min=1,dive"`
 }
 
 type CreateTemplateRequest struct {
-	Type      string   `json:"type" binding:"required"`
-	Title     string   `json:"title" binding:"required"`
-	Message   string   `json:"message" binding:"required"`
+	Type      string   `json:"type" validate:"required"`
+	Title     string   `json:"title" validate:"required,max=100"`
+	Message   string   `json:"message" validate:"required,max=2000"`
 	Variables []string `json:"variables"`
 	IsActive  bool     `json:"is_active"`
 }
 
 type UpdateTemplateRequest struct {
-	Title     *string  `json:"title,omitempty"`
-	Message   *string  `json:"message,omitempty"`
+	Title     *string  `json:"title,omitempty" validate:"omitempty,max=100"`
+	Message   *string  `json:"message,omitempty" validate:"omitempty,max=2000"`
 	Variables []string `json:"variables,omitempty"`
 	IsActive  *bool    `json:"is_active,omitempty"`
 }
 
 type SendBulkNotificationRequest struct {
-	UserIDs []string               `json:"user_ids" binding:"required"`
-	Type    string                 `json:"type" binding:"required"`
-	Title   string                 `json:"title" binding:"required"`
-	Message string                 `json:"message" binding:"required"`
+	UserIDs []string               `json:"user_ids" validate:"required,min=1"`
+	Type    string                 `json:"type" validate:"required"`
+	Title   string                 `json:"title" validate:"required,max=100"`
+	Message string                 `json:"message" validate:"required,max=2100"`
 	Data    map[string]interface{} `json:"data"`
 }
 

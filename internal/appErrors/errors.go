@@ -183,11 +183,3 @@ func NewNotFoundError(message string) *AppError {
 func NewBadRequestError(message string) *AppError {
 	return New(CodeValidationFailed, message, http.StatusBadRequest)
 }
-
-func NewValidationError(message string) error {
-	return &AppError{
-		Code:     "VALIDATION_ERROR",
-		Message:  message,
-		HTTPCode: 400, // Исправлено: используем HTTPCode вместо Status
-	}
-}

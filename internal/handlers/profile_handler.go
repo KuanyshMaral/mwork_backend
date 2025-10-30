@@ -1,11 +1,11 @@
 package handlers
 
 import (
-	"fmt"
+	// "fmt" // <-- No longer needed
 	"net/http"
 
 	"mwork_backend/internal/appErrors"
-	"mwork_backend/internal/middleware"
+	"mwork_backend/internal/middleware" // <-- Still needed for RegisterRoutes
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/repositories"
 	"mwork_backend/internal/services"
@@ -15,15 +15,19 @@ import (
 )
 
 type ProfileHandler struct {
+	*BaseHandler   // <-- 1. Embed BaseHandler
 	profileService services.ProfileService
 }
 
-func NewProfileHandler(profileService services.ProfileService) *ProfileHandler {
+// 2. Update the constructor
+func NewProfileHandler(base *BaseHandler, profileService services.ProfileService) *ProfileHandler {
 	return &ProfileHandler{
+		BaseHandler:    base, // <-- 3. Assign it
 		profileService: profileService,
 	}
 }
 
+// RegisterRoutes remains unchanged
 func (h *ProfileHandler) RegisterRoutes(r *gin.RouterGroup) {
 	// Public routes
 	public := r.Group("/profiles")
@@ -45,24 +49,25 @@ func (h *ProfileHandler) RegisterRoutes(r *gin.RouterGroup) {
 	}
 }
 
-// Profile creation handlers
+// --- Profile creation handlers ---
 
 func (h *ProfileHandler) CreateModelProfile(c *gin.Context) {
 	var req dto.CreateModelProfileRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		appErrors.HandleValidationError(c, err) // <-- Fixed
+	// 4. Use BindAndValidate_JSON
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
-	req.UserID = middleware.GetUserID(c)
+	// 5. Use GetAndAuthorizeUserID
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
+	req.UserID = userID
 
 	if err := h.profileService.CreateModelProfile(&req); err != nil {
-		var appErr *appErrors.AppError // <-- Fixed
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		// 6. Use HandleServiceError
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -71,69 +76,60 @@ func (h *ProfileHandler) CreateModelProfile(c *gin.Context) {
 
 func (h *ProfileHandler) CreateEmployerProfile(c *gin.Context) {
 	var req dto.CreateEmployerProfileRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		appErrors.HandleValidationError(c, err) // <-- Fixed
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
-	req.UserID = middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
+	req.UserID = userID
 
 	if err := h.profileService.CreateEmployerProfile(&req); err != nil {
-		var appErr *appErrors.AppError // <-- Fixed
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"message": "Employer profile created successfully"})
 }
 
-// Profile retrieval handlers
+// --- Profile retrieval handlers ---
 
 func (h *ProfileHandler) GetProfile(c *gin.Context) {
 	userID := c.Param("userId")
 	requesterID := ""
 
-	// Get requester ID if authenticated
+	// This is a public route, so we check for an *optional* user ID.
+	// We do NOT use GetAndAuthorizeUserID here, as that would force a 401.
 	if authUserID, exists := c.Get("userID"); exists {
-		requesterID = authUserID.(string)
+		requesterID, _ = authUserID.(string)
 	}
 
 	profile, err := h.profileService.GetProfile(userID, requesterID)
 	if err != nil {
-		var appErr *appErrors.AppError // <-- Fixed
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, profile)
 }
 
-// Profile update handlers
+// --- Profile update handlers ---
 
 func (h *ProfileHandler) UpdateMyProfile(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	var req dto.UpdateProfileRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		appErrors.HandleValidationError(c, err) // <-- Fixed
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	if err := h.profileService.UpdateProfile(userID, &req); err != nil {
-		var appErr *appErrors.AppError // <-- Fixed
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -141,54 +137,41 @@ func (h *ProfileHandler) UpdateMyProfile(c *gin.Context) {
 }
 
 func (h *ProfileHandler) ToggleVisibility(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	var req struct {
 		IsPublic bool `json:"is_public"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		appErrors.HandleValidationError(c, err) // <-- Fixed
+	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
 	if err := h.profileService.ToggleProfileVisibility(userID, req.IsPublic); err != nil {
-		var appErr *appErrors.AppError // <-- Fixed
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Profile visibility updated successfully"})
 }
 
-// Search handlers
+// --- Search handlers ---
 
 func (h *ProfileHandler) SearchModels(c *gin.Context) {
 	var criteria dto.ProfileSearchCriteria
-	if err := c.ShouldBindQuery(&criteria); err != nil {
-		appErrors.HandleValidationError(c, err) // <-- Fixed
+	// 7. Use BindAndValidate_Query
+	if !h.BindAndValidate_Query(c, &criteria) {
 		return
 	}
 
-	// Set defaults
-	if criteria.Page == 0 {
-		criteria.Page = 1
-	}
-	if criteria.PageSize == 0 {
-		criteria.PageSize = 20
-	}
+	// 8. Use ParsePagination
+	criteria.Page, criteria.PageSize = ParsePagination(c)
 
 	profiles, total, err := h.profileService.SearchModels(criteria)
 	if err != nil {
-		var appErr *appErrors.AppError // <-- Fixed
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -202,27 +185,15 @@ func (h *ProfileHandler) SearchModels(c *gin.Context) {
 
 func (h *ProfileHandler) SearchEmployers(c *gin.Context) {
 	var criteria repositories.EmployerSearchCriteria
-	if err := c.ShouldBindQuery(&criteria); err != nil {
-		appErrors.HandleValidationError(c, err) // <-- Fixed
+	if !h.BindAndValidate_Query(c, &criteria) {
 		return
 	}
 
-	// Set defaults
-	if criteria.Page == 0 {
-		criteria.Page = 1
-	}
-	if criteria.PageSize == 0 {
-		criteria.PageSize = 20
-	}
+	criteria.Page, criteria.PageSize = ParsePagination(c)
 
 	profiles, total, err := h.profileService.SearchEmployers(criteria)
 	if err != nil {
-		var appErr *appErrors.AppError // <-- Fixed
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -234,20 +205,18 @@ func (h *ProfileHandler) SearchEmployers(c *gin.Context) {
 	})
 }
 
-// Stats handlers
+// --- Stats handlers ---
 
 func (h *ProfileHandler) GetMyStats(c *gin.Context) {
-	userID := middleware.GetUserID(c)
+	userID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
 
 	// Get user to determine role
 	user, err := h.profileService.GetProfile(userID, userID)
 	if err != nil {
-		var appErr *appErrors.AppError // <-- Fixed
-		if appErrors.As(err, &appErr) {
-			appErrors.HandleError(c, appErr)
-		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
-		}
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -256,12 +225,7 @@ func (h *ProfileHandler) GetMyStats(c *gin.Context) {
 		if modelProfile, ok := user.Data.(*models.ModelProfile); ok {
 			stats, err := h.profileService.GetModelStats(modelProfile.ID)
 			if err != nil {
-				var appErr *appErrors.AppError // <-- Fixed
-				if appErrors.As(err, &appErr) {
-					appErrors.HandleError(c, appErr)
-				} else {
-					appErrors.HandleError(c, appErrors.InternalError(err))
-				}
+				h.HandleServiceError(c, err)
 				return
 			}
 			c.JSON(http.StatusOK, stats)
@@ -269,18 +233,6 @@ func (h *ProfileHandler) GetMyStats(c *gin.Context) {
 		}
 	}
 
-	// <-- Fixed
-	appErrors.HandleError(c, appErrors.NewBadRequestError("Stats not available for this profile type"))
-}
-
-// ============================================================================
-// Helper functions
-// ============================================================================
-
-func parseIntParam(param string) (int, error) {
-	var result int
-	if _, err := fmt.Sscanf(param, "%d", &result); err != nil {
-		return 0, err
-	}
-	return result, nil
+	// Use HandleServiceError for the final error case
+	h.HandleServiceError(c, appErrors.NewBadRequestError("Stats not available for this profile type"))
 }

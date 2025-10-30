@@ -50,18 +50,18 @@ type CompatibilityBreakdown struct {
 type MatchCriteria struct {
 	City       string   `json:"city"`
 	Categories []string `json:"categories"`
-	Gender     string   `json:"gender"`
-	MinAge     *int     `json:"min_age"`
-	MaxAge     *int     `json:"max_age"`
-	MinHeight  *int     `json:"min_height"`
-	MaxHeight  *int     `json:"max_height"`
-	MinWeight  *int     `json:"min_weight"`
-	MaxWeight  *int     `json:"max_weight"`
-	MinRating  *float64 `json:"min_rating"`
-	JobType    string   `json:"job_type"`
+	Gender     string   `json:"gender" validate:"omitempty,is-gender"` // Custom rule
+	MinAge     *int     `json:"min_age" validate:"omitempty,min=0"`
+	MaxAge     *int     `json:"max_age" validate:"omitempty,min=0,gtefield=MinAge"`
+	MinHeight  *int     `json:"min_height" validate:"omitempty,min=0"`
+	MaxHeight  *int     `json:"max_height" validate:"omitempty,min=0,gtefield=MinHeight"`
+	MinWeight  *int     `json:"min_weight" validate:"omitempty,min=0"`
+	MaxWeight  *int     `json:"max_weight" validate:"omitempty,min=0,gtefield=MinWeight"`
+	MinRating  *float64 `json:"min_rating" validate:"omitempty,min=0,max=5"`
+	JobType    string   `json:"job_type" validate:"omitempty,is-job-type"` // Custom rule
 	Languages  []string `json:"languages"`
-	Limit      int      `json:"limit" binding:"min=1,max=100"`
-	MinScore   float64  `json:"min_score" binding:"min=0,max=100"`
+	Limit      int      `json:"limit" validate:"omitempty,min=0,max=100"`     // Allow 0 for default
+	MinScore   float64  `json:"min_score" validate:"omitempty,min=0,max=100"` // Allow 0 for default
 }
 
 // SimilarModel
@@ -75,11 +75,12 @@ type SimilarModel struct {
 
 // MatchingWeights
 type MatchingWeights struct {
-	Demographics float64 `json:"demographics" binding:"min=0,max=1"`
-	Physical     float64 `json:"physical" binding:"min=0,max=1"`
-	Professional float64 `json:"professional" binding:"min=0,max=1"`
-	Geographic   float64 `json:"geographic" binding:"min=0,max=1"`
-	Specialized  float64 `json:"specialized" binding:"min=0,max=1"`
+	// Added 'required' as these must be set
+	Demographics float64 `json:"demographics" validate:"required,min=0,max=1"`
+	Physical     float64 `json:"physical" validate:"required,min=0,max=1"`
+	Professional float64 `json:"professional" validate:"required,min=0,max=1"`
+	Geographic   float64 `json:"geographic" validate:"required,min=0,max=1"`
+	Specialized  float64 `json:"specialized" validate:"required,min=0,max=1"`
 }
 
 // MatchingStats
@@ -126,11 +127,11 @@ type MatchingLog struct {
 type MatchingLogCriteria struct {
 	CastingID string    `form:"casting_id"`
 	ModelID   string    `form:"model_id"`
-	MinScore  float64   `form:"min_score"`
-	DateFrom  time.Time `form:"date_from"`
-	DateTo    time.Time `form:"date_to"`
-	Page      int       `form:"page" binding:"min=1"`
-	PageSize  int       `form:"page_size" binding:"min=1,max=100"`
+	MinScore  float64   `form:"min_score" validate:"omitempty,min=0,max=100"`
+	DateFrom  time.Time `form:"date_from" validate:"omitempty,ltfield=DateTo"`
+	DateTo    time.Time `form:"date_to" validate:"omitempty,gtfield=DateFrom"`
+	Page      int       `form:"page" validate:"omitempty,min=1"`
+	PageSize  int       `form:"page_size" validate:"omitempty,min=1,max=100"`
 }
 
 // ========================

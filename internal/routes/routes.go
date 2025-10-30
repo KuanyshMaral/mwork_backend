@@ -2,9 +2,10 @@ package routes
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/mux"
+	// "github.com/gorilla/mux" // <-- Удалено
 	"mwork_backend/internal/handlers"
 	"mwork_backend/internal/services"
+	"mwork_backend/internal/validator" // <-- 1. Добавлен импорт валидатора
 )
 
 type Handlers struct {
@@ -22,10 +23,11 @@ type Handlers struct {
 	ChatHandler         *handlers.ChatHandler
 }
 
+// NewHandlers - 2. Полностью переработан для внедрения BaseHandler
 func NewHandlers(
-	userService *services.UserService,
-	profileService *services.ProfileService,
-	castingService *services.CastingService,
+	userService services.UserService,
+	profileService services.ProfileService,
+	castingService services.CastingService,
 	responseService services.ResponseService,
 	reviewService services.ReviewService,
 	portfolioService services.PortfolioService,
@@ -37,23 +39,29 @@ func NewHandlers(
 	chatService services.ChatService,
 	authService services.AuthService,
 ) *Handlers {
+
+	// 3. Создаем BaseHandler один раз
+	customValidator := validator.New()
+	baseHandler := handlers.NewBaseHandler(customValidator)
+
+	// 4. Внедряем baseHandler во все конструкторы
 	return &Handlers{
-		UserHandler:         handlers.NewUserHandler(*userService, authService),
-		ProfileHandler:      handlers.NewProfileHandler(*profileService),
-		CastingHandler:      handlers.NewCastingHandler(*castingService),
-		ResponseHandler:     handlers.NewResponseHandler(responseService),
-		ReviewHandler:       handlers.NewReviewHandler(reviewService),
-		PortfolioHandler:    handlers.NewPortfolioHandler(portfolioService),
-		MatchingHandler:     handlers.NewMatchingHandler(matchingService),
-		NotificationHandler: handlers.NewNotificationHandler(notificationService),
-		SubscriptionHandler: handlers.NewSubscriptionHandler(subscriptionService),
-		SearchHandler:       handlers.NewSearchHandler(searchService),
-		AnalyticsHandler:    handlers.NewAnalyticsHandler(analyticsService),
-		ChatHandler:         handlers.NewChatHandler(chatService),
+		UserHandler:         handlers.NewUserHandler(baseHandler, userService, authService),
+		ProfileHandler:      handlers.NewProfileHandler(baseHandler, profileService),
+		CastingHandler:      handlers.NewCastingHandler(baseHandler, castingService),
+		ResponseHandler:     handlers.NewResponseHandler(baseHandler, responseService),
+		ReviewHandler:       handlers.NewReviewHandler(baseHandler, reviewService),
+		PortfolioHandler:    handlers.NewPortfolioHandler(baseHandler, portfolioService),
+		MatchingHandler:     handlers.NewMatchingHandler(baseHandler, matchingService),
+		NotificationHandler: handlers.NewNotificationHandler(baseHandler, notificationService),
+		SubscriptionHandler: handlers.NewSubscriptionHandler(baseHandler, subscriptionService),
+		SearchHandler:       handlers.NewSearchHandler(baseHandler, searchService),
+		AnalyticsHandler:    handlers.NewAnalyticsHandler(baseHandler, analyticsService),
+		ChatHandler:         handlers.NewChatHandler(baseHandler, chatService),
 	}
 }
 
-// RegisterGinRoutes registers all Gin-based routes
+// RegisterGinRoutes регистрирует все Gin-based routes
 func (h *Handlers) RegisterGinRoutes(r *gin.Engine) {
 	api := r.Group("/api/v1")
 
@@ -87,13 +95,14 @@ func (h *Handlers) RegisterGinRoutes(r *gin.Engine) {
 	// Search routes
 	h.SearchHandler.RegisterRoutes(api)
 
-	// Analytics routes (if using Gin - needs conversion from current implementation)
-	h.registerAnalyticsRoutes(api)
+	// Analytics routes
+	h.registerAnalyticsRoutes(api) // <-- registerAnalyticsRoutes уже определен ниже
 
+	// Chat routes
 	h.ChatHandler.RegisterRoutes(api)
 }
 
-// registerAnalyticsRoutes registers analytics routes for Gin
+// registerAnalyticsRoutes регистрирует analytics routes for Gin
 func (h *Handlers) registerAnalyticsRoutes(r *gin.RouterGroup) {
 	analytics := r.Group("/analytics")
 	{
@@ -143,8 +152,8 @@ func (h *Handlers) registerAnalyticsRoutes(r *gin.RouterGroup) {
 	}
 }
 
-// SetupRoutes initializes all routes for both Gin and Mux routers
-func SetupRoutes(ginRouter *gin.Engine, muxRouter *mux.Router, handlers *Handlers) {
+// SetupRoutes initializes all routes for Gin
+func SetupRoutes(ginRouter *gin.Engine, handlers *Handlers) {
 	// Register Gin routes
 	handlers.RegisterGinRoutes(ginRouter)
 }

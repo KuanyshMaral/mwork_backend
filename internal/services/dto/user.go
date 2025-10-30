@@ -32,14 +32,14 @@ type UserResponse struct {
 
 // AdminUserFilter используется для фильтрации пользователей администратором
 type AdminUserFilter struct {
-	Role       models.UserRole   `form:"role"`
-	Status     models.UserStatus `form:"status"`
+	Role       models.UserRole   `form:"role" validate:"omitempty,is-user-role"`     // Custom rule
+	Status     models.UserStatus `form:"status" validate:"omitempty,is-user-status"` // Custom rule (assumed)
 	IsVerified *bool             `form:"is_verified"`
-	DateFrom   *time.Time        `form:"date_from"`
-	DateTo     *time.Time        `form:"date_to"`
+	DateFrom   *time.Time        `form:"date_from" validate:"omitempty"`
+	DateTo     *time.Time        `form:"date_to" validate:"omitempty,gtefield=DateFrom"` // Ensures To > From
 	Search     string            `form:"search"`
-	Page       int               `form:"page" binding:"min=1"`
-	PageSize   int               `form:"page_size" binding:"min=1,max=100"`
+	Page       int               `form:"page" validate:"omitempty,min=1"`
+	PageSize   int               `form:"page_size" validate:"omitempty,min=1,max=100"`
 }
 
 // =======================
@@ -49,24 +49,24 @@ type AdminUserFilter struct {
 // UpdateProfileRequest используется для обновления профиля пользователя
 type UpdateProfileRequestUser struct {
 	// Model fields
-	Name           *string  `json:"name,omitempty"`
+	Name           *string  `json:"name,omitempty" validate:"omitempty,min=2"`
 	City           *string  `json:"city,omitempty"`
-	Age            *int     `json:"age,omitempty"`
-	Height         *float64 `json:"height,omitempty"`
-	Weight         *float64 `json:"weight,omitempty"`
-	Gender         *string  `json:"gender,omitempty"`
+	Age            *int     `json:"age,omitempty" validate:"omitempty,min=16,max=70"`
+	Height         *float64 `json:"height,omitempty" validate:"omitempty,min=100,max=250"`
+	Weight         *float64 `json:"weight,omitempty" validate:"omitempty,min=30,max=200"`
+	Gender         *string  `json:"gender,omitempty" validate:"omitempty,is-gender"` // Custom rule
 	Experience     *string  `json:"experience,omitempty"`
-	HourlyRate     *float64 `json:"hourly_rate,omitempty"`
-	Description    *string  `json:"description,omitempty"`
+	HourlyRate     *float64 `json:"hourly_rate,omitempty" validate:"omitempty,min=0"`
+	Description    *string  `json:"description,omitempty" validate:"omitempty,max=2000"`
 	ClothingSize   *string  `json:"clothing_size,omitempty"`
 	ShoeSize       *string  `json:"shoe_size,omitempty"`
 	BarterAccepted *bool    `json:"barter_accepted,omitempty"`
 	IsPublic       *bool    `json:"is_public,omitempty"`
 
 	// Employer fields
-	CompanyName   *string `json:"company_name,omitempty"`
+	CompanyName   *string `json:"company_name,omitempty" validate:"omitempty,min=2"`
 	ContactPerson *string `json:"contact_person,omitempty"`
-	Phone         *string `json:"phone,omitempty"`
-	Website       *string `json:"website,omitempty"`
+	Phone         *string `json:"phone,omitempty" validate:"omitempty,e164"` // e.g., +1234567890
+	Website       *string `json:"website,omitempty" validate:"omitempty,url"`
 	CompanyType   *string `json:"company_type,omitempty"`
 }

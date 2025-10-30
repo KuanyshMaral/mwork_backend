@@ -8,41 +8,41 @@ import (
 // --- Casting Requests ---
 
 type CreateCastingRequest struct {
-	EmployerID      string    `json:"employer_id" binding:"required"`
-	Title           string    `json:"title" binding:"required"`
-	Description     string    `json:"description"`
-	PaymentMin      float64   `json:"payment_min" binding:"min=0"`
-	PaymentMax      float64   `json:"payment_max" binding:"min=0"`
+	EmployerID      string    `json:"employer_id" validate:"-"` // Устанавливается сервером
+	Title           string    `json:"title" validate:"required,min=3,max=100"`
+	Description     string    `json:"description" validate:"omitempty,max=5000"`
+	PaymentMin      float64   `json:"payment_min" validate:"omitempty,min=0"`
+	PaymentMax      float64   `json:"payment_max" validate:"omitempty,min=0,gtefield=PaymentMin"`
 	CastingDate     time.Time `json:"casting_date"`
 	CastingTime     string    `json:"casting_time"`
 	Address         string    `json:"address"`
-	City            string    `json:"city" binding:"required"`
+	City            string    `json:"city" validate:"required"`
 	Categories      []string  `json:"categories"`
-	Gender          string    `json:"gender"`
-	AgeMin          *int      `json:"age_min"`
-	AgeMax          *int      `json:"age_max"`
-	HeightMin       *float64  `json:"height_min"`
-	HeightMax       *float64  `json:"height_max"`
-	WeightMin       *float64  `json:"weight_min"`
-	WeightMax       *float64  `json:"weight_max"`
+	Gender          string    `json:"gender" validate:"omitempty,is-gender"` // Кастомное правило
+	AgeMin          *int      `json:"age_min" validate:"omitempty,min=0"`
+	AgeMax          *int      `json:"age_max" validate:"omitempty,min=0,gtefield=AgeMin"`
+	HeightMin       *float64  `json:"height_min" validate:"omitempty,min=0"`
+	HeightMax       *float64  `json:"height_max" validate:"omitempty,min=0,gtefield=HeightMin"`
+	WeightMin       *float64  `json:"weight_min" validate:"omitempty,min=0"`
+	WeightMax       *float64  `json:"weight_max" validate:"omitempty,min=0,gtefield=WeightMin"`
 	ClothingSize    string    `json:"clothing_size"`
 	ShoeSize        string    `json:"shoe_size"`
 	ExperienceLevel string    `json:"experience_level"`
 	Languages       []string  `json:"languages"`
-	JobType         string    `json:"job_type" binding:"oneof=one_time permanent"`
+	JobType         string    `json:"job_type" validate:"omitempty,is-job-type"` // Кастомное правило
 }
 
 type UpdateCastingRequest struct {
-	Title           *string    `json:"title,omitempty"`
-	Description     *string    `json:"description,omitempty"`
-	PaymentMin      *float64   `json:"payment_min,omitempty"`
-	PaymentMax      *float64   `json:"payment_max,omitempty"`
+	Title           *string    `json:"title,omitempty" validate:"omitempty,min=3,max=100"`
+	Description     *string    `json:"description,omitempty" validate:"omitempty,max=5000"`
+	PaymentMin      *float64   `json:"payment_min,omitempty" validate:"omitempty,min=0"`
+	PaymentMax      *float64   `json:"payment_max,omitempty" validate:"omitempty,min=0,gtefield=PaymentMin"`
 	CastingDate     *time.Time `json:"casting_date,omitempty"`
 	CastingTime     *string    `json:"casting_time,omitempty"`
 	Address         *string    `json:"address,omitempty"`
 	City            *string    `json:"city,omitempty"`
 	Categories      []string   `json:"categories,omitempty"`
-	Gender          *string    `json:"gender,omitempty"`
+	Gender          *string    `json:"gender,omitempty" validate:"omitempty,is-gender"`
 	AgeMin          *int       `json:"age_min,omitempty"`
 	AgeMax          *int       `json:"age_max,omitempty"`
 	HeightMin       *float64   `json:"height_min,omitempty"`
@@ -53,17 +53,17 @@ type UpdateCastingRequest struct {
 	ShoeSize        *string    `json:"shoe_size,omitempty"`
 	ExperienceLevel *string    `json:"experience_level,omitempty"`
 	Languages       []string   `json:"languages,omitempty"`
-	JobType         *string    `json:"job_type,omitempty"`
+	JobType         *string    `json:"job_type,omitempty" validate:"omitempty,is-job-type"`
 }
 
 type CreateResponseRequest struct {
-	ModelID   string  `json:"model_id" binding:"required"`
-	CastingID string  `json:"casting_id" binding:"required"`
-	Message   *string `json:"message"`
+	ModelID   string  `json:"model_id" validate:"-"`   // Устанавливается сервером
+	CastingID string  `json:"casting_id" validate:"-"` // Устанавливается из URL
+	Message   *string `json:"message" validate:"omitempty,max=1000"`
 }
 
 type UpdateResponseStatusRequest struct {
-	Status models.ResponseStatus `json:"status" binding:"required,oneof=pending accepted rejected withdrawn"`
+	Status models.ResponseStatus `json:"status" validate:"required,is-response-status"` // Кастомное правило
 }
 
 // --- Casting Responses ---
@@ -132,13 +132,13 @@ type CastingSearchCriteria struct {
 	MaxHeight  *int       `form:"max_height"`
 	MinSalary  *int       `form:"min_salary"`
 	MaxSalary  *int       `form:"max_salary"`
-	JobType    string     `form:"job_type"`
-	Status     string     `form:"status"`
+	JobType    string     `form:"job_type" validate:"omitempty,is-job-type"`     // Кастомное правило
+	Status     string     `form:"status" validate:"omitempty,is-casting-status"` // Кастомное правило
 	EmployerID string     `form:"employer_id"`
 	DateFrom   *time.Time `form:"date_from"`
 	DateTo     *time.Time `form:"date_to"`
-	Page       int        `form:"page" binding:"min=1"`
-	PageSize   int        `form:"page_size" binding:"min=1,max=100"`
+	Page       int        `form:"page" validate:"omitempty,min=1"`
+	PageSize   int        `form:"page_size" validate:"omitempty,min=1,max=100"`
 	SortBy     string     `form:"sort_by"`
 	SortOrder  string     `form:"sort_order"`
 }

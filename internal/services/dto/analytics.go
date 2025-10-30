@@ -210,9 +210,9 @@ type CustomReport struct {
 }
 
 type CustomReportRequest struct {
-	Type   string   `json:"type"`
-	Period string   `json:"period"`
-	Fields []string `json:"fields"`
+	Type   string   `json:"type"   validate:"required"`
+	Period string   `json:"period" validate:"required"`
+	Fields []string `json:"fields" validate:"required,min=1"` // Must request at least one field
 }
 
 type RealTimeMetrics struct {
