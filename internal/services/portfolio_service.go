@@ -1,20 +1,21 @@
-// services/portfolio_service.go
 package services
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/rand"
 	"mime/multipart"
 	"mwork_backend/internal/models"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"mwork_backend/internal/appErrors"
 	"mwork_backend/internal/config"
+	"mwork_backend/internal/imageprocessor"
 	"mwork_backend/internal/repositories"
 	"mwork_backend/internal/services/dto"
+	"mwork_backend/internal/storage"
 )
 
 type PortfolioService interface {
@@ -52,18 +53,23 @@ type portfolioService struct {
 	userRepo      repositories.UserRepository
 	profileRepo   repositories.ProfileRepository
 	fileConfig    dto.FileConfigPortfolio
+	storage       storage.Storage           // Added storage
+	imageProc     *imageprocessor.Processor // Added image processor
 }
 
 func NewPortfolioService(
 	portfolioRepo repositories.PortfolioRepository,
 	userRepo repositories.UserRepository,
 	profileRepo repositories.ProfileRepository,
+	storage storage.Storage,
 ) PortfolioService {
 	return &portfolioService{
 		portfolioRepo: portfolioRepo,
 		userRepo:      userRepo,
 		profileRepo:   profileRepo,
 		fileConfig:    config.PortfolioFileConfig,
+		storage:       storage,
+		imageProc:     imageprocessor.NewProcessor(config.AppConfig.Upload.ImageQuality),
 	}
 }
 
@@ -419,81 +425,14 @@ func (s *portfolioService) GetPlatformUploadStats() (*dto.UploadStats, error) {
 // Helper methods
 
 func (s *portfolioService) processUpload(userID string, file *multipart.FileHeader, req *dto.UploadRequest) (*models.Upload, error) {
-	// Validate file size
-	if file.Size > s.fileConfig.MaxSize {
-		return nil, appErrors.ErrFileTooLarge
-	}
-
-	// Validate file type
-	if !s.isValidFileType(file.Header.Get("Content-Type")) {
-		return nil, appErrors.ErrInvalidFileType
-	}
-
-	// Validate usage
-	if !s.isValidUsage(req.EntityType, req.Usage) {
-		return nil, appErrors.ErrInvalidUploadUsage
-	}
-
-	// Check user storage limit
-	currentUsage, err := s.portfolioRepo.GetUserStorageUsage(userID)
+	uploadSvc := NewUploadService(s.portfolioRepo, s.userRepo, s.profileRepo, s.storage)
+	upload, err := uploadSvc.UploadFile(userID, req, file)
 	if err != nil {
 		return nil, err
 	}
 
-	if currentUsage+file.Size > s.fileConfig.MaxUserStorage {
-		return nil, appErrors.ErrStorageLimitExceeded
-	}
-
-	// Generate file path
-	fileExt := filepath.Ext(file.Filename)
-	fileName := fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), s.generateRandomString(8), fileExt)
-	filePath := filepath.Join(s.fileConfig.StoragePath, req.EntityType, fileName)
-
-	upload := &models.Upload{
-		UserID:     userID,
-		EntityType: req.EntityType,
-		EntityID:   req.EntityID,
-		FileType:   s.getFileTypeFromMIME(file.Header.Get("Content-Type")),
-		Usage:      req.Usage,
-		Path:       filePath,
-		MimeType:   file.Header.Get("Content-Type"),
-		Size:       file.Size,
-		IsPublic:   req.IsPublic,
-	}
-
-	if err := s.portfolioRepo.CreateUpload(upload); err != nil {
-		return nil, err
-	}
-
-	return upload, nil
-}
-
-func (s *portfolioService) validateEntityAccess(userID, entityType, entityID string) error {
-	switch entityType {
-	case "model_profile":
-		profile, err := s.profileRepo.FindModelProfileByUserID(userID)
-		if err != nil || profile.ID != entityID {
-			return errors.New("access denied to model profile")
-		}
-	case "portfolio":
-		// Portfolio items are validated through their model profile
-		item, err := s.portfolioRepo.FindPortfolioItemByID(entityID)
-		if err != nil {
-			return err
-		}
-		profile, err := s.profileRepo.FindModelProfileByUserID(userID)
-		if err != nil || profile.ID != item.ModelID {
-			return errors.New("access denied to portfolio")
-		}
-	case "casting":
-		// Casting access validation would go here
-		// For now, return true (implementation depends on casting service)
-		return nil
-	default:
-		return errors.New("invalid entity type")
-	}
-
-	return nil
+	// Convert DTO back to model
+	return s.portfolioRepo.FindUploadByID(upload.ID)
 }
 
 func (s *portfolioService) isValidFileType(mimeType string) bool {
@@ -506,8 +445,8 @@ func (s *portfolioService) isValidFileType(mimeType string) bool {
 }
 
 func (s *portfolioService) isValidUsage(entityType, usage string) bool {
-	allowedUsages, exists := s.fileConfig.AllowedUsages[entityType]
-	if !exists {
+	allowedUsages, ok := s.fileConfig.AllowedUsages[entityType]
+	if !ok {
 		return false
 	}
 
@@ -524,9 +463,35 @@ func (s *portfolioService) getFileTypeFromMIME(mimeType string) string {
 		return "image"
 	} else if strings.HasPrefix(mimeType, "video/") {
 		return "video"
-	} else {
-		return "document"
 	}
+	return "file"
+}
+
+func (s *portfolioService) validateEntityAccess(userID, entityType, entityID string) error {
+	switch entityType {
+	case "portfolio":
+		if entityID != "" {
+			item, err := s.portfolioRepo.FindPortfolioItemByID(entityID)
+			if err != nil {
+				return errors.New("portfolio item not found")
+			}
+			modelProfile, err := s.profileRepo.FindModelProfileByUserID(userID)
+			if err != nil || modelProfile.ID != item.ModelID {
+				return errors.New("access denied")
+			}
+		}
+	case "model_profile":
+		if entityID != "" {
+			profile, err := s.profileRepo.FindModelProfileByID(entityID)
+			if err != nil {
+				return errors.New("profile not found")
+			}
+			if profile.UserID != userID {
+				return errors.New("access denied")
+			}
+		}
+	}
+	return nil
 }
 
 func (s *portfolioService) buildPortfolioResponse(item *models.PortfolioItem, upload *models.Upload) *dto.PortfolioResponse {
@@ -541,7 +506,19 @@ func (s *portfolioService) buildPortfolioResponse(item *models.PortfolioItem, up
 	}
 
 	if upload != nil {
-		response.Upload = s.buildUploadResponse(upload)
+		response.Upload = &dto.UploadResponse{
+			ID:         upload.ID,
+			UserID:     upload.UserID,
+			EntityType: upload.EntityType,
+			EntityID:   upload.EntityID,
+			FileType:   upload.FileType,
+			Usage:      upload.Usage,
+			URL:        s.generateFileURL(upload),
+			MimeType:   upload.MimeType,
+			Size:       upload.Size,
+			IsPublic:   upload.IsPublic,
+			CreatedAt:  upload.CreatedAt,
+		}
 	}
 
 	return response
@@ -555,26 +532,28 @@ func (s *portfolioService) buildUploadResponse(upload *models.Upload) *dto.Uploa
 		EntityID:   upload.EntityID,
 		FileType:   upload.FileType,
 		Usage:      upload.Usage,
-		Path:       upload.Path,
+		URL:        s.generateFileURL(upload),
 		MimeType:   upload.MimeType,
 		Size:       upload.Size,
 		IsPublic:   upload.IsPublic,
-		URL:        s.generateFileURL(upload),
 		CreatedAt:  upload.CreatedAt,
 	}
 }
 
-func (s *portfolioService) generateFileURL(upload *models.Upload) string {
-	// Generate a URL for accessing the file
-	// In production, this would use your CDN or file server URL
-	return fmt.Sprintf("/api/files/%s", upload.ID)
+func (s *portfolioService) generateRandomString(length int) string {
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		return fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(bytes)[:length]
 }
 
-func (s *portfolioService) generateRandomString(length int) string {
-	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	result := make([]byte, length)
-	for i := range result {
-		result[i] = chars[rand.Intn(len(chars))]
+func (s *portfolioService) generateFileURL(upload *models.Upload) string {
+	ctx := context.Background()
+	url, err := s.storage.GetURL(ctx, upload.Path)
+	if err != nil {
+		// Fallback to default URL format
+		return fmt.Sprintf("/api/v1/files/%s", upload.ID)
 	}
-	return string(result)
+	return url
 }

@@ -2,26 +2,39 @@ package helpers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"mwork_backend/internal/models"
 	"net/http"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
-// CreateUser в транзакции
+// CreateUser создает пользователя в транзакции с автоматическим хешированием пароля
 func CreateUser(t *testing.T, db *gorm.DB, user *models.User) error {
-	rawPassword := user.PasswordHash
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(rawPassword), bcrypt.DefaultCost)
-	if err != nil {
-		t.Fatalf("Не удалось хешировать пароль для тестового пользователя: %v", err)
-	}
-	user.PasswordHash = string(hashedPassword)
+	// ✅ Проверяем, нужно ли хешировать пароль
+	if user.PasswordHash != "" && !strings.HasPrefix(user.PasswordHash, "$2a$") {
+		rawPassword := user.PasswordHash
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(rawPassword), bcrypt.DefaultCost)
+		if err != nil {
+			t.Fatalf("Не удалось хешировать пароль: %v", err)
+		}
+		user.PasswordHash = string(hashedPassword)
 
-	user.Status = models.UserStatusActive
+		// Сохраняем сырой пароль в поле для последующего использования
+		// (это нужно только для тестов!)
+		user.ResetToken = rawPassword // Временно используем это поле
+	}
+
+	// ✅ По умолчанию - активный и верифицированный
+	if user.Status == "" {
+		user.Status = models.UserStatusActive
+	}
 	user.IsVerified = true
 
 	result := db.Create(user)
@@ -30,43 +43,47 @@ func CreateUser(t *testing.T, db *gorm.DB, user *models.User) error {
 		return result.Error
 	}
 
-	user.PasswordHash = rawPassword
 	return nil
 }
 
-// CreateAndLoginUser в транзакции
+// CreateAndLoginUser создает пользователя и логинит его
 func CreateAndLoginUser(t *testing.T, ts *TestServer, tx *gorm.DB, name, email, password string, role models.UserRole) (string, *models.User) {
 	user := &models.User{
 		Name:         name,
 		Email:        email,
-		PasswordHash: password,
+		PasswordHash: password, // Сырой пароль
 		Role:         role,
 	}
 	err := CreateUser(t, tx, user)
 	assert.NoError(t, err, "Создание тестового пользователя не должно вызывать ошибку")
 
+	// ✅ Логиним через API с сырым паролем
 	loginBody := map[string]interface{}{
 		"email":    email,
-		"password": password,
+		"password": password, // Используем сырой пароль
 	}
 
 	res, bodyStr := ts.SendRequest(t, http.MethodPost, "/api/v1/auth/login", "", loginBody)
-	assert.Equal(t, http.StatusOK, res.StatusCode, "Логин тестового пользователя должен быть успешным. Ответ: "+bodyStr)
+	assert.Equal(t, http.StatusOK, res.StatusCode, "Логин должен быть успешным. Ответ: "+bodyStr)
 
 	var loginResponse struct {
 		Token string `json:"access_token"`
 	}
 	err = json.Unmarshal([]byte(bodyStr), &loginResponse)
-	assert.NoError(t, err, "Не удалось распарсить JSON ответа /login")
+	assert.NoError(t, err, "Не удалось распарсить JSON")
 	assert.NotEmpty(t, loginResponse.Token, "Токен не должен быть пустым")
 
 	log.Printf("✅ [Helper] Создан и залогинен пользователь %s (Role: %s)", email, role)
+
+	// ✅ Восстанавливаем сырой пароль в объекте user (для удобства в тестах)
+	user.PasswordHash = password
+
 	return loginResponse.Token, user
 }
 
-// CreateAndLoginEmployer в транзакции
+// CreateAndLoginEmployer создает работодателя с уникальным email
 func CreateAndLoginEmployer(t *testing.T, ts *TestServer, tx *gorm.DB) (string, *models.User, *models.EmployerProfile) {
-	email := "employer@test.com"
+	email := fmt.Sprintf("employer_%d@test.com", time.Now().UnixNano())
 	token, user := CreateAndLoginUser(t, ts, tx, "Test Employer", email, "password123", models.UserRoleEmployer)
 
 	profile := &models.EmployerProfile{
@@ -82,9 +99,9 @@ func CreateAndLoginEmployer(t *testing.T, ts *TestServer, tx *gorm.DB) (string, 
 	return token, user, profile
 }
 
-// CreateAndLoginModel в транзакции
+// CreateAndLoginModel создает модель с уникальным email
 func CreateAndLoginModel(t *testing.T, ts *TestServer, tx *gorm.DB) (string, *models.User, *models.ModelProfile) {
-	email := "model@test.com"
+	email := fmt.Sprintf("model_%d@test.com", time.Now().UnixNano())
 	token, user := CreateAndLoginUser(t, ts, tx, "Test Model", email, "password123", models.UserRoleModel)
 
 	profile := &models.ModelProfile{

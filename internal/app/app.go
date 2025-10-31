@@ -13,6 +13,7 @@ import (
 	"mwork_backend/internal/middleware"
 	"mwork_backend/internal/repositories"
 	"mwork_backend/internal/services"
+	"mwork_backend/internal/storage"
 	"mwork_backend/internal/validator"
 	"mwork_backend/ws"
 
@@ -37,6 +38,7 @@ type AppHandlers struct {
 	SearchHandler       *handlers.SearchHandler
 	AnalyticsHandler    *handlers.AnalyticsHandler
 	ChatHandler         *handlers.ChatHandler
+	FileHandler         *handlers.FileHandler
 }
 
 func Run() {
@@ -81,11 +83,28 @@ func Run() {
 // 5. ✅ НОВАЯ ЭКСПОРТИРУЕМАЯ ФУНКЦИЯ, КОТОРУЮ БУДЕТ ИСПОЛЬЗОВАТЬ ТЕСТ
 // ✅
 func SetupRouter(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB) *gin.Engine {
+	storageInstance, err := storage.NewStorage(storage.Config{
+		Type:       cfg.Storage.Type,
+		BasePath:   cfg.Storage.BasePath,
+		BaseURL:    cfg.Storage.BaseURL,
+		Bucket:     cfg.Storage.Bucket,
+		Region:     cfg.Storage.Region,
+		AccessKey:  cfg.Storage.AccessKey,
+		SecretKey:  cfg.Storage.SecretKey,
+		Endpoint:   cfg.Storage.Endpoint,
+		UseSSL:     cfg.Storage.UseSSL,
+		PublicRead: cfg.Storage.PublicRead,
+	})
+	if err != nil {
+		logger.Fatal("Failed to initialize storage", "error", err)
+	}
+	logger.Info("Storage initialized", "type", cfg.Storage.Type)
+
 	// Инициализация сервисов
-	serviceContainer := initializeServices(cfg, gormDB, sqlDB)
+	serviceContainer := initializeServices(cfg, gormDB, sqlDB, storageInstance)
 
 	// Инициализация хендлеров (с BaseHandler)
-	appHandlers := initializeHandlers(serviceContainer)
+	appHandlers := initializeHandlers(serviceContainer, storageInstance, gormDB)
 
 	// WebSocket
 	wsManager := ws.NewWebSocketManager(
@@ -123,10 +142,11 @@ type ServiceContainer struct {
 	AnalyticsService    services.AnalyticsService
 	ChatService         services.ChatService
 	EmailService        email.Provider
+	storage             storage.Storage
 }
 
 // initializeServices (без изменений)
-func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB) *ServiceContainer {
+func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB, storageInstance storage.Storage) *ServiceContainer {
 	// ... (без изменений) ...
 	emailServiceConfig := services.EmailServiceConfig{
 		SMTPHost:     cfg.Email.SMTPHost,
@@ -199,6 +219,7 @@ func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB) *Ser
 		portfolioRepo,
 		userRepo,
 		profileRepo,
+		storageInstance,
 	)
 	reviewService := services.NewReviewService(
 		reviewRepo,
@@ -262,9 +283,11 @@ func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB) *Ser
 }
 
 // initializeHandlers (без изменений)
-func initializeHandlers(services *ServiceContainer) *AppHandlers {
+func initializeHandlers(services *ServiceContainer, storageInstance storage.Storage, gormDB *gorm.DB) *AppHandlers {
 	customValidator := validator.New()
 	baseHandler := handlers.NewBaseHandler(customValidator)
+	portfolioRepo := repositories.NewPortfolioRepository(gormDB)
+
 	return &AppHandlers{
 		UserHandler:         handlers.NewUserHandler(baseHandler, services.UserService, services.AuthService),
 		ProfileHandler:      handlers.NewProfileHandler(baseHandler, services.ProfileService),
@@ -278,6 +301,7 @@ func initializeHandlers(services *ServiceContainer) *AppHandlers {
 		SearchHandler:       handlers.NewSearchHandler(baseHandler, services.SearchService),
 		AnalyticsHandler:    handlers.NewAnalyticsHandler(baseHandler, services.AnalyticsService),
 		ChatHandler:         handlers.NewChatHandler(baseHandler, services.ChatService),
+		FileHandler:         handlers.NewFileHandler(baseHandler, storageInstance, portfolioRepo), // Added FileHandler
 	}
 }
 
