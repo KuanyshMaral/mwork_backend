@@ -1,48 +1,22 @@
-// Имя пакета _test (с суффиксом) делает его "black-box" тестом.
-// Он не имеет доступа к приватным функциям твоего API,
-// а тестирует его "снаружи", как Postman.
 package integration_test
 
 import (
-	"encoding/json"
-	"mwork_backend/internal/models" // 👈 Добавили импорт
-	"mwork_backend/test/helpers"    // 👈 ИМПОРТ НАШИХ ХЕЛПЕРОВ
+	"mwork_backend/internal/models"
+	"mwork_backend/test/helpers"
 	"net/http"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-var testServer *helpers.TestServer
-
-// TestMain - это главный "хаб". Он запускается ОДИН РАЗ
-// для всех тестов в этом файле.
-func TestMain(m *testing.M) {
-	// Устанавливаем тестовые environment variables
-	os.Setenv("SERVER_PORT", "4001")
-	os.Setenv("SERVER_ENV", "test")
-	os.Setenv("DATABASE_URL", "postgres://postgres:Sagster-2020@localhost:5432/mwork?sslmode=disable")
-	// os.Setenv("DATABASE_DRIVER", "postgres") // (Это не используется в config.go)
-
-	// 👇👇👇 ДОБАВЬ ЭТУ СТРОКУ 👇👇👇
-	os.Setenv("JWT_SECRET", "my_super_secret_key_for_tests_12345")
-
-	testServer = helpers.NewTestServer(&testing.T{})
-
-	code := m.Run()
-
-	testServer.Close()
-	os.Exit(code)
-}
-
-// TestAuthFlow - это наш E2E сценарий "золотого пути".
-// Мы НЕ используем хелперы, потому что мы тестируем
-// сами эндпоинты /register и /login.
+// TestAuthFlow - проверяет регистрацию и ОЖИДАЕМЫЙ провал логина
 func TestAuthFlow(t *testing.T) {
+	t.Parallel() // ✅ Параллельный запуск
+
 	// 1. Подготовка (Arrange)
-	// Очищаем БД ПЕРЕД тестом для 100% изоляции
-	testServer.ClearTables()
+	ts := GetTestServer(t)
+	tx := ts.BeginTransaction(t)
+	defer ts.RollbackTransaction(t, tx)
 
 	// Данные для регистрации
 	registerBody := map[string]interface{}{
@@ -50,92 +24,99 @@ func TestAuthFlow(t *testing.T) {
 		"email":    "model@test.com",
 		"password": "super_password123",
 		"role":     "model",
+		"city":     "Almaty",
 	}
 
 	// 2. Действие: Регистрация (Act)
-	regRes, regBodyStr := testServer.SendRequest(t, "POST", "/api/v1/auth/register", "", registerBody)
+	regRes, regBodyStr := ts.SendRequest(t, "POST", "/api/v1/auth/register", "", registerBody)
 
 	// 3. Проверка: Регистрация (Assert)
 	assert.Equal(t, http.StatusCreated, regRes.StatusCode)
-	assert.Contains(t, regBodyStr, "model@test.com")
+	assert.Contains(t, regBodyStr, "Registration successful")
 	t.Logf("РЕГИСТРАЦИЯ: Успешно. Ответ: %s", regBodyStr)
 
 	// --- Шаг 2: Логин ---
-
-	// 1. Подготовка (Arrange)
 	loginBody := map[string]interface{}{
 		"email":    "model@test.com",
 		"password": "super_password123",
 	}
-
-	// 2. Действие: Логин (Act)
-	logRes, logBodyStr := testServer.SendRequest(t, "POST", "/api/v1/auth/login", "", loginBody)
+	logRes, logBodyStr := ts.SendRequest(t, "POST", "/api/v1/auth/login", "", loginBody)
 
 	// 3. Проверка: Логин (Assert)
-	assert.Equal(t, http.StatusOK, logRes.StatusCode)
+	assert.Equal(t, http.StatusForbidden, logRes.StatusCode)
+	assert.Contains(t, logBodyStr, "User not verified")
+	t.Logf("ЛОГИН (НЕВЕРИФ.): Успешно провалился (403). Ответ: %s", logBodyStr)
+}
 
-	var loginResponse struct {
-		Token string `json:"token"`
-	}
-	err := json.Unmarshal([]byte(logBodyStr), &loginResponse)
-	assert.NoError(t, err)
-	assert.NotEmpty(t, loginResponse.Token, "Токен не должен быть пустым")
-	t.Logf("ЛОГИН: Успешно. Получен токен.")
+// TestGetProfile_Success - проверяет "золотой путь" с помощью хелпера
+func TestGetProfile_Success(t *testing.T) {
+	t.Parallel() // ✅ Параллельный запуск
 
-	userToken := loginResponse.Token
+	// 1. Подготовка
+	ts := GetTestServer(t)
+	tx := ts.BeginTransaction(t)
+	defer ts.RollbackTransaction(t, tx)
 
-	// --- Шаг 3: Доступ к защищенному роуту ---
+	userToken, user, _ := helpers.CreateAndLoginModel(t, ts, tx)
 
 	// 2. Действие: Получение профиля (Act)
-	profRes, profBodyStr := testServer.SendRequest(t, "GET", "/api/v1/profile", userToken, nil)
+	profRes, profBodyStr := ts.SendRequest(t, "GET", "/api/v1/profile", userToken, nil)
 
 	// 3. Проверка: Получение профиля (Assert)
 	assert.Equal(t, http.StatusOK, profRes.StatusCode)
-	assert.Contains(t, profBodyStr, "model@test.com")
-	assert.Contains(t, profBodyStr, "Тестовая Модель")
+	assert.Contains(t, profBodyStr, user.Email)
+	assert.Contains(t, profBodyStr, user.Name)
 	t.Logf("ПРОФИЛЬ: Успешно. Ответ: %s", profBodyStr)
 }
 
-// TestRegister_DuplicateEmail - (ПЕРЕПИСАН)
-// Здесь мы используем хелпер CreateUser, чтобы БЫСТРО
-// создать юзера в БД и проверить защиту от дубликатов.
+// TestRegister_DuplicateEmail - проверяет защиту от дубликатов
 func TestRegister_DuplicateEmail(t *testing.T) {
-	// 1. Подготовка
-	testServer.ClearTables()
+	t.Parallel() // ✅ Параллельный запуск
 
-	// Используем хелпер, чтобы НАПРЯМУЮ создать юзера в БД
-	err := helpers.CreateUser(t, testServer.DB, &models.User{
+	// 1. Подготовка
+	ts := GetTestServer(t)
+	tx := ts.BeginTransaction(t)
+	defer ts.RollbackTransaction(t, tx)
+
+	// Используем хелпер, чтобы НАПРЯМУЮ создать юзера в транзакции
+	err := helpers.CreateUser(t, tx, &models.User{
 		Name:         "User One",
 		Email:        "duplicate@test.com",
-		PasswordHash: "pass123", // Хелпер сам хеширует
+		PasswordHash: "pass123",
 		Role:         models.UserRoleModel,
 	})
 	assert.NoError(t, err)
 
 	// 2. Действие: Попытка регистрации с тем же email
 	duplicateBody := map[string]interface{}{
-		"name": "User Two", "email": "duplicate@test.com", "password": "pass456", "role": "employer",
+		"name":         "User Two",
+		"email":        "duplicate@test.com",
+		"password":     "password_is_long_enough_123",
+		"role":         "employer",
+		"city":         "Astana",
+		"company_name": "Test Company",
 	}
-	regRes, regBodyStr := testServer.SendRequest(t, "POST", "/api/v1/auth/register", "", duplicateBody)
+	regRes, regBodyStr := ts.SendRequest(t, "POST", "/api/v1/auth/register", "", duplicateBody)
 
 	// 3. Проверка
-	assert.Equal(t, http.StatusBadRequest, regRes.StatusCode)
-	// (в твоем логе было "email already in use", если нет - поменяй на свою ошибку)
-	assert.Contains(t, regBodyStr, "email already in use")
-	t.Logf("ДУБЛИКАТ EMAIL: Успешно. Ответ: %s", regBodyStr)
+	assert.Equal(t, http.StatusConflict, regRes.StatusCode)
+	assert.Contains(t, regBodyStr, "Email already exists")
+	t.Logf("ДУБЛИКАКА EMAIL: Успешно. Ответ: %s", regBodyStr)
 }
 
-// TestLogin_BadPassword - (НОВЫЙ ТЕСТ)
-// Проверяем, что нельзя залогиниться с неверным паролем
+// TestLogin_BadPassword - проверяет неверный пароль
 func TestLogin_BadPassword(t *testing.T) {
-	// 1. Подготовка
-	testServer.ClearTables()
+	t.Parallel() // ✅ Параллельный запуск
 
-	// Быстро создаем юзера в БД
-	err := helpers.CreateUser(t, testServer.DB, &models.User{
+	// 1. Подготовка
+	ts := GetTestServer(t)
+	tx := ts.BeginTransaction(t)
+	defer ts.RollbackTransaction(t, tx)
+
+	err := helpers.CreateUser(t, tx, &models.User{
 		Name:         "Test User",
 		Email:        "user@test.com",
-		PasswordHash: "correct-password", // Хелпер хеширует
+		PasswordHash: "correct-password",
 		Role:         models.UserRoleModel,
 	})
 	assert.NoError(t, err)
@@ -145,10 +126,42 @@ func TestLogin_BadPassword(t *testing.T) {
 		"email":    "user@test.com",
 		"password": "WRONG-password",
 	}
-	logRes, logBodyStr := testServer.SendRequest(t, "POST", "/api/v1/auth/login", "", loginBody)
+	logRes, logBodyStr := ts.SendRequest(t, "POST", "/api/v1/auth/login", "", loginBody)
 
 	// 3. Проверка
 	assert.Equal(t, http.StatusUnauthorized, logRes.StatusCode)
-	assert.Contains(t, logBodyStr, "invalid credentials") // или "invalid email or password"
+	assert.Contains(t, logBodyStr, "Invalid email or password")
 	t.Logf("НЕВЕРНЫЙ ПАРОЛЬ: Успешно. Ответ: %s", logBodyStr)
+}
+
+// TestLogin_Success - проверяет успешный логин
+func TestLogin_Success(t *testing.T) {
+	t.Parallel() // ✅ Параллельный запуск
+
+	// 1. Подготовка
+	ts := GetTestServer(t)
+	tx := ts.BeginTransaction(t)
+	defer ts.RollbackTransaction(t, tx)
+
+	// Создаем пользователя напрямую в транзакции
+	user := &models.User{
+		Name:         "Test User",
+		Email:        "success@test.com",
+		PasswordHash: "correct-password", // Сырой пароль
+		Role:         models.UserRoleModel,
+	}
+	err := helpers.CreateUser(t, tx, user)
+	assert.NoError(t, err)
+
+	// 2. Действие: Логин с правильным паролем
+	loginBody := map[string]interface{}{
+		"email":    "success@test.com",
+		"password": "correct-password", // Используем сырой пароль
+	}
+	logRes, logBodyStr := ts.SendRequest(t, "POST", "/api/v1/auth/login", "", loginBody)
+
+	// 3. Проверка
+	assert.Equal(t, http.StatusOK, logRes.StatusCode)
+	assert.Contains(t, logBodyStr, "access_token")
+	t.Logf("УСПЕШНЫЙ ЛОГИН: Ответ: %s", logBodyStr)
 }

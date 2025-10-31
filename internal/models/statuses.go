@@ -24,6 +24,7 @@ const (
 
 	ResponseStatusPending   ResponseStatus = "pending"
 	ResponseStatusAccepted  ResponseStatus = "accepted"
+	ResponseStatusApproved  ResponseStatus = "approved"
 	ResponseStatusRejected  ResponseStatus = "rejected"
 	ResponseStatusWithdrawn ResponseStatus = "withdrawn"
 

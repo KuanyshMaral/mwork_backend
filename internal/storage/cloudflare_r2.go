@@ -13,38 +13,32 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 )
 
-// S3Storage implements Storage interface for AWS S3
-type S3Storage struct {
+// CloudflareR2Storage implements Storage interface for Cloudflare R2
+// R2 is S3-compatible, so we use the same SDK
+type CloudflareR2Storage struct {
 	client   *s3.S3
 	uploader *s3manager.Uploader
 	bucket   string
-	region   string
 	baseURL  string
 }
 
-// NewS3Storage creates a new S3 storage instance
-func NewS3Storage(cfg Config) (*S3Storage, error) {
-	if cfg.Bucket == "" {
-		return nil, fmt.Errorf("bucket name is required for S3 storage")
-	}
-
-	if cfg.Region == "" {
-		cfg.Region = "us-east-1"
+// NewCloudflareR2Storage creates a new Cloudflare R2 storage instance
+func NewCloudflareR2Storage(cfg Config) (*CloudflareR2Storage, error) {
+	// R2 endpoint format: https://<account_id>.r2.cloudflarestorage.com
+	if cfg.Endpoint == "" {
+		return nil, fmt.Errorf("endpoint is required for Cloudflare R2")
 	}
 
 	awsConfig := &aws.Config{
-		Region:      aws.String(cfg.Region),
-		Credentials: credentials.NewStaticCredentials(cfg.AccessKey, cfg.SecretKey, ""),
-	}
-
-	if cfg.Endpoint != "" {
-		awsConfig.Endpoint = aws.String(cfg.Endpoint)
-		awsConfig.S3ForcePathStyle = aws.Bool(true)
+		Region:           aws.String("auto"),
+		Endpoint:         aws.String(cfg.Endpoint),
+		Credentials:      credentials.NewStaticCredentials(cfg.AccessKey, cfg.SecretKey, ""),
+		S3ForcePathStyle: aws.Bool(true),
 	}
 
 	sess, err := session.NewSession(awsConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create AWS session: %w", err)
+		return nil, fmt.Errorf("failed to create R2 session: %w", err)
 	}
 
 	client := s3.New(sess)
@@ -52,38 +46,37 @@ func NewS3Storage(cfg Config) (*S3Storage, error) {
 
 	baseURL := cfg.BaseURL
 	if baseURL == "" {
-		baseURL = fmt.Sprintf("https://%s.s3.%s.amazonaws.com", cfg.Bucket, cfg.Region)
+		// Use R2 public URL if configured
+		baseURL = fmt.Sprintf("https://%s.r2.dev", cfg.Bucket)
 	}
 
-	return &S3Storage{
+	return &CloudflareR2Storage{
 		client:   client,
 		uploader: uploader,
 		bucket:   cfg.Bucket,
-		region:   cfg.Region,
 		baseURL:  baseURL,
 	}, nil
 }
 
-// Save uploads a file to S3
-func (s *S3Storage) Save(ctx context.Context, path string, reader io.Reader, contentType string) error {
+// Save uploads a file to R2
+func (s *CloudflareR2Storage) Save(ctx context.Context, path string, reader io.Reader, contentType string) error {
 	input := &s3manager.UploadInput{
 		Bucket:      aws.String(s.bucket),
 		Key:         aws.String(path),
 		Body:        reader,
 		ContentType: aws.String(contentType),
-		ACL:         aws.String("public-read"),
 	}
 
 	_, err := s.uploader.UploadWithContext(ctx, input)
 	if err != nil {
-		return fmt.Errorf("failed to upload to S3: %w", err)
+		return fmt.Errorf("failed to upload to R2: %w", err)
 	}
 
 	return nil
 }
 
-// Get retrieves a file from S3
-func (s *S3Storage) Get(ctx context.Context, path string) (io.ReadCloser, error) {
+// Get retrieves a file from R2
+func (s *CloudflareR2Storage) Get(ctx context.Context, path string) (io.ReadCloser, error) {
 	input := &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(path),
@@ -91,14 +84,14 @@ func (s *S3Storage) Get(ctx context.Context, path string) (io.ReadCloser, error)
 
 	result, err := s.client.GetObjectWithContext(ctx, input)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get from S3: %w", err)
+		return nil, fmt.Errorf("failed to get from R2: %w", err)
 	}
 
 	return result.Body, nil
 }
 
-// Delete removes a file from S3
-func (s *S3Storage) Delete(ctx context.Context, path string) error {
+// Delete removes a file from R2
+func (s *CloudflareR2Storage) Delete(ctx context.Context, path string) error {
 	input := &s3.DeleteObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(path),
@@ -106,14 +99,14 @@ func (s *S3Storage) Delete(ctx context.Context, path string) error {
 
 	_, err := s.client.DeleteObjectWithContext(ctx, input)
 	if err != nil {
-		return fmt.Errorf("failed to delete from S3: %w", err)
+		return fmt.Errorf("failed to delete from R2: %w", err)
 	}
 
 	return nil
 }
 
-// Exists checks if a file exists in S3
-func (s *S3Storage) Exists(ctx context.Context, path string) (bool, error) {
+// Exists checks if a file exists in R2
+func (s *CloudflareR2Storage) Exists(ctx context.Context, path string) (bool, error) {
 	input := &s3.HeadObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(path),
@@ -128,12 +121,12 @@ func (s *S3Storage) Exists(ctx context.Context, path string) (bool, error) {
 }
 
 // GetURL returns a public URL for the file
-func (s *S3Storage) GetURL(ctx context.Context, path string) (string, error) {
+func (s *CloudflareR2Storage) GetURL(ctx context.Context, path string) (string, error) {
 	return fmt.Sprintf("%s/%s", s.baseURL, path), nil
 }
 
 // GetSignedURL returns a temporary signed URL
-func (s *S3Storage) GetSignedURL(ctx context.Context, path string, expiry time.Duration) (string, error) {
+func (s *CloudflareR2Storage) GetSignedURL(ctx context.Context, path string, expiry time.Duration) (string, error) {
 	input := &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(path),
@@ -148,8 +141,8 @@ func (s *S3Storage) GetSignedURL(ctx context.Context, path string, expiry time.D
 	return url, nil
 }
 
-// GetSize returns the size of a file in S3
-func (s *S3Storage) GetSize(ctx context.Context, path string) (int64, error) {
+// GetSize returns the size of a file in R2
+func (s *CloudflareR2Storage) GetSize(ctx context.Context, path string) (int64, error) {
 	input := &s3.HeadObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(path),
