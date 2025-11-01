@@ -40,6 +40,7 @@ type CreateEmployerProfileRequest struct {
 // Update Requests
 // ==========================
 
+// UpdateProfileRequest - ЕДИНАЯ структура для обновления профиля (Model и Employer)
 type UpdateProfileRequest struct {
 	Name           *string  `json:"name,omitempty" validate:"omitempty,min=2"`
 	City           *string  `json:"city,omitempty"`
@@ -48,7 +49,7 @@ type UpdateProfileRequest struct {
 	Height         *float64 `json:"height,omitempty" validate:"omitempty,min=100,max=250"`
 	Weight         *float64 `json:"weight,omitempty" validate:"omitempty,min=30,max=200"`
 	Gender         *string  `json:"gender,omitempty" validate:"omitempty,is-gender"` // Кастомное правило
-	Experience     *int     `json:"experience,omitempty" validate:"omitempty,min=0"`
+	Experience     *int     `json:"experience,omitempty" validate:"omitempty,min=0"` // Разрешен конфликт, выбран тип *int
 	HourlyRate     *float64 `json:"hourly_rate,omitempty"`
 	ClothingSize   *string  `json:"clothing_size,omitempty"`
 	ShoeSize       *string  `json:"shoe_size,omitempty"`
@@ -68,29 +69,12 @@ type UpdateProfileRequest struct {
 // ==========================
 // Search Criteria
 // ==========================
-
-type ProfileSearchCriteria struct {
-	Query         string   `form:"query"`
-	City          string   `form:"city"`
-	Categories    []string `form:"categories[]"`
-	Gender        string   `form:"gender" validate:"omitempty,is-gender"` // Кастомное правило
-	MinAge        *int     `form:"min_age" validate:"omitempty,min=0"`
-	MaxAge        *int     `form:"max_age" validate:"omitempty,gtefield=MinAge"`
-	MinHeight     *int     `form:"min_height" validate:"omitempty,min=0"`
-	MaxHeight     *int     `form:"max_height" validate:"omitempty,gtefield=MinHeight"`
-	MinWeight     *int     `form:"min_weight" validate:"omitempty,min=0"`
-	MaxWeight     *int     `form:"max_weight" validate:"omitempty,gtefield=MinWeight"`
-	MinPrice      *int     `form:"min_price" validate:"omitempty,min=0"`
-	MaxPrice      *int     `form:"max_price" validate:"omitempty,gtefield=MinPrice"`
-	MinExperience *int     `form:"min_experience" validate:"omitempty,min=0"`
-	Languages     []string `form:"languages[]"`
-	AcceptsBarter *bool    `form:"accepts_barter"`
-	MinRating     *float64 `form:"min_rating" validate:"omitempty,min=0,max=5"`
-	Page          int      `form:"page" validate:"omitempty,min=1"`
-	PageSize      int      `form:"page_size" validate:"omitempty,min=1,max=100"`
-	SortBy        string   `form:"sort_by"`
-	SortOrder     string   `form:"sort_order" validate:"omitempty,oneof=asc desc"`
-}
+//
+// !!!!!!!!!!!!!
+// СТРУКТУРА ProfileSearchCriteria БЫЛА УДАЛЕНА.
+// Вместо нее используется SearchModelsRequest из dto/search.go
+// !!!!!!!!!!!!!
+//
 
 // ==========================
 // Responses & Stats

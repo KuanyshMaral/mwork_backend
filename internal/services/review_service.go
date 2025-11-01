@@ -2,10 +2,13 @@ package services
 
 import (
 	"errors"
+	"fmt"
+	"gorm.io/gorm"
 
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/repositories"
 	"mwork_backend/internal/services/dto"
+	"mwork_backend/pkg/apperrors"
 )
 
 var (
@@ -13,40 +16,47 @@ var (
 	ErrSelfReviewNotAllowed = errors.New("self-review is not allowed")
 )
 
+// =======================
+// 1. ИНТЕРФЕЙС ОБНОВЛЕН
+// =======================
+// Все методы теперь принимают 'db *gorm.DB'
 type ReviewService interface {
 	// Review operations
-	CreateReview(userID string, req *dto.CreateReviewRequest) (*dto.ReviewResponse, error)
-	GetReview(reviewID string) (*dto.ReviewResponse, error)
-	GetModelReviews(modelID string, page, pageSize int) (*dto.ReviewListResponse, error)
-	GetEmployerReviews(employerID string, page, pageSize int) (*dto.ReviewListResponse, error)
-	GetCastingReviews(castingID string) ([]*dto.ReviewResponse, error)
-	UpdateReview(userID, reviewID string, req *dto.UpdateReviewRequest) error
-	DeleteReview(userID, reviewID string) error
+	CreateReview(db *gorm.DB, userID string, req *dto.CreateReviewRequest) (*dto.ReviewResponse, error)
+	GetReview(db *gorm.DB, reviewID string) (*dto.ReviewResponse, error)
+	GetModelReviews(db *gorm.DB, modelID string, page, pageSize int) (*dto.ReviewListResponse, error)
+	GetEmployerReviews(db *gorm.DB, employerID string, page, pageSize int) (*dto.ReviewListResponse, error)
+	GetCastingReviews(db *gorm.DB, castingID string) ([]*dto.ReviewResponse, error)
+	UpdateReview(db *gorm.DB, userID, reviewID string, req *dto.UpdateReviewRequest) error
+	DeleteReview(db *gorm.DB, userID, reviewID string) error
 
 	// Rating operations
-	GetModelRating(modelID string) (*dto.RatingResponse, error)
-	GetEmployerRating(employerID string) (*dto.RatingResponse, error)
-	GetModelRatingStats(modelID string) (*repositories.RatingStats, error)
-	GetEmployerRatingStats(employerID string) (*repositories.RatingStats, error)
+	GetModelRating(db *gorm.DB, modelID string) (*dto.RatingResponse, error)
+	GetEmployerRating(db *gorm.DB, employerID string) (*dto.RatingResponse, error)
+	GetModelRatingStats(db *gorm.DB, modelID string) (*repositories.RatingStats, error)
+	GetEmployerRatingStats(db *gorm.DB, employerID string) (*repositories.RatingStats, error)
 
 	// Validation and business logic
-	CanUserReview(employerID, modelID, castingID string) (bool, error)
-	IsUserReviewable(userID string, userRole models.UserRole) (bool, error)
-	ValidateReviewRequest(req *dto.CreateReviewRequest) error
+	CanUserReview(db *gorm.DB, employerID, modelID, castingID string) (bool, error)
+	IsUserReviewable(db *gorm.DB, userID string, userRole models.UserRole) (bool, error)
 
 	// Admin operations
-	GetAllReviews(page, pageSize int) (*dto.ReviewListResponse, error)
-	GetRecentReviews(limit int) ([]*dto.ReviewResponse, error)
-	GetPlatformReviewStats() (*repositories.PlatformReviewStats, error)
-	DeleteReviewByAdmin(adminID, reviewID string) error
+	GetAllReviews(db *gorm.DB, page, pageSize int) (*dto.ReviewListResponse, error)
+	GetRecentReviews(db *gorm.DB, limit int) ([]*dto.ReviewResponse, error)
+	GetPlatformReviewStats(db *gorm.DB) (*repositories.PlatformReviewStats, error)
+	DeleteReviewByAdmin(db *gorm.DB, adminID, reviewID string) error
 
 	// Additional features
-	GetReviewSummary(modelID string) (*repositories.ReviewSummary, error)
-	SearchReviews(criteria dto.ReviewSearchCriteria) (*dto.ReviewListResponse, error)
-	GetUserReviewStats(userID string, userRole models.UserRole) (*dto.UserReviewStats, error)
+	GetReviewSummary(db *gorm.DB, modelID string) (*repositories.ReviewSummary, error)
+	SearchReviews(db *gorm.DB, criteria dto.ReviewSearchCriteria) (*dto.ReviewListResponse, error)
+	GetUserReviewStats(db *gorm.DB, userID string, userRole models.UserRole) (*dto.UserReviewStats, error)
 }
 
+// =======================
+// 2. РЕАЛИЗАЦИЯ ОБНОВЛЕНА
+// =======================
 type reviewService struct {
+	// ❌ 'db *gorm.DB' УДАЛЕНО ОТСЮДА
 	reviewRepo       repositories.ReviewRepository
 	userRepo         repositories.UserRepository
 	profileRepo      repositories.ProfileRepository
@@ -54,7 +64,9 @@ type reviewService struct {
 	notificationRepo repositories.NotificationRepository
 }
 
+// ✅ Конструктор обновлен (db убран)
 func NewReviewService(
+	// ❌ 'db *gorm.DB,' УДАЛЕНО
 	reviewRepo repositories.ReviewRepository,
 	userRepo repositories.UserRepository,
 	profileRepo repositories.ProfileRepository,
@@ -62,6 +74,7 @@ func NewReviewService(
 	notificationRepo repositories.NotificationRepository,
 ) ReviewService {
 	return &reviewService{
+		// ❌ 'db: db,' УДАЛЕНО
 		reviewRepo:       reviewRepo,
 		userRepo:         userRepo,
 		profileRepo:      profileRepo,
@@ -72,10 +85,44 @@ func NewReviewService(
 
 // ---------------- Review Operations ----------------
 
-func (s *reviewService) CreateReview(userID string, req *dto.CreateReviewRequest) (*dto.ReviewResponse, error) {
-	if err := s.ValidateReviewRequest(req); err != nil {
-		return nil, err
+// CreateReview - 'db' добавлен
+func (s *reviewService) CreateReview(db *gorm.DB, userID string, req *dto.CreateReviewRequest) (*dto.ReviewResponse, error) {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return nil, apperrors.InternalError(tx.Error)
 	}
+	defer tx.Rollback()
+
+	// --- Встроенная логика ValidateReviewRequest ---
+	if req.Rating < 1 || req.Rating > 5 {
+		return nil, ErrInvalidReviewRating
+	}
+	if len(req.ReviewText) > 2000 {
+		return nil, errors.New("review text too long")
+	}
+	if req.EmployerID == req.ModelID {
+		return nil, ErrSelfReviewNotAllowed
+	}
+
+	// ✅ Передаем tx
+	employer, err := s.userRepo.FindByID(tx, req.EmployerID)
+	if err != nil {
+		return nil, errors.New("employer not found")
+	}
+	// ✅ Передаем tx
+	model, err := s.userRepo.FindByID(tx, req.ModelID)
+	if err != nil {
+		return nil, errors.New("model not found")
+	}
+
+	if employer.Role != models.UserRoleEmployer {
+		return nil, errors.New("only employers can create reviews")
+	}
+	if model.Role != models.UserRoleModel {
+		return nil, errors.New("can only review models")
+	}
+	// --- Конец валидации ---
 
 	if userID != req.EmployerID {
 		return nil, errors.New("only the employer can create reviews")
@@ -85,9 +132,10 @@ func (s *reviewService) CreateReview(userID string, req *dto.CreateReviewRequest
 	if req.CastingID != nil {
 		castingID = *req.CastingID
 	}
-	canReview, err := s.CanUserReview(req.EmployerID, req.ModelID, castingID)
+	// ✅ Передаем tx
+	canReview, err := s.CanUserReview(tx, req.EmployerID, req.ModelID, castingID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 	if !canReview {
 		return nil, errors.New("cannot create review for this casting")
@@ -101,31 +149,38 @@ func (s *reviewService) CreateReview(userID string, req *dto.CreateReviewRequest
 		ReviewText: req.ReviewText,
 	}
 
-	if err := s.reviewRepo.CreateReview(review); err != nil {
-		return nil, err
+	// ✅ Передаем tx
+	if err := s.reviewRepo.CreateReview(tx, review); err != nil {
+		return nil, apperrors.InternalError(err)
 	}
 
-	go s.notificationRepo.CreateResponseStatusNotification(
-		req.ModelID,
-		getCastingTitle(req.CastingID),
-		models.ResponseStatusAccepted,
-	)
+	if err := tx.Commit().Error; err != nil {
+		return nil, apperrors.InternalError(err)
+	}
 
+	// ✅ Отправляем уведомление *после* коммита, передаем 'db' (пул)
+	go s.sendReviewNotification(db, req.ModelID, req.CastingID)
+
+	// ✅ Возвращаем полный DTO, используя GetReview (и передавая 'db')
+	return s.GetReview(db, review.ID)
+}
+
+// GetReview - 'db' добавлен
+func (s *reviewService) GetReview(db *gorm.DB, reviewID string) (*dto.ReviewResponse, error) {
+	// ✅ Используем 'db' из параметра
+	review, err := s.reviewRepo.FindReviewByID(db, reviewID)
+	if err != nil {
+		return nil, handleReviewError(err)
+	}
 	return s.buildReviewResponse(review), nil
 }
 
-func (s *reviewService) GetReview(reviewID string) (*dto.ReviewResponse, error) {
-	review, err := s.reviewRepo.FindReviewByID(reviewID)
+// GetModelReviews - 'db' добавлен
+func (s *reviewService) GetModelReviews(db *gorm.DB, modelID string, page, pageSize int) (*dto.ReviewListResponse, error) {
+	// ✅ Используем 'db' из параметра
+	reviews, total, err := s.reviewRepo.FindReviewsWithPagination(db, modelID, page, pageSize)
 	if err != nil {
-		return nil, err
-	}
-	return s.buildReviewResponse(review), nil
-}
-
-func (s *reviewService) GetModelReviews(modelID string, page, pageSize int) (*dto.ReviewListResponse, error) {
-	reviews, total, err := s.reviewRepo.FindReviewsWithPagination(modelID, page, pageSize)
-	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	var reviewResponses []*dto.ReviewResponse
@@ -142,12 +197,15 @@ func (s *reviewService) GetModelReviews(modelID string, page, pageSize int) (*dt
 	}, nil
 }
 
-func (s *reviewService) GetEmployerReviews(employerID string, page, pageSize int) (*dto.ReviewListResponse, error) {
-	reviews, err := s.reviewRepo.FindReviewsByEmployer(employerID)
+// GetEmployerReviews - 'db' добавлен
+func (s *reviewService) GetEmployerReviews(db *gorm.DB, employerID string, page, pageSize int) (*dto.ReviewListResponse, error) {
+	// ✅ Используем 'db' из параметра
+	reviews, err := s.reviewRepo.FindReviewsByEmployer(db, employerID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
+	// (Логика пагинации в памяти)
 	total := int64(len(reviews))
 	start := (page - 1) * pageSize
 	end := start + pageSize
@@ -173,10 +231,12 @@ func (s *reviewService) GetEmployerReviews(employerID string, page, pageSize int
 	}, nil
 }
 
-func (s *reviewService) GetCastingReviews(castingID string) ([]*dto.ReviewResponse, error) {
-	reviews, err := s.reviewRepo.FindReviewsByCasting(castingID)
+// GetCastingReviews - 'db' добавлен
+func (s *reviewService) GetCastingReviews(db *gorm.DB, castingID string) ([]*dto.ReviewResponse, error) {
+	// ✅ Используем 'db' из параметра
+	reviews, err := s.reviewRepo.FindReviewsByCasting(db, castingID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	var reviewResponses []*dto.ReviewResponse
@@ -186,10 +246,19 @@ func (s *reviewService) GetCastingReviews(castingID string) ([]*dto.ReviewRespon
 	return reviewResponses, nil
 }
 
-func (s *reviewService) UpdateReview(userID, reviewID string, req *dto.UpdateReviewRequest) error {
-	review, err := s.reviewRepo.FindReviewByID(reviewID)
+// UpdateReview - 'db' добавлен
+func (s *reviewService) UpdateReview(db *gorm.DB, userID, reviewID string, req *dto.UpdateReviewRequest) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	review, err := s.reviewRepo.FindReviewByID(tx, reviewID)
 	if err != nil {
-		return err
+		return handleReviewError(err)
 	}
 
 	if review.EmployerID != userID {
@@ -203,103 +272,107 @@ func (s *reviewService) UpdateReview(userID, reviewID string, req *dto.UpdateRev
 		review.ReviewText = *req.ReviewText
 	}
 
-	return s.reviewRepo.UpdateReview(review)
+	// ✅ Передаем tx
+	if err := s.reviewRepo.UpdateReview(tx, review); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *reviewService) DeleteReview(userID, reviewID string) error {
-	review, err := s.reviewRepo.FindReviewByID(reviewID)
+// DeleteReview - 'db' добавлен
+func (s *reviewService) DeleteReview(db *gorm.DB, userID, reviewID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	review, err := s.reviewRepo.FindReviewByID(tx, reviewID)
 	if err != nil {
-		return err
+		return handleReviewError(err)
 	}
 
-	user, err := s.userRepo.FindByID(userID)
+	// ✅ Передаем tx
+	user, err := s.userRepo.FindByID(tx, userID)
 	if err != nil {
-		return err
+		return handleReviewError(err)
 	}
 
 	if review.EmployerID != userID && user.Role != models.UserRoleAdmin {
 		return errors.New("only review author or admin can delete the review")
 	}
 
-	return s.reviewRepo.DeleteReview(reviewID)
+	// ✅ Передаем tx
+	if err := s.reviewRepo.DeleteReview(tx, reviewID); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
 // ---------------- Rating Operations ----------------
 
-func (s *reviewService) GetModelRating(modelID string) (*dto.RatingResponse, error) {
-	stats, err := s.reviewRepo.GetModelRatingStats(modelID)
+// GetModelRating - 'db' добавлен
+func (s *reviewService) GetModelRating(db *gorm.DB, modelID string) (*dto.RatingResponse, error) {
+	// ✅ Используем 'db' из параметра
+	stats, err := s.reviewRepo.GetModelRatingStats(db, modelID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 	return s.buildRatingResponse(stats), nil
 }
 
-func (s *reviewService) GetEmployerRating(employerID string) (*dto.RatingResponse, error) {
-	stats, err := s.reviewRepo.GetEmployerRatingStats(employerID)
+// GetEmployerRating - 'db' добавлен
+func (s *reviewService) GetEmployerRating(db *gorm.DB, employerID string) (*dto.RatingResponse, error) {
+	// ✅ Используем 'db' из параметра
+	stats, err := s.reviewRepo.GetEmployerRatingStats(db, employerID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 	return s.buildRatingResponse(stats), nil
 }
 
-func (s *reviewService) GetModelRatingStats(modelID string) (*repositories.RatingStats, error) {
-	return s.reviewRepo.GetModelRatingStats(modelID)
+// GetModelRatingStats - 'db' добавлен
+func (s *reviewService) GetModelRatingStats(db *gorm.DB, modelID string) (*repositories.RatingStats, error) {
+	// ✅ Используем 'db' из параметра
+	return s.reviewRepo.GetModelRatingStats(db, modelID)
 }
 
-func (s *reviewService) GetEmployerRatingStats(employerID string) (*repositories.RatingStats, error) {
-	return s.reviewRepo.GetEmployerRatingStats(employerID)
+// GetEmployerRatingStats - 'db' добавлен
+func (s *reviewService) GetEmployerRatingStats(db *gorm.DB, employerID string) (*repositories.RatingStats, error) {
+	// ✅ Используем 'db' из параметра
+	return s.reviewRepo.GetEmployerRatingStats(db, employerID)
 }
 
 // ---------------- Validation ----------------
 
-func (s *reviewService) CanUserReview(employerID, modelID, castingID string) (bool, error) {
-	return s.reviewRepo.CanCreateReview(employerID, modelID, castingID)
+// CanUserReview - (уже был 'db')
+func (s *reviewService) CanUserReview(db *gorm.DB, employerID, modelID, castingID string) (bool, error) {
+	// ✅ Передаем db
+	return s.reviewRepo.CanCreateReview(db, employerID, modelID, castingID)
 }
 
-func (s *reviewService) IsUserReviewable(userID string, userRole models.UserRole) (bool, error) {
-	return s.reviewRepo.IsUserReviewable(userID, userRole)
-}
-
-func (s *reviewService) ValidateReviewRequest(req *dto.CreateReviewRequest) error {
-	if req.Rating < 1 || req.Rating > 5 {
-		return ErrInvalidReviewRating
-	}
-	if len(req.ReviewText) > 2000 {
-		return errors.New("review text too long")
-	}
-	if req.EmployerID == req.ModelID {
-		return ErrSelfReviewNotAllowed
-	}
-
-	employer, err := s.userRepo.FindByID(req.EmployerID)
-	if err != nil {
-		return errors.New("employer not found")
-	}
-	model, err := s.userRepo.FindByID(req.ModelID)
-	if err != nil {
-		return errors.New("model not found")
-	}
-
-	if employer.Role != models.UserRoleEmployer {
-		return errors.New("only employers can create reviews")
-	}
-	if model.Role != models.UserRoleModel {
-		return errors.New("can only review models")
-	}
-	return nil
+// IsUserReviewable - 'db' добавлен
+func (s *reviewService) IsUserReviewable(db *gorm.DB, userID string, userRole models.UserRole) (bool, error) {
+	// ✅ Используем 'db' из параметра
+	return s.reviewRepo.IsUserReviewable(db, userID, userRole)
 }
 
 // ---------------- Admin Operations ----------------
 
-func (s *reviewService) GetAllReviews(page, pageSize int) (*dto.ReviewListResponse, error) {
+// GetAllReviews - 'db' добавлен
+func (s *reviewService) GetAllReviews(db *gorm.DB, page, pageSize int) (*dto.ReviewListResponse, error) {
 	offset := (page - 1) * pageSize
-	reviews, err := s.reviewRepo.FindAllReviews(pageSize, offset)
+	// ✅ Используем 'db' из параметра
+	reviews, err := s.reviewRepo.FindAllReviews(db, pageSize, offset)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
-	total, err := s.reviewRepo.CountAllReviews()
+	// ✅ Используем 'db' из параметра
+	total, err := s.reviewRepo.CountAllReviews(db)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	var reviewResponses []*dto.ReviewResponse
@@ -316,10 +389,12 @@ func (s *reviewService) GetAllReviews(page, pageSize int) (*dto.ReviewListRespon
 	}, nil
 }
 
-func (s *reviewService) GetRecentReviews(limit int) ([]*dto.ReviewResponse, error) {
-	reviews, err := s.reviewRepo.FindRecentReviews(limit)
+// GetRecentReviews - 'db' добавлен
+func (s *reviewService) GetRecentReviews(db *gorm.DB, limit int) ([]*dto.ReviewResponse, error) {
+	// ✅ Используем 'db' из параметра
+	reviews, err := s.reviewRepo.FindRecentReviews(db, limit)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	var reviewResponses []*dto.ReviewResponse
@@ -330,37 +405,58 @@ func (s *reviewService) GetRecentReviews(limit int) ([]*dto.ReviewResponse, erro
 	return reviewResponses, nil
 }
 
-func (s *reviewService) GetPlatformReviewStats() (*repositories.PlatformReviewStats, error) {
-	return s.reviewRepo.GetPlatformReviewStats()
+// GetPlatformReviewStats - 'db' добавлен
+func (s *reviewService) GetPlatformReviewStats(db *gorm.DB) (*repositories.PlatformReviewStats, error) {
+	// ✅ Используем 'db' из параметра
+	return s.reviewRepo.GetPlatformReviewStats(db)
 }
 
-func (s *reviewService) DeleteReviewByAdmin(adminID, reviewID string) error {
-	admin, err := s.userRepo.FindByID(adminID)
+// DeleteReviewByAdmin - 'db' добавлен
+func (s *reviewService) DeleteReviewByAdmin(db *gorm.DB, adminID, reviewID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	admin, err := s.userRepo.FindByID(tx, adminID)
 	if err != nil {
-		return err
+		return handleReviewError(err)
 	}
 	if admin.Role != models.UserRoleAdmin {
 		return errors.New("insufficient permissions")
 	}
-	return s.reviewRepo.DeleteReview(reviewID)
+
+	// ✅ Передаем tx
+	if err := s.reviewRepo.DeleteReview(tx, reviewID); err != nil {
+		return handleReviewError(err)
+	}
+	return tx.Commit().Error
 }
 
 // ---------------- Additional Features ----------------
 
-func (s *reviewService) GetReviewSummary(modelID string) (*repositories.ReviewSummary, error) {
-	return s.reviewRepo.GetReviewSummary(modelID)
+// GetReviewSummary - 'db' добавлен
+func (s *reviewService) GetReviewSummary(db *gorm.DB, modelID string) (*repositories.ReviewSummary, error) {
+	// ✅ Используем 'db' из параметра
+	return s.reviewRepo.GetReviewSummary(db, modelID)
 }
 
-func (s *reviewService) SearchReviews(criteria dto.ReviewSearchCriteria) (*dto.ReviewListResponse, error) {
+// SearchReviews - 'db' добавлен
+func (s *reviewService) SearchReviews(db *gorm.DB, criteria dto.ReviewSearchCriteria) (*dto.ReviewListResponse, error) {
 	var reviews []models.Review
 	var err error
 
+	// ✅ Используем 'db' из параметра
 	if criteria.UserRole == string(models.UserRoleModel) {
-		reviews, err = s.reviewRepo.FindReviewsByModel(criteria.UserID)
+		reviews, err = s.reviewRepo.FindReviewsByModel(db, criteria.UserID)
 	} else if criteria.UserRole == string(models.UserRoleEmployer) {
-		reviews, err = s.reviewRepo.FindReviewsByEmployer(criteria.UserID)
+		reviews, err = s.reviewRepo.FindReviewsByEmployer(db, criteria.UserID)
 	} else {
-		allReviews, totalErr := s.reviewRepo.FindAllReviews(1000, 0)
+		// ✅ Используем 'db' из параметра
+		allReviews, totalErr := s.reviewRepo.FindAllReviews(db, 1000, 0)
 		if totalErr != nil {
 			return nil, totalErr
 		}
@@ -368,9 +464,10 @@ func (s *reviewService) SearchReviews(criteria dto.ReviewSearchCriteria) (*dto.R
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
+	// (Фильтрация в памяти)
 	filtered := s.applyReviewFilters(reviews, criteria)
 
 	total := int64(len(filtered))
@@ -382,10 +479,18 @@ func (s *reviewService) SearchReviews(criteria dto.ReviewSearchCriteria) (*dto.R
 	if end > len(filtered) {
 		end = len(filtered)
 	}
+	if criteria.Page <= 0 {
+		start = 0
+	}
+	if criteria.PageSize <= 0 {
+		end = 0
+	}
 
 	var paginated []*dto.ReviewResponse
-	for _, review := range filtered[start:end] {
-		paginated = append(paginated, s.buildReviewResponse(&review))
+	if start < end {
+		for _, review := range filtered[start:end] {
+			paginated = append(paginated, s.buildReviewResponse(&review))
+		}
 	}
 
 	return &dto.ReviewListResponse{
@@ -397,19 +502,21 @@ func (s *reviewService) SearchReviews(criteria dto.ReviewSearchCriteria) (*dto.R
 	}, nil
 }
 
-func (s *reviewService) GetUserReviewStats(userID string, userRole models.UserRole) (*dto.UserReviewStats, error) {
+// GetUserReviewStats - 'db' добавлен
+func (s *reviewService) GetUserReviewStats(db *gorm.DB, userID string, userRole models.UserRole) (*dto.UserReviewStats, error) {
 	var stats *repositories.RatingStats
 	var err error
 
+	// ✅ Используем 'db' из параметра
 	if userRole == models.UserRoleModel {
-		stats, err = s.reviewRepo.GetModelRatingStats(userID)
+		stats, err = s.reviewRepo.GetModelRatingStats(db, userID)
 	} else if userRole == models.UserRoleEmployer {
-		stats, err = s.reviewRepo.GetEmployerRatingStats(userID)
+		stats, err = s.reviewRepo.GetEmployerRatingStats(db, userID)
 	} else {
 		return nil, errors.New("invalid user role for review stats")
 	}
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	positive := int64(0)
@@ -430,6 +537,7 @@ func (s *reviewService) GetUserReviewStats(userID string, userRole models.UserRo
 
 // ---------------- Helper Methods ----------------
 
+// (buildReviewResponse - чистая функция, без изменений)
 func (s *reviewService) buildReviewResponse(review *models.Review) *dto.ReviewResponse {
 	resp := &dto.ReviewResponse{
 		ID:         review.ID,
@@ -441,7 +549,6 @@ func (s *reviewService) buildReviewResponse(review *models.Review) *dto.ReviewRe
 		CreatedAt:  review.CreatedAt,
 		UpdatedAt:  review.UpdatedAt,
 	}
-
 	if review.Model.ID != "" {
 		resp.Model = &dto.ModelInfo{
 			ID:   review.Model.ID,
@@ -464,16 +571,15 @@ func (s *reviewService) buildReviewResponse(review *models.Review) *dto.ReviewRe
 			City:  review.Casting.City,
 		}
 	}
-
 	return resp
 }
 
+// (buildRatingResponse - чистая функция, без изменений)
 func (s *reviewService) buildRatingResponse(stats *repositories.RatingStats) *dto.RatingResponse {
 	breakdown := make(map[int]int)
 	for rating, count := range stats.RatingCounts {
 		breakdown[rating] = int(count)
 	}
-
 	return &dto.RatingResponse{
 		AverageRating:   stats.AverageRating,
 		TotalReviews:    stats.TotalReviews,
@@ -482,6 +588,7 @@ func (s *reviewService) buildRatingResponse(stats *repositories.RatingStats) *dt
 	}
 }
 
+// (applyReviewFilters - чистая функция, без изменений)
 func (s *reviewService) applyReviewFilters(reviews []models.Review, criteria dto.ReviewSearchCriteria) []models.Review {
 	var filtered []models.Review
 	for _, review := range reviews {
@@ -508,9 +615,36 @@ func (s *reviewService) applyReviewFilters(reviews []models.Review, criteria dto
 	return filtered
 }
 
-func getCastingTitle(castingID *string) string {
-	if castingID == nil {
-		return "кастинг"
+// (sendReviewNotification - 'db' уже был)
+func (s *reviewService) sendReviewNotification(db *gorm.DB, modelID string, castingID *string) {
+	title := "кастинг"
+	if castingID != nil {
+		// ✅ Передаем db
+		casting, err := s.castingRepo.FindCastingByID(db, *castingID)
+		if err == nil {
+			title = casting.Title
+		}
 	}
-	return "кастинг"
+
+	// ✅ Передаем db
+	err := s.notificationRepo.CreateResponseStatusNotification(db,
+		modelID,
+		title,
+		models.ResponseStatusAccepted,
+	)
+	if err != nil {
+		fmt.Printf("Failed to send review notification: %v\n", err)
+	}
+}
+
+// (handleReviewError - хелпер, без изменений)
+func handleReviewError(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) ||
+		errors.Is(err, repositories.ErrReviewNotFound) {
+		return apperrors.ErrNotFound(err)
+	}
+	if errors.Is(err, repositories.ErrUserNotFound) {
+		return apperrors.ErrNotFound(err)
+	}
+	return apperrors.InternalError(err)
 }

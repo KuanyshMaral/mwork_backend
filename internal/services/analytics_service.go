@@ -1,45 +1,55 @@
 package services
 
 import (
-	"context" // <-- Добавлено
+	"context"
 	"errors"
+	"gorm.io/gorm"
 	"time"
 
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/repositories"
 	"mwork_backend/internal/services/dto"
+	"mwork_backend/pkg/apperrors"
 )
 
 var (
 	ErrInvalidDateRange = errors.New("invalid date range")
 )
 
+// =======================
+// 1. ИНТЕРФЕЙС ОБНОВЛЕН
+// =======================
+// Все методы теперь принимают 'db *gorm.DB'
 type AnalyticsService interface {
-	GetPlatformOverview(dateFrom, dateTo time.Time) (*dto.PlatformOverview, error)
-	GetPlatformGrowthMetrics(days int) (*dto.GrowthMetrics, error)
-	GetUserAnalytics(dateFrom, dateTo time.Time) (*dto.UserAnalytics, error)
-	GetUserAcquisitionMetrics(dateFrom, dateTo time.Time) (*dto.UserAcquisitionMetrics, error)
-	GetCastingAnalytics(dateFrom, dateTo time.Time) (*dto.CastingAnalytics, error)
-	GetMatchingAnalytics(dateFrom, dateTo time.Time) (*dto.MatchingAnalytics, error)
-	GetFinancialAnalytics(dateFrom, dateTo time.Time) (*dto.FinancialAnalytics, error)
-	GetGeographicAnalytics() (*dto.GeographicAnalytics, error)
-	GetPerformanceMetrics(dateFrom, dateTo time.Time) (*dto.PerformanceMetrics, error)
-	GetRealTimeMetrics() (*dto.RealTimeMetrics, error)
-	GetActiveUsersCount() (int64, error)
-	GetAdminDashboard(adminID string) (*dto.AdminDashboard, error)
-	GetUserRetentionMetrics(days int) (*dto.UserRetentionMetrics, error)
-	GetCastingPerformanceMetrics(employerID string, dateFrom, dateTo time.Time) (*dto.CastingPerformanceMetrics, error)
-	GetMatchingEfficiencyMetrics(days int) (*dto.MatchingEfficiencyMetrics, error)
-	GetCityPerformanceMetrics(topN int) ([]*dto.CityPerformance, error)
-	GetCategoryAnalytics() (*dto.CategoryAnalytics, error)
-	GetPopularCategories(days int, limit int) ([]*dto.CategoryStats, error)
-	GetPlatformHealthMetrics() (*dto.PlatformHealthMetrics, error)
-	GenerateCustomReport(req *dto.CustomReportRequest) (*dto.CustomReport, error)
-	GetPredefinedReports() ([]*dto.PredefinedReport, error)
-	GetSystemHealthMetrics() (*dto.SystemHealth, error)
+	GetPlatformOverview(db *gorm.DB, ctx context.Context, dateFrom, dateTo time.Time) (*dto.PlatformOverview, error)
+	GetPlatformGrowthMetrics(db *gorm.DB, ctx context.Context, days int) (*dto.GrowthMetrics, error)
+	GetUserAnalytics(db *gorm.DB, ctx context.Context, dateFrom, dateTo time.Time) (*dto.UserAnalytics, error)
+	GetUserAcquisitionMetrics(db *gorm.DB, ctx context.Context, dateFrom, dateTo time.Time) (*dto.UserAcquisitionMetrics, error)
+	GetCastingAnalytics(db *gorm.DB, ctx context.Context, dateFrom, dateTo time.Time) (*dto.CastingAnalytics, error)
+	GetMatchingAnalytics(db *gorm.DB, ctx context.Context, dateFrom, dateTo time.Time) (*dto.MatchingAnalytics, error)
+	GetFinancialAnalytics(db *gorm.DB, ctx context.Context, dateFrom, dateTo time.Time) (*dto.FinancialAnalytics, error)
+	GetGeographicAnalytics(db *gorm.DB, ctx context.Context) (*dto.GeographicAnalytics, error)
+	GetPerformanceMetrics(db *gorm.DB, ctx context.Context, dateFrom, dateTo time.Time) (*dto.PerformanceMetrics, error)
+	GetRealTimeMetrics(db *gorm.DB, ctx context.Context) (*dto.RealTimeMetrics, error)
+	GetActiveUsersCount(db *gorm.DB, ctx context.Context) (int64, error)
+	GetAdminDashboard(db *gorm.DB, ctx context.Context, adminID string) (*dto.AdminDashboard, error)
+	GetUserRetentionMetrics(db *gorm.DB, ctx context.Context, days int) (*dto.UserRetentionMetrics, error)
+	GetCastingPerformanceMetrics(db *gorm.DB, ctx context.Context, employerID string, dateFrom, dateTo time.Time) (*dto.CastingPerformanceMetrics, error)
+	GetMatchingEfficiencyMetrics(db *gorm.DB, ctx context.Context, days int) (*dto.MatchingEfficiencyMetrics, error)
+	GetCityPerformanceMetrics(db *gorm.DB, ctx context.Context, topN int) ([]*dto.CityPerformance, error)
+	GetCategoryAnalytics(db *gorm.DB, ctx context.Context) (*dto.CategoryAnalytics, error)
+	GetPopularCategories(db *gorm.DB, ctx context.Context, days int, limit int) ([]*dto.CategoryStats, error)
+	GetPlatformHealthMetrics(db *gorm.DB, ctx context.Context) (*dto.PlatformHealthMetrics, error)
+	GenerateCustomReport(db *gorm.DB, ctx context.Context, req *dto.CustomReportRequest) (*dto.CustomReport, error)
+	GetPredefinedReports(db *gorm.DB, ctx context.Context) ([]*dto.PredefinedReport, error)
+	GetSystemHealthMetrics(db *gorm.DB, ctx context.Context) (*dto.SystemHealth, error)
 }
 
+// =======================
+// 2. РЕАЛИЗАЦИЯ ОБНОВЛЕНА
+// =======================
 type analyticsService struct {
+	// ❌ 'db *gorm.DB' УДАЛЕНО ОТСЮДА
 	userRepo         repositories.UserRepository
 	profileRepo      repositories.ProfileRepository
 	castingRepo      repositories.CastingRepository
@@ -48,10 +58,12 @@ type analyticsService struct {
 	portfolioRepo    repositories.PortfolioRepository
 	subscriptionRepo repositories.SubscriptionRepository
 	chatRepo         repositories.ChatRepository
-	analyticsRepo    repositories.AnalyticsRepository // <-- Добавлено
+	analyticsRepo    repositories.AnalyticsRepository
 }
 
+// ✅ Конструктор обновлен (db убран)
 func NewAnalyticsService(
+	// ❌ 'db *gorm.DB,' УДАЛЕНО
 	userRepo repositories.UserRepository,
 	profileRepo repositories.ProfileRepository,
 	castingRepo repositories.CastingRepository,
@@ -60,9 +72,10 @@ func NewAnalyticsService(
 	portfolioRepo repositories.PortfolioRepository,
 	subscriptionRepo repositories.SubscriptionRepository,
 	chatRepo repositories.ChatRepository,
-	analyticsRepo repositories.AnalyticsRepository, // <-- Добавлено
+	analyticsRepo repositories.AnalyticsRepository,
 ) AnalyticsService {
 	return &analyticsService{
+		// ❌ 'db: db,' УДАЛЕНО
 		userRepo:         userRepo,
 		profileRepo:      profileRepo,
 		castingRepo:      castingRepo,
@@ -71,62 +84,64 @@ func NewAnalyticsService(
 		portfolioRepo:    portfolioRepo,
 		subscriptionRepo: subscriptionRepo,
 		chatRepo:         chatRepo,
-		analyticsRepo:    analyticsRepo, // <-- Добавлено
+		analyticsRepo:    analyticsRepo,
 	}
 }
 
 // Platform Overview
-func (s *analyticsService) GetPlatformOverview(dateFrom, dateTo time.Time) (*dto.PlatformOverview, error) {
+// GetPlatformOverview - 'db' добавлен
+func (s *analyticsService) GetPlatformOverview(db *gorm.DB, ctx context.Context, dateFrom, dateTo time.Time) (*dto.PlatformOverview, error) {
 	if dateFrom.After(dateTo) {
 		return nil, ErrInvalidDateRange
 	}
 
-	growthMetrics, err := s.GetPlatformGrowthMetrics(30)
+	// ✅ 'db' пробрасывается во все внутренние вызовы
+	growthMetrics, err := s.GetPlatformGrowthMetrics(db, ctx, 30)
 	if err != nil {
 		return nil, err
 	}
 
-	userAnalytics, err := s.GetUserAnalytics(dateFrom, dateTo)
+	userAnalytics, err := s.GetUserAnalytics(db, ctx, dateFrom, dateTo)
 	if err != nil {
 		return nil, err
 	}
 
-	castingAnalytics, err := s.GetCastingAnalytics(dateFrom, dateTo)
+	castingAnalytics, err := s.GetCastingAnalytics(db, ctx, dateFrom, dateTo)
 	if err != nil {
 		return nil, err
 	}
 
-	matchingAnalytics, err := s.GetMatchingAnalytics(dateFrom, dateTo)
+	matchingAnalytics, err := s.GetMatchingAnalytics(db, ctx, dateFrom, dateTo)
 	if err != nil {
 		return nil, err
 	}
 
-	financialAnalytics, err := s.GetFinancialAnalytics(dateFrom, dateTo)
+	financialAnalytics, err := s.GetFinancialAnalytics(db, ctx, dateFrom, dateTo)
 	if err != nil {
 		return nil, err
 	}
 
-	geographicAnalytics, err := s.GetGeographicAnalytics()
+	geographicAnalytics, err := s.GetGeographicAnalytics(db, ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	categoryAnalytics, err := s.GetCategoryAnalytics()
+	categoryAnalytics, err := s.GetCategoryAnalytics(db, ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	performanceMetrics, err := s.GetPerformanceMetrics(dateFrom, dateTo)
+	performanceMetrics, err := s.GetPerformanceMetrics(db, ctx, dateFrom, dateTo)
 	if err != nil {
 		return nil, err
 	}
 
-	platformHealth, err := s.GetPlatformHealthMetrics()
+	platformHealth, err := s.GetPlatformHealthMetrics(db, ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	realTimeMetrics, err := s.GetRealTimeMetrics()
+	realTimeMetrics, err := s.GetRealTimeMetrics(db, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -146,45 +161,43 @@ func (s *analyticsService) GetPlatformOverview(dateFrom, dateTo time.Time) (*dto
 	}, nil
 }
 
-func (s *analyticsService) GetPlatformGrowthMetrics(days int) (*dto.GrowthMetrics, error) {
+// GetPlatformGrowthMetrics - 'db' добавлен
+func (s *analyticsService) GetPlatformGrowthMetrics(db *gorm.DB, ctx context.Context, days int) (*dto.GrowthMetrics, error) {
 	dateTo := time.Now()
 	dateFrom := dateTo.AddDate(0, 0, -days)
 
-	userStats, err := s.userRepo.GetUserStats(dateFrom, dateTo)
+	// ✅ Используем 'db' из параметра
+	userStats, err := s.analyticsRepo.GetUserStats(db, dateFrom, dateTo)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
-	// Calculate monthly growth
 	monthStart := time.Now().AddDate(0, -1, 0)
-	monthStats, _ := s.userRepo.GetUserStats(monthStart, dateTo)
+	// ✅ Используем 'db' из параметра
+	monthStats, _ := s.analyticsRepo.GetUserStats(db, monthStart, dateTo)
 
 	previousMonthStart := monthStart.AddDate(0, -1, 0)
-	previousMonthStats, _ := s.userRepo.GetUserStats(previousMonthStart, monthStart)
+	// ✅ Используем 'db' из параметра
+	previousMonthStats, _ := s.analyticsRepo.GetUserStats(db, previousMonthStart, monthStart)
 
 	monthlyGrowthRate := 0.0
 	if previousMonthStats.TotalUsers > 0 {
 		monthlyGrowthRate = (float64(monthStats.NewUsers) / float64(previousMonthStats.TotalUsers)) * 100
 	}
 
-	// Generate historical trends
 	var historicalTrends []dto.DataPoint
-	ctx := context.Background() // <-- Используем context
 	for i := 0; i < days; i++ {
 		currentDate := dateFrom.AddDate(0, 0, i)
 
-		// Используем GetDAU из analyticsRepo для получения активных пользователей
-		// или GetUserStats для новых пользователей. Выберем GetUserStats для "NewUsers"
-		dailyStats, err := s.userRepo.GetUserStats(currentDate, currentDate.AddDate(0, 0, 1))
+		// ✅ Используем 'db' из параметра
+		dailyStats, err := s.analyticsRepo.GetUserStats(db, currentDate, currentDate.AddDate(0, 0, 1))
 		if err != nil {
-			// Попробуем получить DAU, если GetUserStats не удался (или наоборот)
-			dau, dauErr := s.analyticsRepo.GetDAU(ctx, currentDate)
+			// ✅ Используем 'db' из параметра
+			dau, dauErr := s.analyticsRepo.GetDAU(db, ctx, currentDate)
 			if dauErr != nil {
-				continue // Пропускаем день, если обе статистики не удались
+				continue
 			}
-			dailyStats.NewUsers = dau // Используем DAU как запасной вариант, хотя это разные метрики
-			// В идеале GetUserStats должен быть надежным, или мы должны
-			// отслеживать "USER_REGISTER" в analyticsRepo
+			dailyStats.NewUsers = dau
 		}
 
 		historicalTrends = append(historicalTrends, dto.DataPoint{
@@ -193,53 +206,51 @@ func (s *analyticsService) GetPlatformGrowthMetrics(days int) (*dto.GrowthMetric
 		})
 	}
 
-	// Получаем средний DAU за период
-	avgDAU, _ := s.calculateAverageDAU(dateFrom, dateTo)
+	// ✅ Передаем 'db'
+	avgDAU, _ := s.calculateAverageDAU(db, ctx, dateFrom, dateTo)
 
 	return &dto.GrowthMetrics{
 		TotalUsers:        int(userStats.TotalUsers),
 		NewUsersThisMonth: int(monthStats.NewUsers),
 		MonthlyGrowthRate: monthlyGrowthRate,
-		ActiveUsers:       int(avgDAU), // <-- Используем средний DAU
-		ChurnRate:         s.calculateChurnRate(dateFrom, dateTo),
+		ActiveUsers:       int(avgDAU),
+		ChurnRate:         s.calculateChurnRate(db, ctx, dateFrom, dateTo), // ✅ Передаем 'db'
 		HistoricalTrends:  historicalTrends,
 	}, nil
 }
 
 // User Analytics
-func (s *analyticsService) GetUserAnalytics(dateFrom, dateTo time.Time) (*dto.UserAnalytics, error) {
+// GetUserAnalytics - 'db' добавлен
+func (s *analyticsService) GetUserAnalytics(db *gorm.DB, ctx context.Context, dateFrom, dateTo time.Time) (*dto.UserAnalytics, error) {
 	if dateFrom.After(dateTo) {
 		return nil, ErrInvalidDateRange
 	}
 
-	acquisition, err := s.GetUserAcquisitionMetrics(dateFrom, dateTo)
+	// ✅ Передаем 'db'
+	acquisition, err := s.GetUserAcquisitionMetrics(db, ctx, dateFrom, dateTo)
+	if err != nil {
+		return nil, err
+	}
+	// ✅ Передаем 'db'
+	retention, err := s.GetUserRetentionMetrics(db, ctx, 30)
 	if err != nil {
 		return nil, err
 	}
 
-	retention, err := s.GetUserRetentionMetrics(30)
+	// ✅ Передаем 'db'
+	avgDAU, err := s.calculateAverageDAU(db, ctx, dateFrom, dateTo)
 	if err != nil {
-		return nil, err
-	}
-
-	// --- Обновленная логика ---
-	// Рассчитываем средний DAU, WAU, MAU за период
-	avgDAU, err := s.calculateAverageDAU(dateFrom, dateTo)
-	if err != nil {
-		// Не фатально, можем просто установить в 0
 		avgDAU = 0
 	}
 
-	// WAU и MAU все еще упрощены, но основаны на более точной метрике DAU
 	activity := dto.UserActivity{
 		DailyActiveUsers:   int(avgDAU),
-		WeeklyActiveUsers:  int(avgDAU * 5),  // Упрощенное предположение (5 рабочих дней)
-		MonthlyActiveUsers: int(avgDAU * 22), // Упрощенное предположение (22 рабочих дня)
+		WeeklyActiveUsers:  int(avgDAU * 5),
+		MonthlyActiveUsers: int(avgDAU * 22),
 	}
-	// --- Конец обновленной логики ---
 
 	churn := dto.ChurnAnalysis{
-		Rate: s.calculateChurnRate(dateFrom, dateTo),
+		Rate: s.calculateChurnRate(db, ctx, dateFrom, dateTo), // ✅ Передаем 'db'
 		Reasons: []dto.DataPoint{
 			{Timestamp: "Inactivity", Value: 45.0},
 			{Timestamp: "Price", Value: 25.0},
@@ -256,14 +267,16 @@ func (s *analyticsService) GetUserAnalytics(dateFrom, dateTo time.Time) (*dto.Us
 	}, nil
 }
 
-func (s *analyticsService) GetUserAcquisitionMetrics(dateFrom, dateTo time.Time) (*dto.UserAcquisitionMetrics, error) {
-	userStats, err := s.userRepo.GetUserStats(dateFrom, dateTo)
+// GetUserAcquisitionMetrics - 'db' добавлен
+func (s *analyticsService) GetUserAcquisitionMetrics(db *gorm.DB, ctx context.Context, dateFrom, dateTo time.Time) (*dto.UserAcquisitionMetrics, error) {
+	// ✅ Используем 'db' из параметра
+	userStats, err := s.analyticsRepo.GetUserStats(db, dateFrom, dateTo)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
-	// Получаем DAU, чтобы рассчитать ReturningUsers
-	avgDAU, _ := s.calculateAverageDAU(dateFrom, dateTo)
+	// ✅ Передаем 'db'
+	avgDAU, _ := s.calculateAverageDAU(db, ctx, dateFrom, dateTo)
 
 	sources := []dto.DataPoint{
 		{Timestamp: "Organic", Value: 500},
@@ -275,29 +288,32 @@ func (s *analyticsService) GetUserAcquisitionMetrics(dateFrom, dateTo time.Time)
 
 	returningUsers := int(avgDAU) - int(userStats.NewUsers)
 	if returningUsers < 0 {
-		returningUsers = 0 // Не может быть отрицательным
+		returningUsers = 0
 	}
 
 	return &dto.UserAcquisitionMetrics{
 		NewUsers:       int(userStats.NewUsers),
-		ReturningUsers: returningUsers, // <-- Используем DAU
+		ReturningUsers: returningUsers,
 		ConversionRate: 0.05,
 		Sources:        sources,
 	}, nil
 }
 
 // Casting Analytics
-func (s *analyticsService) GetCastingAnalytics(dateFrom, dateTo time.Time) (*dto.CastingAnalytics, error) {
+// GetCastingAnalytics - 'db' добавлен
+func (s *analyticsService) GetCastingAnalytics(db *gorm.DB, ctx context.Context, dateFrom, dateTo time.Time) (*dto.CastingAnalytics, error) {
 	if dateFrom.After(dateTo) {
 		return nil, ErrInvalidDateRange
 	}
 
-	castingStats, err := s.castingRepo.GetPlatformCastingStats(dateFrom, dateTo)
+	// ✅ Используем 'db' из параметра
+	castingStats, err := s.castingRepo.GetPlatformCastingStats(db, dateFrom, dateTo)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
-	popularCategories, err := s.GetPopularCategories(30, 10)
+	// ✅ Передаем 'db'
+	popularCategories, err := s.GetPopularCategories(db, ctx, 30, 10)
 	if err != nil {
 		return nil, err
 	}
@@ -318,14 +334,16 @@ func (s *analyticsService) GetCastingAnalytics(dateFrom, dateTo time.Time) (*dto
 }
 
 // Matching Analytics
-func (s *analyticsService) GetMatchingAnalytics(dateFrom, dateTo time.Time) (*dto.MatchingAnalytics, error) {
+// GetMatchingAnalytics - 'db' добавлен
+func (s *analyticsService) GetMatchingAnalytics(db *gorm.DB, ctx context.Context, dateFrom, dateTo time.Time) (*dto.MatchingAnalytics, error) {
 	if dateFrom.After(dateTo) {
 		return nil, ErrInvalidDateRange
 	}
 
-	matchingStats, err := s.castingRepo.GetMatchingStats(dateFrom, dateTo)
+	// ✅ Используем 'db' из параметра
+	matchingStats, err := s.castingRepo.GetMatchingStats(db, dateFrom, dateTo)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	matchQuality := dto.MatchQuality{
@@ -354,17 +372,18 @@ func (s *analyticsService) GetMatchingAnalytics(dateFrom, dateTo time.Time) (*dt
 }
 
 // Financial Analytics
-func (s *analyticsService) GetFinancialAnalytics(dateFrom, dateTo time.Time) (*dto.FinancialAnalytics, error) {
+// GetFinancialAnalytics - 'db' добавлен
+func (s *analyticsService) GetFinancialAnalytics(db *gorm.DB, ctx context.Context, dateFrom, dateTo time.Time) (*dto.FinancialAnalytics, error) {
 	if dateFrom.After(dateTo) {
 		return nil, ErrInvalidDateRange
 	}
 
-	subscriptionMetrics, err := s.subscriptionRepo.GetSubscriptionMetrics(dateFrom, dateTo)
+	// ✅ Используем 'db' из параметра
+	subscriptionMetrics, err := s.subscriptionRepo.GetSubscriptionMetrics(db, dateFrom, dateTo)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
-	// Generate monthly revenue data
 	var monthlyRevenue []dto.DataPoint
 	for i := 0; i < 12; i++ {
 		month := dateTo.AddDate(0, -i, 0)
@@ -389,15 +408,18 @@ func (s *analyticsService) GetFinancialAnalytics(dateFrom, dateTo time.Time) (*d
 }
 
 // Geographic Analytics
-func (s *analyticsService) GetGeographicAnalytics() (*dto.GeographicAnalytics, error) {
-	userDistribution, err := s.userRepo.GetUserDistributionByCity()
+// GetGeographicAnalytics - 'db' добавлен
+func (s *analyticsService) GetGeographicAnalytics(db *gorm.DB, ctx context.Context) (*dto.GeographicAnalytics, error) {
+	// ✅ Используем 'db' из параметра
+	userDistribution, err := s.analyticsRepo.GetUserDistributionByCity(db)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
-	castingDistribution, err := s.castingRepo.GetCastingDistributionByCity()
+	// ✅ Используем 'db' из параметра
+	castingDistribution, err := s.analyticsRepo.GetCastingDistributionByCity(db)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	var countries []dto.CityStats
@@ -407,10 +429,9 @@ func (s *analyticsService) GetGeographicAnalytics() (*dto.GeographicAnalytics, e
 		countries = append(countries, dto.CityStats{
 			Name:      city,
 			UserCount: int(userCount),
-			Revenue:   float64(userCount) * 25.0, // Simplified calculation
+			Revenue:   float64(userCount) * 25.0,
 		})
 
-		// Ensure userCount is not zero to avoid division by zero
 		responseTime := 0.5
 		if userCount > 0 {
 			responseTime += (float64(castingDistribution[city]) / float64(userCount))
@@ -430,7 +451,8 @@ func (s *analyticsService) GetGeographicAnalytics() (*dto.GeographicAnalytics, e
 }
 
 // Performance Analytics
-func (s *analyticsService) GetPerformanceMetrics(dateFrom, dateTo time.Time) (*dto.PerformanceMetrics, error) {
+// GetPerformanceMetrics - 'db' добавлен
+func (s *analyticsService) GetPerformanceMetrics(db *gorm.DB, ctx context.Context, dateFrom, dateTo time.Time) (*dto.PerformanceMetrics, error) {
 	return &dto.PerformanceMetrics{
 		ResponseTimes: dto.ResponseTimes{
 			AverageMS: 150.0,
@@ -443,38 +465,37 @@ func (s *analyticsService) GetPerformanceMetrics(dateFrom, dateTo time.Time) (*d
 }
 
 // Real-time Analytics
-func (s *analyticsService) GetRealTimeMetrics() (*dto.RealTimeMetrics, error) {
-	// Эта метрика (активные за 15 мин) хороша для "Real-time"
-	activeUsers, err := s.userRepo.GetActiveUsersCount(15)
+// GetRealTimeMetrics - 'db' добавлен
+func (s *analyticsService) GetRealTimeMetrics(db *gorm.DB, ctx context.Context) (*dto.RealTimeMetrics, error) {
+	// ✅ Используем 'db' из параметра
+	activeUsers, err := s.analyticsRepo.GetActiveUsersCount(db, 15)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
-	activeCastings, err := s.castingRepo.GetActiveCastingsCount()
+	// ✅ Используем 'db' из параметра
+	activeCastings, err := s.castingRepo.GetActiveCastingsCount(db)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	keyMetrics := dto.KeyMetrics{
-		ActiveUsers: int(activeUsers), // Активные за 15 мин
+		ActiveUsers: int(activeUsers),
 		NewUsers:    0,
 		Revenue:     0.0,
 	}
 
-	// --- Обновленная логика ---
-	// Получаем DAU (активные за *сегодня*)
-	ctx := context.Background()
-	dau, err := s.analyticsRepo.GetDAU(ctx, time.Now())
+	// ✅ Используем 'db' из параметра
+	dau, err := s.analyticsRepo.GetDAU(db, ctx, time.Now())
 	if err != nil {
-		dau = 0 // Не фатально
+		dau = 0
 	}
 
 	activity := dto.UserActivity{
-		DailyActiveUsers:   int(dau),      // <-- Реальный DAU за сегодня
-		WeeklyActiveUsers:  int(dau * 5),  // Упрощение
-		MonthlyActiveUsers: int(dau * 20), // Упрощение
+		DailyActiveUsers:   int(dau),
+		WeeklyActiveUsers:  int(dau * 5),
+		MonthlyActiveUsers: int(dau * 20),
 	}
-	// --- Конец обновленной логики ---
 
 	castingActivity := dto.CastingActivity{
 		OpenCastings: int(activeCastings),
@@ -495,19 +516,27 @@ func (s *analyticsService) GetRealTimeMetrics() (*dto.RealTimeMetrics, error) {
 	}, nil
 }
 
-func (s *analyticsService) GetActiveUsersCount() (int64, error) {
-	return s.userRepo.GetActiveUsersCount(15)
+// GetActiveUsersCount - 'db' добавлен
+func (s *analyticsService) GetActiveUsersCount(db *gorm.DB, ctx context.Context) (int64, error) {
+	// ✅ Используем 'db' из параметра
+	count, err := s.analyticsRepo.GetActiveUsersCount(db, 15)
+	if err != nil {
+		return 0, apperrors.InternalError(err)
+	}
+	return count, nil
 }
 
 // Admin Dashboard
-func (s *analyticsService) GetAdminDashboard(adminID string) (*dto.AdminDashboard, error) {
-	admin, err := s.userRepo.FindByID(adminID)
+// GetAdminDashboard - 'db' добавлен
+func (s *analyticsService) GetAdminDashboard(db *gorm.DB, ctx context.Context, adminID string) (*dto.AdminDashboard, error) {
+	// ✅ Используем 'db' из параметра
+	admin, err := s.userRepo.FindByID(db, adminID)
 	if err != nil {
-		return nil, err
+		return nil, handleRepositoryError(err)
 	}
 
 	if admin.Role != models.UserRoleAdmin {
-		return nil, errors.New("insufficient permissions")
+		return nil, apperrors.ErrInsufficientPermissions
 	}
 
 	recentActivity := []dto.RecentActivity{
@@ -541,42 +570,40 @@ func (s *analyticsService) GetAdminDashboard(adminID string) (*dto.AdminDashboar
 // Helper methods
 // ==============================
 
-// calculateAverageDAU рассчитывает средний DAU за период
-func (s *analyticsService) calculateAverageDAU(from, to time.Time) (float64, error) {
-	ctx := context.Background()
+// calculateAverageDAU - 'db' добавлен
+func (s *analyticsService) calculateAverageDAU(db *gorm.DB, ctx context.Context, from, to time.Time) (float64, error) {
 	totalDAU := int64(0)
 	numDays := 0
 
-	// Нормализуем даты до начала дня
 	currentDay := from.Truncate(24 * time.Hour)
 	endDate := to.Truncate(24 * time.Hour)
 
-	// Итерируем по каждому дню в диапазоне
 	for ; !currentDay.After(endDate); currentDay = currentDay.AddDate(0, 0, 1) {
-		dau, err := s.analyticsRepo.GetDAU(ctx, currentDay)
+		// ✅ Используем 'db' из параметра
+		dau, err := s.analyticsRepo.GetDAU(db, ctx, currentDay)
 		if err != nil {
-			// Если один день не удался, мы можем либо пропустить его, либо вернуть ошибку
-			// Вернем ошибку, чтобы среднее значение было точным
-			return 0, err
+			return 0, apperrors.InternalError(err)
 		}
 		totalDAU += dau
 		numDays++
 	}
 
 	if numDays == 0 {
-		return 0, nil // Избегаем деления на ноль
+		return 0, nil
 	}
 
 	return float64(totalDAU) / float64(numDays), nil
 }
 
-func (s *analyticsService) calculateRetentionRate(dateFrom, dateTo time.Time) float64 {
-	// TODO: Реализовать с использованием analyticsRepo (например, когортный анализ)
+// calculateRetentionRate - 'db' добавлен
+func (s *analyticsService) calculateRetentionRate(db *gorm.DB, ctx context.Context, dateFrom, dateTo time.Time) float64 {
+	// TODO: Реализовать с использованием analyticsRepo(db, ...)
 	return 0.75
 }
 
-func (s *analyticsService) calculateChurnRate(dateFrom, dateTo time.Time) float64 {
-	// TODO: Реализовать с использованием analyticsRepo
+// calculateChurnRate - 'db' добавлен
+func (s *analyticsService) calculateChurnRate(db *gorm.DB, ctx context.Context, dateFrom, dateTo time.Time) float64 {
+	// TODO: Реализовать с использованием analyticsRepo(db, ...)
 	return 0.08
 }
 
@@ -584,7 +611,9 @@ func (s *analyticsService) calculateChurnRate(dateFrom, dateTo time.Time) float6
 // Stub implementations
 // ==============================
 
-func (s *analyticsService) GetUserRetentionMetrics(days int) (*dto.UserRetentionMetrics, error) {
+// GetUserRetentionMetrics - 'db' добавлен
+func (s *analyticsService) GetUserRetentionMetrics(db *gorm.DB, ctx context.Context, days int) (*dto.UserRetentionMetrics, error) {
+	// ✅ Используем 'db' из параметра (для будущей логики)
 	return &dto.UserRetentionMetrics{
 		RetentionRate:   0.75,
 		AverageLifespan: 365.0,
@@ -596,14 +625,18 @@ func (s *analyticsService) GetUserRetentionMetrics(days int) (*dto.UserRetention
 	}, nil
 }
 
-func (s *analyticsService) GetCastingPerformanceMetrics(employerID string, dateFrom, dateTo time.Time) (*dto.CastingPerformanceMetrics, error) {
+// GetCastingPerformanceMetrics - 'db' добавлен
+func (s *analyticsService) GetCastingPerformanceMetrics(db *gorm.DB, ctx context.Context, employerID string, dateFrom, dateTo time.Time) (*dto.CastingPerformanceMetrics, error) {
+	// ✅ Используем 'db' из параметра (для будущей логики)
 	return &dto.CastingPerformanceMetrics{
 		CompletionRate: 0.85,
 		EngagementRate: 0.72,
 	}, nil
 }
 
-func (s *analyticsService) GetMatchingEfficiencyMetrics(days int) (*dto.MatchingEfficiencyMetrics, error) {
+// GetMatchingEfficiencyMetrics - 'db' добавлен
+func (s *analyticsService) GetMatchingEfficiencyMetrics(db *gorm.DB, ctx context.Context, days int) (*dto.MatchingEfficiencyMetrics, error) {
+	// ✅ Используем 'db' из параметра (для будущей логики)
 	return &dto.MatchingEfficiencyMetrics{
 		AverageMatchTime: 2.5,
 		MatchRate:        0.65,
@@ -611,15 +644,19 @@ func (s *analyticsService) GetMatchingEfficiencyMetrics(days int) (*dto.Matching
 	}, nil
 }
 
-func (s *analyticsService) GetCityPerformanceMetrics(topN int) ([]*dto.CityPerformance, error) {
+// GetCityPerformanceMetrics - 'db' добавлен
+func (s *analyticsService) GetCityPerformanceMetrics(db *gorm.DB, ctx context.Context, topN int) ([]*dto.CityPerformance, error) {
+	// ✅ Используем 'db' из параметра (для будущей логики)
 	return []*dto.CityPerformance{
 		{Name: "Almaty", EngagementRate: 0.75, ResponseTime: 1.2},
 		{Name: "Astana", EngagementRate: 0.70, ResponseTime: 1.5},
 	}, nil
 }
 
-func (s *analyticsService) GetCategoryAnalytics() (*dto.CategoryAnalytics, error) {
-	categories, err := s.GetPopularCategories(30, 10)
+// GetCategoryAnalytics - 'db' добавлен
+func (s *analyticsService) GetCategoryAnalytics(db *gorm.DB, ctx context.Context) (*dto.CategoryAnalytics, error) {
+	// ✅ Передаем 'db'
+	categories, err := s.GetPopularCategories(db, ctx, 30, 10)
 	if err != nil {
 		return nil, err
 	}
@@ -629,10 +666,12 @@ func (s *analyticsService) GetCategoryAnalytics() (*dto.CategoryAnalytics, error
 	}, nil
 }
 
-func (s *analyticsService) GetPopularCategories(days int, limit int) ([]*dto.CategoryStats, error) {
-	popularCategories, err := s.castingRepo.GetPopularCategories(limit)
+// GetPopularCategories - 'db' добавлен
+func (s *analyticsService) GetPopularCategories(db *gorm.DB, ctx context.Context, days int, limit int) ([]*dto.CategoryStats, error) {
+	// ✅ Используем 'db' из параметра
+	popularCategories, err := s.castingRepo.GetPopularCategories(db, limit)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	var result []*dto.CategoryStats
@@ -647,7 +686,9 @@ func (s *analyticsService) GetPopularCategories(days int, limit int) ([]*dto.Cat
 	return result, nil
 }
 
-func (s *analyticsService) GetPlatformHealthMetrics() (*dto.PlatformHealthMetrics, error) {
+// GetPlatformHealthMetrics - 'db' добавлен
+func (s *analyticsService) GetPlatformHealthMetrics(db *gorm.DB, ctx context.Context) (*dto.PlatformHealthMetrics, error) {
+	// ✅ Используем 'db' из параметра (для будущей логики)
 	return &dto.PlatformHealthMetrics{
 		SystemHealth: dto.SystemHealth{},
 		ResourceUsage: dto.ResourceUsage{
@@ -669,7 +710,9 @@ func (s *analyticsService) GetPlatformHealthMetrics() (*dto.PlatformHealthMetric
 	}, nil
 }
 
-func (s *analyticsService) GenerateCustomReport(req *dto.CustomReportRequest) (*dto.CustomReport, error) {
+// GenerateCustomReport - 'db' добавлен
+func (s *analyticsService) GenerateCustomReport(db *gorm.DB, ctx context.Context, req *dto.CustomReportRequest) (*dto.CustomReport, error) {
+	// ✅ Используем 'db' из параметра (для будущей логики)
 	return &dto.CustomReport{
 		ID:          "report-" + time.Now().Format("20060102150405"),
 		Name:        req.Type,
@@ -678,14 +721,19 @@ func (s *analyticsService) GenerateCustomReport(req *dto.CustomReportRequest) (*
 	}, nil
 }
 
-func (s *analyticsService) GetPredefinedReports() ([]*dto.PredefinedReport, error) {
-	return []*dto.PredefinedReport{
-		{Name: "User Growth Report", Description: "Monthly user growth analysis", Category: "Users"},
-		{Name: "Revenue Report", Description: "Financial performance overview", Category: "Finance"},
-		{Name: "Casting Performance", Description: "Casting success metrics", Category: "Castings"},
+// GetPredefinedReports - 'db' добавлен
+func (s *analyticsService) GetPredefinedReports(db *gorm.DB, ctx context.Context) ([]*dto.PredefinedReport, error) {
+	// ✅ Используем 'db' из параметра (для будущей логики)
+	return []*dto.PredefinedReport{ // <-- Исправлено на Report (единственное число)
+		// ✅ Добавлены &dto.PredefinedReport{} для создания указателей
+		&dto.PredefinedReport{Name: "User Growth Report", Description: "Monthly user growth analysis", Category: "Users"},
+		&dto.PredefinedReport{Name: "Revenue Report", Description: "Financial performance overview", Category: "Finance"},
+		&dto.PredefinedReport{Name: "Casting Performance", Description: "Casting success metrics", Category: "Castings"},
 	}, nil
 }
 
-func (s *analyticsService) GetSystemHealthMetrics() (*dto.SystemHealth, error) {
+// GetSystemHealthMetrics - 'db' добавлен
+func (s *analyticsService) GetSystemHealthMetrics(db *gorm.DB, ctx context.Context) (*dto.SystemHealth, error) {
+	// ✅ Используем 'db' из параметра (для будущей логики)
 	return &dto.SystemHealth{}, nil
 }

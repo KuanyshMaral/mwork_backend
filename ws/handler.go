@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/gin-gonic/gin" // <--- ИМПОРТИРУЕМ GIN
+	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
 
@@ -16,6 +16,7 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
+// Убрана зависимость от BaseHandler
 type WebSocketHandler struct {
 	Manager *WebSocketManager
 }
@@ -26,30 +27,22 @@ func NewWebSocketHandler(manager *WebSocketManager) *WebSocketHandler {
 	}
 }
 
-//
-// УДАЛЕНО: func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request)
-// УДАЛЕНО: func ServeWS(...)
-//
-
-// ИСПРАВЛЕНИЕ: Мы создаем метод ServeWS(c *gin.Context), который ожидает app.go
 func (h *WebSocketHandler) ServeWS(c *gin.Context) {
 
-	// 1. Получаем userID из Gin-контекста
-	// В production, лучше получать его из auth middleware:
-	// userID, exists := c.Get("userID")
-	// if !exists {
-	//    c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-	//	  return
-	// }
-	//
-	// Временное решение: получаем из query-параметра
-	userID := c.Query("user_id")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized. 'user_id' query parameter is required."})
+	// Получаем userID из middleware (как в BaseHandler)
+	userIDVal, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized. Missing userID in context."})
 		return
 	}
 
-	// 2. Обновляем соединение, используя c.Writer и c.Request из Gin
+	userID, ok := userIDVal.(string)
+	if !ok || userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized. Invalid userID format in context."})
+		return
+	}
+
+	// Обновляем соединение
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		log.Println("WebSocket upgrade error:", err)
@@ -58,19 +51,19 @@ func (h *WebSocketHandler) ServeWS(c *gin.Context) {
 
 	log.Printf("WebSocket-клиент %s подключен\n", userID)
 
-	// 3. Создаем клиента, используя h.Manager из структуры
+	// Создаем клиента
 	client := &Client{
-		ID:      userID,
+		ID:      userID, // <-- Используем userID из middleware
 		Conn:    conn,
-		Send:    make(chan any, 256), // Буферизованный канал
-		Ctx:     c.Request.Context(), // Используем контекст из Gin
-		Manager: h.Manager,           // Используем Manager из *h
+		Send:    make(chan any, 256),
+		Ctx:     c.Request.Context(),
+		Manager: h.Manager,
 	}
 
-	// 4. Регистрируем клиента в менеджере
+	// Регистрируем клиента
 	h.Manager.register <- client
 
-	// 5. Запускаем read/write
+	// Запускаем read/write
 	go client.readPump()
 	go client.writePump()
 }

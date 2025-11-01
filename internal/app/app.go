@@ -15,6 +15,7 @@ import (
 	"mwork_backend/internal/services"
 	"mwork_backend/internal/storage"
 	"mwork_backend/internal/validator"
+	"mwork_backend/pkg/contextkeys" // <-- ✅ 1. ДОБАВЛЕН ИМПОРТ
 	"mwork_backend/ws"
 
 	"github.com/gin-gonic/gin"
@@ -23,9 +24,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// AppHandlers (без изменений)
+// ... (структура AppHandlers без изменений) ...
 type AppHandlers struct {
-	// ...
+	AuthHandler         *handlers.AuthHandler
 	UserHandler         *handlers.UserHandler
 	ProfileHandler      *handlers.ProfileHandler
 	CastingHandler      *handlers.CastingHandler
@@ -41,23 +42,17 @@ type AppHandlers struct {
 	FileHandler         *handlers.FileHandler
 }
 
+// ... (функция Run без изменений) ...
 func Run() {
-	// 1. Загружаем конфигурацию
 	config.LoadConfig()
 	cfg := config.AppConfig
-
-	// 2. Инициализируем логгер
 	logger.Init(cfg.Server.Env)
 	logger.Info("Logger initialized", "env", cfg.Server.Env)
-
-	// 3. Подключение к БД
 	logger.Info("Connecting to database...", "dsn", cfg.Database.DSN)
-
 	gormDB, err := gorm.Open(postgres.Open(cfg.Database.DSN), &gorm.Config{})
 	if err != nil {
 		logger.Fatal("Failed to connect to GORM", "error", err)
 	}
-
 	sqlDB, err := gormDB.DB()
 	if err != nil {
 		logger.Fatal("Failed to get *sql.DB from GORM", "error", err)
@@ -66,23 +61,16 @@ func Run() {
 		logger.Fatal("Database unavailable", "error", err)
 	}
 	logger.Info("Database connected")
-
-	// 4. ✅ Инициализация роутера (теперь вызывает новую функцию)
 	ginRouter := SetupRouter(cfg, gormDB, sqlDB)
-
-	// 5. Запускаем сервер
 	address := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	logger.Info(fmt.Sprintf("🚀 Server starting on %s", address))
-
 	if err := ginRouter.Run(address); err != nil {
 		logger.Fatal("Server startup error", "error", err)
 	}
 }
 
-// ✅
-// 5. ✅ НОВАЯ ЭКСПОРТИРУЕМАЯ ФУНКЦИЯ, КОТОРУЮ БУДЕТ ИСПОЛЬЗОВАТЬ ТЕСТ
-// ✅
 func SetupRouter(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB) *gin.Engine {
+	// ... (storageInstance, serviceContainer, appHandlers, wsManager... без изменений) ...
 	storageInstance, err := storage.NewStorage(storage.Config{
 		Type:       cfg.Storage.Type,
 		BasePath:   cfg.Storage.BasePath,
@@ -99,25 +87,19 @@ func SetupRouter(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB) *gin.Engine
 		logger.Fatal("Failed to initialize storage", "error", err)
 	}
 	logger.Info("Storage initialized", "type", cfg.Storage.Type)
-
-	// Инициализация сервисов
 	serviceContainer := initializeServices(cfg, gormDB, sqlDB, storageInstance)
-
-	// Инициализация хендлеров (с BaseHandler)
 	appHandlers := initializeHandlers(serviceContainer, storageInstance, gormDB)
-
-	// WebSocket
 	wsManager := ws.NewWebSocketManager(
 		serviceContainer.ChatService,
+		gormDB,
 	)
 	go wsManager.Run()
-
 	wsHandler := ws.NewWebSocketHandler(
 		wsManager,
 	)
 
 	// Инициализация роутеров
-	ginRouter := initializeGinRouter()
+	ginRouter := initializeGinRouter(gormDB) // <-- ✅ 2. ПЕРЕДАЕМ gormDB СЮДА
 
 	// Настройка маршрутов
 	setupRoutes(ginRouter, appHandlers, wsHandler)
@@ -125,9 +107,8 @@ func SetupRouter(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB) *gin.Engine
 	return ginRouter
 }
 
-// ServiceContainer (без изменений)
+// ... (ServiceContainer, initializeServices, initializeHandlers... без изменений) ...
 type ServiceContainer struct {
-	// ...
 	UserService         services.UserService
 	AuthService         services.AuthService
 	ProfileService      services.ProfileService
@@ -145,9 +126,7 @@ type ServiceContainer struct {
 	storage             storage.Storage
 }
 
-// initializeServices (без изменений)
 func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB, storageInstance storage.Storage) *ServiceContainer {
-	// ... (без изменений) ...
 	emailServiceConfig := services.EmailServiceConfig{
 		SMTPHost:     cfg.Email.SMTPHost,
 		SMTPPort:     cfg.Email.SMTPPort,
@@ -158,26 +137,21 @@ func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB, stor
 		UseTLS:       cfg.Email.UseTLS,
 		TemplatesDir: cfg.Email.TemplatesDir,
 	}
-
 	emailService, err := services.NewEmailServiceWithConfig(emailServiceConfig)
 	if err != nil {
 		logger.Fatal("Failed to initialize EmailService", "error", err)
 	}
-
-	// ... (все репозитории и сервисы как были) ...
-	userRepo := repositories.NewUserRepository(gormDB)
-	refreshTokenRepo := repositories.NewRefreshTokenRepository(gormDB)
-	profileRepo := repositories.NewProfileRepository(gormDB)
-	castingRepo := repositories.NewCastingRepository(gormDB)
-	responseRepo := repositories.NewResponseRepository(gormDB)
-	notificationRepo := repositories.NewNotificationRepository(gormDB)
-	portfolioRepo := repositories.NewPortfolioRepository(gormDB)
-	reviewRepo := repositories.NewReviewRepository(gormDB)
-	subscriptionRepo := repositories.NewSubscriptionRepository(gormDB)
-	chatRepo := repositories.NewChatRepository(gormDB)
-	analyticsRepo := repositories.NewAnalyticsRepository(gormDB)
-
-	// Сервисы
+	userRepo := repositories.NewUserRepository()
+	refreshTokenRepo := repositories.NewRefreshTokenRepository()
+	profileRepo := repositories.NewProfileRepository()
+	castingRepo := repositories.NewCastingRepository()
+	responseRepo := repositories.NewResponseRepository()
+	notificationRepo := repositories.NewNotificationRepository()
+	portfolioRepo := repositories.NewPortfolioRepository()
+	reviewRepo := repositories.NewReviewRepository()
+	subscriptionRepo := repositories.NewSubscriptionRepository()
+	chatRepo := repositories.NewChatRepository()
+	analyticsRepo := repositories.NewAnalyticsRepository()
 	userService := services.NewUserService(userRepo, profileRepo)
 	authService := services.NewAuthService(
 		userRepo,
@@ -240,6 +214,7 @@ func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB, stor
 		reviewRepo,
 		portfolioRepo,
 		notificationRepo,
+		userRepo,
 	)
 	analyticsService := services.NewAnalyticsService(
 		userRepo,
@@ -263,6 +238,7 @@ func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB, stor
 		castingRepo,
 		profileRepo,
 		notificationRepo,
+		responseRepo,
 	)
 	return &ServiceContainer{
 		UserService:         userService,
@@ -282,13 +258,12 @@ func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB, stor
 	}
 }
 
-// initializeHandlers (без изменений)
 func initializeHandlers(services *ServiceContainer, storageInstance storage.Storage, gormDB *gorm.DB) *AppHandlers {
 	customValidator := validator.New()
 	baseHandler := handlers.NewBaseHandler(customValidator)
-	portfolioRepo := repositories.NewPortfolioRepository(gormDB)
-
+	portfolioRepo := repositories.NewPortfolioRepository()
 	return &AppHandlers{
+		AuthHandler:         handlers.NewAuthHandler(baseHandler, services.AuthService),
 		UserHandler:         handlers.NewUserHandler(baseHandler, services.UserService, services.AuthService),
 		ProfileHandler:      handlers.NewProfileHandler(baseHandler, services.ProfileService),
 		CastingHandler:      handlers.NewCastingHandler(baseHandler, services.CastingService),
@@ -301,24 +276,28 @@ func initializeHandlers(services *ServiceContainer, storageInstance storage.Stor
 		SearchHandler:       handlers.NewSearchHandler(baseHandler, services.SearchService),
 		AnalyticsHandler:    handlers.NewAnalyticsHandler(baseHandler, services.AnalyticsService),
 		ChatHandler:         handlers.NewChatHandler(baseHandler, services.ChatService),
-		FileHandler:         handlers.NewFileHandler(baseHandler, storageInstance, portfolioRepo), // Added FileHandler
+		FileHandler:         handlers.NewFileHandler(baseHandler, storageInstance, portfolioRepo),
 	}
 }
 
-// initializeGinRouter (без изменений)
-func initializeGinRouter() *gin.Engine {
+// initializeGinRouter (теперь принимает db)
+func initializeGinRouter(db *gorm.DB) *gin.Engine { // <-- ✅ 3. ПРИНИМАЕМ gormDB
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(RequestIDMiddleware())
 	router.Use(LoggingMiddleware())
 	router.Use(middleware.CORSMiddleware())
+
+	router.Use(DBMiddleware(db)) // <-- ✅ 4. ДОБАВЛЯЕМ DBMiddleware
+
 	return router
 }
 
-// setupRoutes (без изменений)
+// ... (setupRoutes, setupWebSocketRoutes, RequestIDMiddleware, LoggingMiddleware... без изменений) ...
 func setupRoutes(ginRouter *gin.Engine, handlers *AppHandlers, wsHandler *ws.WebSocketHandler) {
 	api := ginRouter.Group("/api/v1")
-
+	handlers.AuthHandler.RegisterRoutes(api)
+	handlers.FileHandler.RegisterRoutes(api)
 	handlers.UserHandler.RegisterRoutes(api)
 	handlers.ProfileHandler.RegisterRoutes(api)
 	handlers.CastingHandler.RegisterRoutes(api)
@@ -331,20 +310,15 @@ func setupRoutes(ginRouter *gin.Engine, handlers *AppHandlers, wsHandler *ws.Web
 	handlers.SearchHandler.RegisterRoutes(api)
 	handlers.AnalyticsHandler.RegisterRoutes(api)
 	handlers.ChatHandler.RegisterRoutes(api)
-
 	setupWebSocketRoutes(ginRouter, wsHandler)
 }
 
-// setupWebSocketRoutes (без изменений)
 func setupWebSocketRoutes(ginRouter *gin.Engine, wsHandler *ws.WebSocketHandler) {
-	// ... (без изменений) ...
 	ginRouter.GET("/ws", wsHandler.ServeWS)
 	logger.Info("WebSocket route /ws registered")
 }
 
-// Middleware (RequestIDMiddleware, LoggingMiddleware) (без изменений)
 func RequestIDMiddleware() gin.HandlerFunc {
-	// ... (без изменений) ...
 	return func(c *gin.Context) {
 		requestID := uuid.NewString()
 		ctx := logger.WithRequestID(c.Request.Context(), requestID)
@@ -355,7 +329,6 @@ func RequestIDMiddleware() gin.HandlerFunc {
 }
 
 func LoggingMiddleware() gin.HandlerFunc {
-	// ... (без изменений) ...
 	return func(c *gin.Context) {
 		start := time.Now()
 		c.Next()
@@ -377,5 +350,17 @@ func LoggingMiddleware() gin.HandlerFunc {
 		} else {
 			log.Info("HTTP Request", fields...)
 		}
+	}
+}
+
+// ✅ 5. ДОБАВЬ ЭТУ ФУНКЦИЮ В КОНЕЦ ФАЙЛА
+//
+// DBMiddleware добавляет *gorm.DB в контекст Gin
+func DBMiddleware(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Ключ "db" (значение из contextkeys.DBContextKey) - это то,
+		// что ищет твой BaseHandler.
+		c.Set(string(contextkeys.DBContextKey), db)
+		c.Next()
 	}
 }

@@ -1,53 +1,42 @@
 package handlers
 
 import (
-	"mwork_backend/internal/appErrors"
-	"mwork_backend/internal/logger" // <-- Добавлен импорт
+	// "mwork_backend/internal/logger" // <-- Больше не нужен здесь
 	"mwork_backend/internal/middleware"
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/services"
 	"mwork_backend/internal/services/dto"
+	// "mwork_backend/pkg/apperrors" // <-- Не используется напрямую (только в base_handler)
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	// "mwork_backend/internal/middleware" // <-- Больше не нужен
 )
 
 type UserHandler struct {
-	*BaseHandler // <-- 1. Встраиваем BaseHandler
-	userService  services.UserService
-	authService  services.AuthService
+	*BaseHandler
+	userService services.UserService
+	authService services.AuthService // <-- Оставляем для ChangePassword
 }
 
-// 2. Обновляем конструктор
 func NewUserHandler(base *BaseHandler, userService services.UserService, authService services.AuthService) *UserHandler {
 	return &UserHandler{
-		BaseHandler: base, // <-- 3. Сохраняем его
+		BaseHandler: base,
 		userService: userService,
-		authService: authService,
+		authService: authService, // <-- Оставляем
 	}
 }
 
-// RegisterRoutes не требует изменений
+// RegisterRoutes - удалена группа /auth
 func (h *UserHandler) RegisterRoutes(r *gin.RouterGroup) {
-	auth := r.Group("/auth")
-	{
-		auth.POST("/register", h.Register)
-		auth.POST("/login", h.Login)
-		auth.POST("/refresh", h.RefreshToken)
-		auth.POST("/logout", h.Logout)
-		auth.GET("/verify", h.VerifyEmail)
-		auth.POST("/password/request-reset", h.RequestPasswordReset)
-		auth.POST("/password/reset", h.ResetPassword)
-	}
+	// Группа /auth удалена, она теперь в AuthHandler
 
 	profile := r.Group("/profile")
-	// AuthMiddleware все еще нужен здесь, чтобы gin.Context получил "userID"
-	// (Если вы не вынесли его на более высокий уровень)
 	profile.Use(middleware.AuthMiddleware())
 	{
 		profile.GET("", h.GetProfile)
 		profile.PUT("", h.UpdateProfile)
+		// ChangePassword - это действие над профилем, которое использует authService,
+		// поэтому оно остается здесь.
 		profile.POST("/password/change", h.ChangePassword)
 	}
 
@@ -62,141 +51,20 @@ func (h *UserHandler) RegisterRoutes(r *gin.RouterGroup) {
 }
 
 // --- Auth handlers ---
-
-func (h *UserHandler) Register(c *gin.Context) {
-	var req dto.RegisterRequest
-	// 4. Используем BindAndValidate_JSON
-	if !h.BindAndValidate_JSON(c, &req) {
-		return // Ошибка уже залоггирована и отправлена
-	}
-
-	// 5. Используем HandleServiceError
-	if err := h.authService.Register(&req); err != nil {
-		h.HandleServiceError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "Registration successful. Please check your email to verify your account.",
-	})
-}
-
-func (h *UserHandler) Login(c *gin.Context) {
-	var req dto.LoginRequest
-	if !h.BindAndValidate_JSON(c, &req) {
-		return
-	}
-
-	response, err := h.authService.Login(&req)
-	if err != nil {
-		h.HandleServiceError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, response)
-}
-
-func (h *UserHandler) RefreshToken(c *gin.Context) {
-	var req struct {
-		RefreshToken string `json:"refresh_token" binding:"required"`
-	}
-	if !h.BindAndValidate_JSON(c, &req) {
-		return
-	}
-
-	response, err := h.authService.RefreshToken(req.RefreshToken)
-	if err != nil {
-		h.HandleServiceError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, response)
-}
-
-func (h *UserHandler) Logout(c *gin.Context) {
-	var req struct {
-		RefreshToken string `json:"refresh_token" binding:"required"`
-	}
-	if !h.BindAndValidate_JSON(c, &req) {
-		return
-	}
-
-	if err := h.authService.Logout(req.RefreshToken); err != nil {
-		h.HandleServiceError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
-}
-
-func (h *UserHandler) VerifyEmail(c *gin.Context) {
-	token := c.Query("token")
-	if token == "" {
-		// Для простых проверок можно по-прежнему использовать appErrors
-		appErrors.HandleError(c, appErrors.NewBadRequestError("Token is required"))
-		return
-	}
-
-	if err := h.authService.VerifyEmail(token); err != nil {
-		h.HandleServiceError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Email verified successfully"})
-}
-
-func (h *UserHandler) RequestPasswordReset(c *gin.Context) {
-	var req struct {
-		Email string `json:"email" binding:"required,email"`
-	}
-	if !h.BindAndValidate_JSON(c, &req) {
-		return
-	}
-
-	// Особый случай: мы не хотим возвращать ошибку пользователю,
-	// но хотим ее залоггировать.
-	if err := h.authService.RequestPasswordReset(req.Email); err != nil {
-		// Не используем h.HandleServiceError, т.к. он отправит ответ.
-		// Логгируем вручную.
-		logger.CtxWarn(c.Request.Context(), "Password reset request failed (hiding from user)",
-			"error", err.Error(),
-			"email", req.Email,
-		)
-	}
-
-	// Всегда возвращаем OK для безопасности
-	c.JSON(http.StatusOK, gin.H{
-		"message": "If an account exists with this email, a password reset link has been sent.",
-	})
-}
-
-func (h *UserHandler) ResetPassword(c *gin.Context) {
-	var req struct {
-		Token       string `json:"token" binding:"required"`
-		NewPassword string `json:"new_password" binding:"required,min=6"`
-	}
-	if !h.BindAndValidate_JSON(c, &req) {
-		return
-	}
-
-	if err := h.authService.ResetPassword(req.Token, req.NewPassword); err != nil {
-		h.HandleServiceError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Password reset successfully"})
-}
+// Все методы Register, Login, RefreshToken, Logout, VerifyEmail,
+// RequestPasswordReset, ResetPassword УДАЛЕНЫ.
+// Они теперь в auth_handler.go
 
 // --- Profile handlers ---
 
 func (h *UserHandler) GetProfile(c *gin.Context) {
-	// 6. Используем GetAndAuthorizeUserID
 	userID, ok := h.GetAndAuthorizeUserID(c)
 	if !ok {
-		return // Ошибка уже отправлена
+		return
 	}
 
-	profile, err := h.userService.GetProfile(userID)
+	db := h.GetDB(c)
+	profile, err := h.userService.GetProfile(db, userID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -211,12 +79,13 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	var req dto.UpdateProfileRequestUser
+	var req dto.UpdateProfileRequest
 	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
-	if err := h.userService.UpdateProfile(userID, &req); err != nil {
+	db := h.GetDB(c)
+	if err := h.userService.UpdateProfile(db, userID, &req); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -238,7 +107,9 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	if err := h.authService.ChangePassword(userID, req.CurrentPassword, req.NewPassword); err != nil {
+	db := h.GetDB(c)
+	// Используем authService, как и раньше, но с передачей db
+	if err := h.authService.ChangePassword(db, userID, req.CurrentPassword, req.NewPassword); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -250,15 +121,14 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 
 func (h *UserHandler) GetUsers(c *gin.Context) {
 	var filter dto.AdminUserFilter
-	// 7. Используем BindAndValidate_Query для фильтров
 	if !h.BindAndValidate_Query(c, &filter) {
 		return
 	}
 
-	// 8. Используем ParsePagination для пагинации
 	filter.Page, filter.PageSize = ParsePagination(c)
 
-	users, total, err := h.userService.GetUsers(filter)
+	db := h.GetDB(c)
+	users, total, err := h.userService.GetUsers(db, filter)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -286,7 +156,8 @@ func (h *UserHandler) UpdateUserStatus(c *gin.Context) {
 		return
 	}
 
-	if err := h.userService.UpdateUserStatus(adminID, userID, req.Status); err != nil {
+	db := h.GetDB(c)
+	if err := h.userService.UpdateUserStatus(db, adminID, userID, req.Status); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -301,7 +172,8 @@ func (h *UserHandler) VerifyEmployer(c *gin.Context) {
 	}
 	employerID := c.Param("userId")
 
-	if err := h.userService.VerifyEmployer(adminID, employerID); err != nil {
+	db := h.GetDB(c)
+	if err := h.userService.VerifyEmployer(db, adminID, employerID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -310,10 +182,10 @@ func (h *UserHandler) VerifyEmployer(c *gin.Context) {
 }
 
 func (h *UserHandler) GetRegistrationStats(c *gin.Context) {
-	// 9. Используем ParseQueryInt из base_handler
 	days := ParseQueryInt(c, "days", 30)
 
-	stats, err := h.userService.GetRegistrationStats(days)
+	db := h.GetDB(c)
+	stats, err := h.userService.GetRegistrationStats(db, days)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return

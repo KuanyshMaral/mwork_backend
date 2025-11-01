@@ -1,10 +1,13 @@
 package dto
 
+import "time"
+
 // ====================
 //  Request DTOs
 // ====================
 
 // --- Castings ---
+// Эта структура заменяет CastingSearchCriteria
 type SearchCastingsRequest struct {
 	Query      string   `form:"query"`
 	City       string   `form:"city"`
@@ -33,6 +36,7 @@ type AdvancedCastingSearchRequest struct {
 }
 
 // --- Models ---
+// Эта структура заменяет ProfileSearchCriteria
 type SearchModelsRequest struct {
 	Query         string   `form:"query"`
 	City          string   `form:"city"`
@@ -74,6 +78,20 @@ type SearchEmployersRequest struct {
 	IsVerified  *bool  `form:"is_verified"`
 	Page        int    `form:"page" validate:"omitempty,min=1"`
 	PageSize    int    `form:"page_size" validate:"omitempty,min=1,max=100"`
+}
+
+// --- Reviews ---
+// Эта структура ПЕРЕНЕСЕНА из dto/review.go
+type ReviewSearchCriteria struct {
+	UserID    string    `form:"user_id"`
+	UserRole  string    `form:"user_role" validate:"omitempty,is-user-role"` // Custom rule
+	MinRating int       `form:"min_rating" validate:"omitempty,min=1,max=5"`
+	MaxRating int       `form:"max_rating" validate:"omitempty,min=1,max=5,gtefield=MinRating"`
+	DateFrom  time.Time `form:"date_from" validate:"omitempty"`
+	DateTo    time.Time `form:"date_to" validate:"omitempty,gtefield=DateFrom"`
+	HasText   *bool     `form:"has_text"`
+	Page      int       `form:"page" validate:"omitempty,min=1"`
+	PageSize  int       `form:"page_size" validate:"omitempty,min=1,max=100"`
 }
 
 // --- Unified search ---

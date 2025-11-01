@@ -4,9 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
-
 	"mwork_backend/internal/models"
+	"time"
 
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -15,6 +14,7 @@ import (
 var (
 	ErrNotificationNotFound    = errors.New("notification not found")
 	ErrInvalidNotificationData = errors.New("invalid notification data")
+	ErrTemplateNotFound        = errors.New("notification template not found")
 )
 
 // Константы типов уведомлений
@@ -30,43 +30,46 @@ const (
 
 type NotificationRepository interface {
 	// Notification operations
-	CreateNotification(notification *models.Notification) error
-	CreateBulkNotifications(notifications []*models.Notification) error
-	FindNotificationByID(id string) (*models.Notification, error)
-	FindUserNotifications(userID string, criteria NotificationCriteria) ([]models.Notification, int64, error)
-	MarkAsRead(notificationID string) error
-	MarkAllAsRead(userID string) error
-	MarkMultipleAsRead(notificationIDs []string) error
-	DeleteNotification(id string) error
-	DeleteUserNotifications(userID string) error
-	DeleteReadNotifications(userID string, olderThan time.Time) error
+	CreateNotification(db *gorm.DB, notification *models.Notification) error
+	CreateBulkNotifications(db *gorm.DB, notifications []*models.Notification) error
+	FindNotificationByID(db *gorm.DB, id string) (*models.Notification, error)
+	FindUserNotifications(db *gorm.DB, userID string, criteria NotificationCriteria) ([]models.Notification, int64, error)
+	MarkAsRead(db *gorm.DB, notificationID string) error
+	MarkAllAsRead(db *gorm.DB, userID string) error
+	MarkMultipleAsRead(db *gorm.DB, notificationIDs []string) error
+	DeleteNotification(db *gorm.DB, id string) error
+	DeleteUserNotifications(db *gorm.DB, userID string) error
+	DeleteReadNotifications(db *gorm.DB, userID string, olderThan time.Time) error
 
 	// Notification stats
-	GetUserNotificationStats(userID string) (*NotificationStats, error)
-	GetUnreadCount(userID string) (int64, error)
+	GetUserNotificationStats(db *gorm.DB, userID string) (*NotificationStats, error)
+	GetUnreadCount(db *gorm.DB, userID string) (int64, error)
 
 	// Template operations
-	CreateNotificationTemplate(template *NotificationTemplate) error
-	FindTemplateByType(notificationType string) (*NotificationTemplate, error)
-	UpdateTemplate(template *NotificationTemplate) error
+	CreateNotificationTemplate(db *gorm.DB, template *NotificationTemplate) error
+	FindTemplateByID(db *gorm.DB, templateID string) (*NotificationTemplate, error)
+	FindAllTemplates(db *gorm.DB) ([]*NotificationTemplate, error)
+	FindTemplateByType(db *gorm.DB, notificationType string) (*NotificationTemplate, error)
+	UpdateTemplate(db *gorm.DB, template *NotificationTemplate) error
+	DeleteTemplate(db *gorm.DB, templateID string) error
 
 	// Admin operations
-	FindAllNotifications(criteria AdminNotificationCriteria) ([]models.Notification, int64, error)
-	GetPlatformNotificationStats() (*PlatformNotificationStats, error)
-	CleanOldNotifications(days int) error
+	FindAllNotifications(db *gorm.DB, criteria AdminNotificationCriteria) ([]models.Notification, int64, error)
+	GetPlatformNotificationStats(db *gorm.DB) (*PlatformNotificationStats, error)
+	CleanOldNotifications(db *gorm.DB, days int) error
 
 	// Factory methods for common notification types
-	CreateNewResponseNotification(employerID, castingID, responseID, modelName string) error
-	CreateResponseStatusNotification(modelID, castingTitle string, status models.ResponseStatus) error
-	CreateCastingMatchNotification(modelID string, castingTitle string, score float64) error
-	CreateNewMessageNotification(recipientID, senderName string, dialogID string) error
-	CreateSubscriptionExpiringNotification(userID, planName string, daysRemaining int) error
-	CreateBulkResponseNotifications(employerID string, responses []ResponseNotificationData) error
-	CreateBulkCastingMatchNotifications(matches []CastingMatchNotificationData) error
+	CreateNewResponseNotification(db *gorm.DB, employerID, castingID, responseID, modelName string) error
+	CreateResponseStatusNotification(db *gorm.DB, modelID, castingTitle string, status models.ResponseStatus) error
+	CreateCastingMatchNotification(db *gorm.DB, modelID string, castingTitle string, score float64) error
+	CreateNewMessageNotification(db *gorm.DB, recipientID, senderName string, dialogID string) error
+	CreateSubscriptionExpiringNotification(db *gorm.DB, userID, planName string, daysRemaining int) error
+	CreateBulkResponseNotifications(db *gorm.DB, employerID string, responses []ResponseNotificationData) error
+	CreateBulkCastingMatchNotifications(db *gorm.DB, matches []CastingMatchNotificationData) error
 }
 
 type NotificationRepositoryImpl struct {
-	db *gorm.DB
+	// ✅ Пусто! db *gorm.DB больше не хранится здесь
 }
 
 // Search criteria for notifications
@@ -142,39 +145,43 @@ type CastingMatchNotificationData struct {
 	Score        float64
 }
 
-func NewNotificationRepository(db *gorm.DB) NotificationRepository {
-	return &NotificationRepositoryImpl{db: db}
+// ✅ Конструктор не принимает db
+func NewNotificationRepository() NotificationRepository {
+	return &NotificationRepositoryImpl{}
 }
 
 // Notification operations
 
-func (r *NotificationRepositoryImpl) CreateNotification(notification *models.Notification) error {
+func (r *NotificationRepositoryImpl) CreateNotification(db *gorm.DB, notification *models.Notification) error {
 	// Validate notification data
-	if err := r.validateNotification(notification); err != nil {
+	// ✅ Передаем db
+	if err := r.validateNotification(db, notification); err != nil {
 		return err
 	}
-
-	return r.db.Create(notification).Error
+	// ✅ Используем 'db' из параметра
+	return db.Create(notification).Error
 }
 
-func (r *NotificationRepositoryImpl) CreateBulkNotifications(notifications []*models.Notification) error {
+func (r *NotificationRepositoryImpl) CreateBulkNotifications(db *gorm.DB, notifications []*models.Notification) error {
 	if len(notifications) == 0 {
 		return nil
 	}
 
 	// Validate all notifications
 	for _, notification := range notifications {
-		if err := r.validateNotification(notification); err != nil {
+		// ✅ Передаем db
+		if err := r.validateNotification(db, notification); err != nil {
 			return err
 		}
 	}
-
-	return r.db.CreateInBatches(notifications, 100).Error
+	// ✅ Используем 'db' из параметра
+	return db.CreateInBatches(notifications, 100).Error
 }
 
-func (r *NotificationRepositoryImpl) FindNotificationByID(id string) (*models.Notification, error) {
+func (r *NotificationRepositoryImpl) FindNotificationByID(db *gorm.DB, id string) (*models.Notification, error) {
 	var notification models.Notification
-	err := r.db.First(&notification, "id = ?", id).Error
+	// ✅ Используем 'db' из параметра
+	err := db.First(&notification, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrNotificationNotFound
@@ -184,9 +191,10 @@ func (r *NotificationRepositoryImpl) FindNotificationByID(id string) (*models.No
 	return &notification, nil
 }
 
-func (r *NotificationRepositoryImpl) FindUserNotifications(userID string, criteria NotificationCriteria) ([]models.Notification, int64, error) {
+func (r *NotificationRepositoryImpl) FindUserNotifications(db *gorm.DB, userID string, criteria NotificationCriteria) ([]models.Notification, int64, error) {
 	var notifications []models.Notification
-	query := r.db.Where("user_id = ?", userID)
+	// ✅ Используем 'db' из параметра
+	query := db.Where("user_id = ?", userID)
 
 	// Apply filters
 	if criteria.UnreadOnly {
@@ -207,6 +215,7 @@ func (r *NotificationRepositoryImpl) FindUserNotifications(userID string, criter
 
 	// Get total count
 	var total int64
+	// ✅ Используем 'db' (query)
 	if err := query.Model(&models.Notification{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -215,6 +224,7 @@ func (r *NotificationRepositoryImpl) FindUserNotifications(userID string, criter
 	limit := criteria.PageSize
 	offset := (criteria.Page - 1) * criteria.PageSize
 
+	// ✅ Используем 'db' (query)
 	err := query.Order("created_at DESC").
 		Limit(limit).Offset(offset).
 		Find(&notifications).Error
@@ -222,8 +232,9 @@ func (r *NotificationRepositoryImpl) FindUserNotifications(userID string, criter
 	return notifications, total, err
 }
 
-func (r *NotificationRepositoryImpl) MarkAsRead(notificationID string) error {
-	result := r.db.Model(&models.Notification{}).Where("id = ?", notificationID).Updates(map[string]interface{}{
+func (r *NotificationRepositoryImpl) MarkAsRead(db *gorm.DB, notificationID string) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&models.Notification{}).Where("id = ?", notificationID).Updates(map[string]interface{}{
 		"is_read": true,
 		"read_at": time.Now(),
 	})
@@ -237,8 +248,9 @@ func (r *NotificationRepositoryImpl) MarkAsRead(notificationID string) error {
 	return nil
 }
 
-func (r *NotificationRepositoryImpl) MarkAllAsRead(userID string) error {
-	result := r.db.Model(&models.Notification{}).Where("user_id = ? AND is_read = ?", userID, false).Updates(map[string]interface{}{
+func (r *NotificationRepositoryImpl) MarkAllAsRead(db *gorm.DB, userID string) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&models.Notification{}).Where("user_id = ? AND is_read = ?", userID, false).Updates(map[string]interface{}{
 		"is_read": true,
 		"read_at": time.Now(),
 	})
@@ -246,12 +258,12 @@ func (r *NotificationRepositoryImpl) MarkAllAsRead(userID string) error {
 	return result.Error
 }
 
-func (r *NotificationRepositoryImpl) MarkMultipleAsRead(notificationIDs []string) error {
+func (r *NotificationRepositoryImpl) MarkMultipleAsRead(db *gorm.DB, notificationIDs []string) error {
 	if len(notificationIDs) == 0 {
 		return nil
 	}
-
-	result := r.db.Model(&models.Notification{}).Where("id IN ?", notificationIDs).Updates(map[string]interface{}{
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&models.Notification{}).Where("id IN ?", notificationIDs).Updates(map[string]interface{}{
 		"is_read": true,
 		"read_at": time.Now(),
 	})
@@ -259,8 +271,9 @@ func (r *NotificationRepositoryImpl) MarkMultipleAsRead(notificationIDs []string
 	return result.Error
 }
 
-func (r *NotificationRepositoryImpl) DeleteNotification(id string) error {
-	result := r.db.Where("id = ?", id).Delete(&models.Notification{})
+func (r *NotificationRepositoryImpl) DeleteNotification(db *gorm.DB, id string) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Where("id = ?", id).Delete(&models.Notification{})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -270,31 +283,35 @@ func (r *NotificationRepositoryImpl) DeleteNotification(id string) error {
 	return nil
 }
 
-func (r *NotificationRepositoryImpl) DeleteUserNotifications(userID string) error {
-	return r.db.Where("user_id = ?", userID).Delete(&models.Notification{}).Error
+func (r *NotificationRepositoryImpl) DeleteUserNotifications(db *gorm.DB, userID string) error {
+	// ✅ Используем 'db' из параметра
+	return db.Where("user_id = ?", userID).Delete(&models.Notification{}).Error
 }
 
-func (r *NotificationRepositoryImpl) DeleteReadNotifications(userID string, olderThan time.Time) error {
-	return r.db.Where("user_id = ? AND is_read = ? AND created_at < ?", userID, true, olderThan).
+func (r *NotificationRepositoryImpl) DeleteReadNotifications(db *gorm.DB, userID string, olderThan time.Time) error {
+	// ✅ Используем 'db' из параметра
+	return db.Where("user_id = ? AND is_read = ? AND created_at < ?", userID, true, olderThan).
 		Delete(&models.Notification{}).Error
 }
 
 // Notification stats
 
-func (r *NotificationRepositoryImpl) GetUserNotificationStats(userID string) (*NotificationStats, error) {
+func (r *NotificationRepositoryImpl) GetUserNotificationStats(db *gorm.DB, userID string) (*NotificationStats, error) {
 	var stats NotificationStats
 	now := time.Now()
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	weekStart := todayStart.AddDate(0, 0, -int(todayStart.Weekday()))
 
 	// Total notifications
-	if err := r.db.Model(&models.Notification{}).Where("user_id = ?", userID).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.Notification{}).Where("user_id = ?", userID).
 		Count(&stats.TotalNotifications).Error; err != nil {
 		return nil, err
 	}
 
 	// Unread count
-	if err := r.db.Model(&models.Notification{}).Where("user_id = ? AND is_read = ?", userID, false).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.Notification{}).Where("user_id = ? AND is_read = ?", userID, false).
 		Count(&stats.UnreadCount).Error; err != nil {
 		return nil, err
 	}
@@ -303,13 +320,15 @@ func (r *NotificationRepositoryImpl) GetUserNotificationStats(userID string) (*N
 	stats.ReadCount = stats.TotalNotifications - stats.UnreadCount
 
 	// Today count
-	if err := r.db.Model(&models.Notification{}).Where("user_id = ? AND created_at >= ?", userID, todayStart).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.Notification{}).Where("user_id = ? AND created_at >= ?", userID, todayStart).
 		Count(&stats.TodayCount).Error; err != nil {
 		return nil, err
 	}
 
 	// This week count
-	if err := r.db.Model(&models.Notification{}).Where("user_id = ? AND created_at >= ?", userID, weekStart).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.Notification{}).Where("user_id = ? AND created_at >= ?", userID, weekStart).
 		Count(&stats.ThisWeekCount).Error; err != nil {
 		return nil, err
 	}
@@ -320,8 +339,8 @@ func (r *NotificationRepositoryImpl) GetUserNotificationStats(userID string) (*N
 		Type  string
 		Count int64
 	}
-
-	err := r.db.Model(&models.Notification{}).Where("user_id = ?", userID).
+	// ✅ Используем 'db' из параметра
+	err := db.Model(&models.Notification{}).Where("user_id = ?", userID).
 		Select("type, COUNT(*) as count").
 		Group("type").Scan(&typeStats).Error
 
@@ -336,22 +355,46 @@ func (r *NotificationRepositoryImpl) GetUserNotificationStats(userID string) (*N
 	return &stats, nil
 }
 
-func (r *NotificationRepositoryImpl) GetUnreadCount(userID string) (int64, error) {
+func (r *NotificationRepositoryImpl) GetUnreadCount(db *gorm.DB, userID string) (int64, error) {
 	var count int64
-	err := r.db.Model(&models.Notification{}).Where("user_id = ? AND is_read = ?", userID, false).
+	// ✅ Используем 'db' из параметра
+	err := db.Model(&models.Notification{}).Where("user_id = ? AND is_read = ?", userID, false).
 		Count(&count).Error
 	return count, err
 }
 
 // Template operations
 
-func (r *NotificationRepositoryImpl) CreateNotificationTemplate(template *NotificationTemplate) error {
-	return r.db.Create(template).Error
+func (r *NotificationRepositoryImpl) CreateNotificationTemplate(db *gorm.DB, template *NotificationTemplate) error {
+	// ✅ Используем 'db' из параметра
+	return db.Create(template).Error
 }
 
-func (r *NotificationRepositoryImpl) FindTemplateByType(notificationType string) (*NotificationTemplate, error) {
+func (r *NotificationRepositoryImpl) FindTemplateByID(db *gorm.DB, templateID string) (*NotificationTemplate, error) {
 	var template NotificationTemplate
-	err := r.db.Where("type = ? AND is_active = ?", notificationType, true).First(&template).Error
+	err := db.First(&template, "id = ?", templateID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrTemplateNotFound
+		}
+		return nil, err
+	}
+	return &template, nil
+}
+
+func (r *NotificationRepositoryImpl) FindAllTemplates(db *gorm.DB) ([]*NotificationTemplate, error) {
+	var templates []*NotificationTemplate
+	// (Обратите внимание: в репозитории мы не используем *NotificationTemplate,
+	// а в сервисе используется. Убедитесь, что типы совпадают.
+	// Если NotificationTemplate определен в models, используйте models.NotificationTemplate)
+	err := db.Find(&templates).Error
+	return templates, err
+}
+
+func (r *NotificationRepositoryImpl) FindTemplateByType(db *gorm.DB, notificationType string) (*NotificationTemplate, error) {
+	var template NotificationTemplate
+	// ✅ Используем 'db' из параметра
+	err := db.Where("type = ? AND is_active = ?", notificationType, true).First(&template).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("template not found")
@@ -361,8 +404,9 @@ func (r *NotificationRepositoryImpl) FindTemplateByType(notificationType string)
 	return &template, nil
 }
 
-func (r *NotificationRepositoryImpl) UpdateTemplate(template *NotificationTemplate) error {
-	result := r.db.Model(template).Updates(map[string]interface{}{
+func (r *NotificationRepositoryImpl) UpdateTemplate(db *gorm.DB, template *NotificationTemplate) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(template).Updates(map[string]interface{}{
 		"title":      template.Title,
 		"message":    template.Message,
 		"variables":  template.Variables,
@@ -381,9 +425,10 @@ func (r *NotificationRepositoryImpl) UpdateTemplate(template *NotificationTempla
 
 // Admin operations
 
-func (r *NotificationRepositoryImpl) FindAllNotifications(criteria AdminNotificationCriteria) ([]models.Notification, int64, error) {
+func (r *NotificationRepositoryImpl) FindAllNotifications(db *gorm.DB, criteria AdminNotificationCriteria) ([]models.Notification, int64, error) {
 	var notifications []models.Notification
-	query := r.db.Model(&models.Notification{})
+	// ✅ Используем 'db' из параметра
+	query := db.Model(&models.Notification{})
 
 	// Apply filters
 	if criteria.UserID != "" {
@@ -408,6 +453,7 @@ func (r *NotificationRepositoryImpl) FindAllNotifications(criteria AdminNotifica
 
 	// Get total count
 	var total int64
+	// ✅ Используем 'db' (query)
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -416,6 +462,7 @@ func (r *NotificationRepositoryImpl) FindAllNotifications(criteria AdminNotifica
 	limit := criteria.PageSize
 	offset := (criteria.Page - 1) * criteria.PageSize
 
+	// ✅ Используем 'db' (query)
 	err := query.Order("created_at DESC").
 		Limit(limit).Offset(offset).
 		Find(&notifications).Error
@@ -423,31 +470,35 @@ func (r *NotificationRepositoryImpl) FindAllNotifications(criteria AdminNotifica
 	return notifications, total, err
 }
 
-func (r *NotificationRepositoryImpl) GetPlatformNotificationStats() (*PlatformNotificationStats, error) {
+func (r *NotificationRepositoryImpl) GetPlatformNotificationStats(db *gorm.DB) (*PlatformNotificationStats, error) {
 	var stats PlatformNotificationStats
 	now := time.Now()
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	weekStart := todayStart.AddDate(0, 0, -int(todayStart.Weekday()))
 
 	// Total notifications
-	if err := r.db.Model(&models.Notification{}).Count(&stats.TotalNotifications).Error; err != nil {
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.Notification{}).Count(&stats.TotalNotifications).Error; err != nil {
 		return nil, err
 	}
 
 	// Unread count
-	if err := r.db.Model(&models.Notification{}).Where("is_read = ?", false).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.Notification{}).Where("is_read = ?", false).
 		Count(&stats.UnreadCount).Error; err != nil {
 		return nil, err
 	}
 
 	// Today count
-	if err := r.db.Model(&models.Notification{}).Where("created_at >= ?", todayStart).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.Notification{}).Where("created_at >= ?", todayStart).
 		Count(&stats.TodayCount).Error; err != nil {
 		return nil, err
 	}
 
 	// This week count
-	if err := r.db.Model(&models.Notification{}).Where("created_at >= ?", weekStart).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.Notification{}).Where("created_at >= ?", weekStart).
 		Count(&stats.ThisWeekCount).Error; err != nil {
 		return nil, err
 	}
@@ -458,8 +509,8 @@ func (r *NotificationRepositoryImpl) GetPlatformNotificationStats() (*PlatformNo
 		Type  string
 		Count int64
 	}
-
-	err := r.db.Model(&models.Notification{}).
+	// ✅ Используем 'db' из параметра
+	err := db.Model(&models.Notification{}).
 		Select("type, COUNT(*) as count").
 		Group("type").Scan(&typeStats).Error
 
@@ -473,7 +524,8 @@ func (r *NotificationRepositoryImpl) GetPlatformNotificationStats() (*PlatformNo
 
 	// Most active users (top 10)
 	var userStats []UserNotificationStats
-	err = r.db.Model(&models.Notification{}).
+	// ✅ Используем 'db' из параметра
+	err = db.Model(&models.Notification{}).
 		Select("user_id, COUNT(*) as count, SUM(CASE WHEN is_read = false THEN 1 ELSE 0 END) as unread").
 		Group("user_id").
 		Order("count DESC").
@@ -487,7 +539,8 @@ func (r *NotificationRepositoryImpl) GetPlatformNotificationStats() (*PlatformNo
 	// Get user emails for the stats
 	for i := range userStats {
 		var user models.User
-		if err := r.db.Select("email").First(&user, "id = ?", userStats[i].UserID).Error; err == nil {
+		// ✅ Используем 'db' из параметра
+		if err := db.Select("email").First(&user, "id = ?", userStats[i].UserID).Error; err == nil {
 			userStats[i].Email = user.Email
 		}
 	}
@@ -497,14 +550,15 @@ func (r *NotificationRepositoryImpl) GetPlatformNotificationStats() (*PlatformNo
 	return &stats, nil
 }
 
-func (r *NotificationRepositoryImpl) CleanOldNotifications(days int) error {
+func (r *NotificationRepositoryImpl) CleanOldNotifications(db *gorm.DB, days int) error {
 	cutoffDate := time.Now().AddDate(0, 0, -days)
-	return r.db.Where("created_at < ?", cutoffDate).Delete(&models.Notification{}).Error
+	// ✅ Используем 'db' из параметра
+	return db.Where("created_at < ?", cutoffDate).Delete(&models.Notification{}).Error
 }
 
 // Factory methods for common notification types
 
-func (r *NotificationRepositoryImpl) CreateNewResponseNotification(employerID, castingID, responseID, modelName string) error {
+func (r *NotificationRepositoryImpl) CreateNewResponseNotification(db *gorm.DB, employerID, castingID, responseID, modelName string) error {
 	data := map[string]interface{}{
 		"casting_id":  castingID,
 		"response_id": responseID,
@@ -523,11 +577,11 @@ func (r *NotificationRepositoryImpl) CreateNewResponseNotification(employerID, c
 		Message: fmt.Sprintf("Модель %s откликнулась на ваш кастинг", modelName),
 		Data:    datatypes.JSON(jsonData),
 	}
-
-	return r.CreateNotification(notification)
+	// ✅ Передаем db
+	return r.CreateNotification(db, notification)
 }
 
-func (r *NotificationRepositoryImpl) CreateResponseStatusNotification(modelID, castingTitle string, status models.ResponseStatus) error {
+func (r *NotificationRepositoryImpl) CreateResponseStatusNotification(db *gorm.DB, modelID, castingTitle string, status models.ResponseStatus) error {
 	var title, message string
 
 	switch status {
@@ -547,22 +601,22 @@ func (r *NotificationRepositoryImpl) CreateResponseStatusNotification(modelID, c
 		Title:   title,
 		Message: message,
 	}
-
-	return r.CreateNotification(notification)
+	// ✅ Передаем db
+	return r.CreateNotification(db, notification)
 }
 
-func (r *NotificationRepositoryImpl) CreateCastingMatchNotification(modelID string, castingTitle string, score float64) error {
+func (r *NotificationRepositoryImpl) CreateCastingMatchNotification(db *gorm.DB, modelID string, castingTitle string, score float64) error {
 	notification := &models.Notification{
 		UserID:  modelID,
 		Type:    NotificationTypeCastingMatch,
 		Title:   "Новый подходящий кастинг",
 		Message: fmt.Sprintf("Мы нашли для вас подходящий кастинг '%s' (совпадение: %.0f%%)", castingTitle, score),
 	}
-
-	return r.CreateNotification(notification)
+	// ✅ Передаем db
+	return r.CreateNotification(db, notification)
 }
 
-func (r *NotificationRepositoryImpl) CreateNewMessageNotification(recipientID, senderName string, dialogID string) error {
+func (r *NotificationRepositoryImpl) CreateNewMessageNotification(db *gorm.DB, recipientID, senderName string, dialogID string) error {
 	data := map[string]interface{}{
 		"dialog_id": dialogID,
 		"sender":    senderName,
@@ -580,24 +634,24 @@ func (r *NotificationRepositoryImpl) CreateNewMessageNotification(recipientID, s
 		Message: fmt.Sprintf("У вас новое сообщение от %s", senderName),
 		Data:    datatypes.JSON(jsonData),
 	}
-
-	return r.CreateNotification(notification)
+	// ✅ Передаем db
+	return r.CreateNotification(db, notification)
 }
 
-func (r *NotificationRepositoryImpl) CreateSubscriptionExpiringNotification(userID, planName string, daysRemaining int) error {
+func (r *NotificationRepositoryImpl) CreateSubscriptionExpiringNotification(db *gorm.DB, userID, planName string, daysRemaining int) error {
 	notification := &models.Notification{
 		UserID:  userID,
 		Type:    NotificationTypeSubscriptionExpiring,
 		Title:   "Подписка скоро истекает",
 		Message: fmt.Sprintf("Ваша подписка '%s' истекает через %d дней", planName, daysRemaining),
 	}
-
-	return r.CreateNotification(notification)
+	// ✅ Передаем db
+	return r.CreateNotification(db, notification)
 }
 
 // Batch operations for performance
 
-func (r *NotificationRepositoryImpl) CreateBulkResponseNotifications(employerID string, responses []ResponseNotificationData) error {
+func (r *NotificationRepositoryImpl) CreateBulkResponseNotifications(db *gorm.DB, employerID string, responses []ResponseNotificationData) error {
 	var notifications []*models.Notification
 
 	for _, response := range responses {
@@ -622,11 +676,11 @@ func (r *NotificationRepositoryImpl) CreateBulkResponseNotifications(employerID 
 
 		notifications = append(notifications, notification)
 	}
-
-	return r.CreateBulkNotifications(notifications)
+	// ✅ Передаем db
+	return r.CreateBulkNotifications(db, notifications)
 }
 
-func (r *NotificationRepositoryImpl) CreateBulkCastingMatchNotifications(matches []CastingMatchNotificationData) error {
+func (r *NotificationRepositoryImpl) CreateBulkCastingMatchNotifications(db *gorm.DB, matches []CastingMatchNotificationData) error {
 	var notifications []*models.Notification
 
 	for _, match := range matches {
@@ -639,13 +693,14 @@ func (r *NotificationRepositoryImpl) CreateBulkCastingMatchNotifications(matches
 
 		notifications = append(notifications, notification)
 	}
-
-	return r.CreateBulkNotifications(notifications)
+	// ✅ Передаем db
+	return r.CreateBulkNotifications(db, notifications)
 }
 
 // Helper methods
 
-func (r *NotificationRepositoryImpl) validateNotification(notification *models.Notification) error {
+// ✅ Метод теперь принимает 'db' (хотя и не использует), для согласованности интерфейса
+func (r *NotificationRepositoryImpl) validateNotification(db *gorm.DB, notification *models.Notification) error {
 	if notification.UserID == "" {
 		return errors.New("user ID is required")
 	}
@@ -680,5 +735,16 @@ func (r *NotificationRepositoryImpl) validateNotification(notification *models.N
 		}
 	}
 
+	return nil
+}
+
+func (r *NotificationRepositoryImpl) DeleteTemplate(db *gorm.DB, templateID string) error {
+	result := db.Where("id = ?", templateID).Delete(&NotificationTemplate{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrTemplateNotFound
+	}
 	return nil
 }

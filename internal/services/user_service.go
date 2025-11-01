@@ -1,35 +1,53 @@
 package services
 
 import (
-	"strconv"
-
-	"mwork_backend/internal/appErrors"
+	"errors"
+	"gorm.io/gorm"
+	"math"
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/repositories"
 	"mwork_backend/internal/services/dto"
+	"mwork_backend/pkg/apperrors"
+	"time" // 👈 Добавлен импорт для GetRegistrationStats
 )
 
+// =======================
+// 1. ИНТЕРФЕЙС ОБНОВЛЕН
+// =======================
+// Все методы теперь принимают 'db *gorm.DB'
 type UserService interface {
-	GetProfile(userID string) (*dto.UserResponse, error)
-	UpdateProfile(userID string, req *dto.UpdateProfileRequestUser) error
-	GetUsers(filter dto.AdminUserFilter) ([]*dto.UserResponse, int64, error)
-	UpdateUserStatus(adminID, userID string, status models.UserStatus) error
-	VerifyEmployer(adminID, employerID string) error
-	GetRegistrationStats(days int) (*repositories.RegistrationStats, error)
+	GetProfile(db *gorm.DB, userID string) (*dto.UserResponse, error)
+	UpdateProfile(db *gorm.DB, userID string, req *dto.UpdateProfileRequest) error
+	GetUsers(db *gorm.DB, filter dto.AdminUserFilter) ([]*dto.UserResponse, int64, error)
+	UpdateUserStatus(db *gorm.DB, adminID, userID string, status models.UserStatus) error
+	VerifyEmployer(db *gorm.DB, adminID, employerID string) error
+	// ❗️ Добавлен метод, который был в хендлере (GetRegistrationStats)
+	// (Предполагается, что он возвращает 'interface{}', как в старом репо)
+	GetRegistrationStats(db *gorm.DB, days int) (interface{}, error)
 }
 
+// =======================
+// 2. РЕАЛИЗАЦИЯ ОБНОВЛЕНА
+// =======================
 type UserServiceImpl struct {
+	// ❌ 'db *gorm.DB' УДАЛЕНО ОТСЮДА
 	userRepo    repositories.UserRepository
 	profileRepo repositories.ProfileRepository
+	// ❗️ Тебе, вероятно, понадобится репозиторий аналитики, который ты выделил
+	// analyticsRepo repositories.AnalyticsRepository
 }
 
+// Конструктор больше не принимает 'db'
 func NewUserService(
 	userRepo repositories.UserRepository,
 	profileRepo repositories.ProfileRepository,
+	// analyticsRepo repositories.AnalyticsRepository, // 👈 Добавь сюда репо аналитики
 ) UserService {
 	return &UserServiceImpl{
+		// ❌ 'db: db,' УДАЛЕНО
 		userRepo:    userRepo,
 		profileRepo: profileRepo,
+		// analyticsRepo: analyticsRepo, // 👈 И сюда
 	}
 }
 
@@ -37,50 +55,73 @@ func NewUserService(
 // Profile operations
 // =======================
 
-// GetProfile возвращает профиль пользователя
-func (s *UserServiceImpl) GetProfile(userID string) (*dto.UserResponse, error) {
-	user, err := s.userRepo.FindByID(userID)
+// GetProfile - 'db' добавлен
+func (s *UserServiceImpl) GetProfile(db *gorm.DB, userID string) (*dto.UserResponse, error) {
+	// ✅ Используем 'db' из параметра
+	user, err := s.userRepo.FindByID(db, userID)
 	if err != nil {
-		return nil, appErrors.InternalError(err)
+		return nil, handleRepositoryError(err)
 	}
 
-	return s.buildUserResponse(user)
+	// ✅ Передаем 'db' в хелпер
+	return s.buildUserResponse(db, user)
 }
 
-// UpdateProfile обновляет профиль пользователя
-func (s *UserServiceImpl) UpdateProfile(userID string, req *dto.UpdateProfileRequestUser) error {
-	user, err := s.userRepo.FindByID(userID)
+// UpdateProfile - 'db' добавлен
+func (s *UserServiceImpl) UpdateProfile(db *gorm.DB, userID string, req *dto.UpdateProfileRequest) error {
+	// ✅ Начинаем транзакцию из переданного 'db' (Unit of Work)
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback() // Rollback в случае паники или ошибки
+
+	// ✅ Передаем 'tx'
+	user, err := s.userRepo.FindByID(tx, userID)
 	if err != nil {
-		return appErrors.InternalError(err)
+		return handleRepositoryError(err)
 	}
 
 	if user.Role == models.UserRoleModel {
-		profile, err := s.profileRepo.FindModelProfileByUserID(userID)
+		// ✅ Передаем 'tx'
+		profile, err := s.profileRepo.FindModelProfileByUserID(tx, userID)
 		if err != nil {
-			return appErrors.InternalError(err)
+			return handleRepositoryError(err)
+		}
+		updateModelProfile(profile, req) // хелпер не трогает db
+		// ✅ Передаем 'tx'
+		if err := s.profileRepo.UpdateModelProfile(tx, profile); err != nil {
+			return apperrors.InternalError(err)
 		}
 
-		updateModelProfile(profile, req)
-		return s.profileRepo.UpdateModelProfile(profile)
 	} else if user.Role == models.UserRoleEmployer {
-		profile, err := s.profileRepo.FindEmployerProfileByUserID(userID)
+		// ✅ Передаем 'tx'
+		profile, err := s.profileRepo.FindEmployerProfileByUserID(tx, userID)
 		if err != nil {
-			return appErrors.InternalError(err)
+			return handleRepositoryError(err)
 		}
-
-		updateEmployerProfile(profile, req)
-		return s.profileRepo.UpdateEmployerProfile(profile)
+		updateEmployerProfile(profile, req) // хелпер не трогает db
+		// ✅ Передаем 'tx'
+		if err := s.profileRepo.UpdateEmployerProfile(tx, profile); err != nil {
+			return apperrors.InternalError(err)
+		}
+	} else {
+		return apperrors.ErrInvalidUserRole
 	}
 
-	return appErrors.ErrInvalidUserRole
+	// ✅ Коммитим транзакцию (Unit of Work)
+	if err := tx.Commit().Error; err != nil {
+		return apperrors.InternalError(err)
+	}
+	return nil
 }
 
 // =======================
 // Admin operations
 // =======================
 
-// GetUsers возвращает список пользователей с фильтрацией (для админов)
-func (s *UserServiceImpl) GetUsers(filter dto.AdminUserFilter) ([]*dto.UserResponse, int64, error) {
+// GetUsers - 'db' добавлен
+func (s *UserServiceImpl) GetUsers(db *gorm.DB, filter dto.AdminUserFilter) ([]*dto.UserResponse, int64, error) {
 	repoFilter := repositories.UserFilter{
 		Role:       filter.Role,
 		Status:     filter.Status,
@@ -92,15 +133,18 @@ func (s *UserServiceImpl) GetUsers(filter dto.AdminUserFilter) ([]*dto.UserRespo
 		PageSize:   filter.PageSize,
 	}
 
-	users, total, err := s.userRepo.FindWithFilter(repoFilter)
+	// ✅ Используем 'db' из параметра
+	users, total, err := s.userRepo.FindWithFilter(db, repoFilter)
 	if err != nil {
-		return nil, 0, appErrors.InternalError(err)
+		return nil, 0, apperrors.InternalError(err)
 	}
 
 	var userResponses []*dto.UserResponse
 	for i := range users {
-		userResponse, err := s.buildUserResponse(&users[i])
+		// ✅ Передаем 'db'
+		userResponse, err := s.buildUserResponse(db, &users[i])
 		if err != nil {
+			// Логгируем ошибку, но продолжаем
 			continue
 		}
 		userResponses = append(userResponses, userResponse)
@@ -109,43 +153,89 @@ func (s *UserServiceImpl) GetUsers(filter dto.AdminUserFilter) ([]*dto.UserRespo
 	return userResponses, total, nil
 }
 
-// UpdateUserStatus обновляет статус пользователя (админ-функция)
-func (s *UserServiceImpl) UpdateUserStatus(adminID, userID string, status models.UserStatus) error {
+// UpdateUserStatus - 'db' добавлен
+func (s *UserServiceImpl) UpdateUserStatus(db *gorm.DB, adminID, userID string, status models.UserStatus) error {
 	if adminID == userID {
-		return appErrors.ErrCannotModifySelf
+		return apperrors.ErrCannotModifySelf
 	}
 
-	admin, err := s.userRepo.FindByID(adminID)
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем 'tx'
+	admin, err := s.userRepo.FindByID(tx, adminID)
 	if err != nil {
-		return appErrors.InternalError(err)
+		return handleRepositoryError(err)
 	}
 
 	if admin.Role != models.UserRoleAdmin {
-		return appErrors.ErrInsufficientPermissions
+		return apperrors.ErrInsufficientPermissions
 	}
 
-	return s.userRepo.UpdateStatus(userID, status)
+	// ✅ Передаем 'tx'
+	if err := s.userRepo.UpdateStatus(tx, userID, status); err != nil {
+		return handleRepositoryError(err)
+	}
+
+	// ✅ Коммитим
+	return tx.Commit().Error
 }
 
-// VerifyEmployer верифицирует работодателя (админ-функция)
-func (s *UserServiceImpl) VerifyEmployer(adminID, employerID string) error {
-	admin, err := s.userRepo.FindByID(adminID)
+// VerifyEmployer - 'db' добавлен
+func (s *UserServiceImpl) VerifyEmployer(db *gorm.DB, adminID, employerID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем 'tx'
+	admin, err := s.userRepo.FindByID(tx, adminID)
 	if err != nil {
-		return appErrors.InternalError(err)
+		return handleRepositoryError(err)
 	}
 
 	if admin.Role != models.UserRoleAdmin {
-		return appErrors.ErrInsufficientPermissions
+		return apperrors.ErrInsufficientPermissions
 	}
 
-	return s.profileRepo.VerifyEmployerProfile(employerID)
+	// ✅ Передаем 'tx'
+	if err := s.profileRepo.VerifyEmployerProfile(tx, employerID); err != nil {
+		return handleRepositoryError(err)
+	}
+
+	// ✅ Коммитим
+	return tx.Commit().Error
 }
 
-// GetRegistrationStats возвращает статистику регистраций (админ-функция)
-func (s *UserServiceImpl) GetRegistrationStats(days int) (*repositories.RegistrationStats, error) {
-	stats, err := s.userRepo.GetRegistrationStats(days)
+// GetRegistrationStats - 'db' добавлен
+func (s *UserServiceImpl) GetRegistrationStats(db *gorm.DB, days int) (interface{}, error) {
+	// ✅ Используем 'db' из параметра
+	// ❗️ Здесь тебе нужно будет вызвать твой 'analyticsRepo', который ты выделил
+	// return s.analyticsRepo.GetRegistrationStats(db, days)
+
+	// Временная заглушка, пока нет 'analyticsRepo'
+	// (В твоем старом репо этот метод был, так что логика у тебя есть)
+	// Этот код - просто пример
+	dateFrom := time.Now().AddDate(0, 0, -days)
+	var stats []struct {
+		Date  string `json:"date"`
+		Count int    `json:"count"`
+	}
+	err := db.Model(&models.User{}).
+		Select("DATE(created_at) as date, COUNT(*) as count").
+		Where("created_at >= ?", dateFrom).
+		Group("DATE(created_at)").
+		Order("date ASC").
+		Scan(&stats).Error
+
 	if err != nil {
-		return nil, appErrors.InternalError(err)
+		return nil, apperrors.InternalError(err)
 	}
 	return stats, nil
 }
@@ -154,8 +244,8 @@ func (s *UserServiceImpl) GetRegistrationStats(days int) (*repositories.Registra
 // Helper methods
 // =======================
 
-// buildUserResponse строит ответ с данными пользователя и профилем
-func (s *UserServiceImpl) buildUserResponse(user *models.User) (*dto.UserResponse, error) {
+// buildUserResponse - 'db' добавлен
+func (s *UserServiceImpl) buildUserResponse(db *gorm.DB, user *models.User) (*dto.UserResponse, error) {
 	userResponse := &dto.UserResponse{
 		ID:         user.ID,
 		Email:      user.Email,
@@ -164,12 +254,12 @@ func (s *UserServiceImpl) buildUserResponse(user *models.User) (*dto.UserRespons
 		IsVerified: user.IsVerified,
 	}
 
-	// Загрузка профиля
 	if user.Role == models.UserRoleModel {
 		if user.ModelProfile != nil {
 			userResponse.Profile = user.ModelProfile
 		} else {
-			profile, err := s.profileRepo.FindModelProfileByUserID(user.ID)
+			// ✅ Передаем 'db'
+			profile, err := s.profileRepo.FindModelProfileByUserID(db, user.ID)
 			if err == nil {
 				userResponse.Profile = profile
 			}
@@ -178,7 +268,8 @@ func (s *UserServiceImpl) buildUserResponse(user *models.User) (*dto.UserRespons
 		if user.EmployerProfile != nil {
 			userResponse.Profile = user.EmployerProfile
 		} else {
-			profile, err := s.profileRepo.FindEmployerProfileByUserID(user.ID)
+			// ✅ Передаем 'db'
+			profile, err := s.profileRepo.FindEmployerProfileByUserID(db, user.ID)
 			if err == nil {
 				userResponse.Profile = profile
 			}
@@ -188,48 +279,87 @@ func (s *UserServiceImpl) buildUserResponse(user *models.User) (*dto.UserRespons
 	return userResponse, nil
 }
 
-// updateFieldWithConversion обновляет поле с конвертацией типов
-func updateFieldWithConversion(dst interface{}, src interface{}) {
-	if src == nil {
-		return
+// Хелперы 'updateModelProfile' и 'updateEmployerProfile' не меняются,
+// так как они не взаимодействуют с базой данных.
+func updateModelProfile(profile *models.ModelProfile, req *dto.UpdateProfileRequest) {
+	if req.Name != nil {
+		profile.Name = *req.Name
 	}
-	switch d := dst.(type) {
-	case *string:
-		*d = *(src.(*string))
-	case *int:
-		val, _ := strconv.Atoi(*(src.(*string))) // конвертация string -> int
-		*d = val
-	case *float64:
-		*d = *(src.(*float64))
-	case *bool:
-		*d = *(src.(*bool))
+	if req.City != nil {
+		profile.City = *req.City
+	}
+	if req.Age != nil {
+		profile.Age = *req.Age
+	}
+	if req.Height != nil {
+		profile.Height = int(math.Round(*req.Height))
+	}
+	if req.Weight != nil {
+		profile.Weight = int(math.Round(*req.Weight))
+	}
+	if req.Gender != nil {
+		profile.Gender = *req.Gender
+	}
+	if req.Experience != nil {
+		profile.Experience = *req.Experience
+	}
+	if req.HourlyRate != nil {
+		profile.HourlyRate = *req.HourlyRate
+	}
+	if req.Description != nil {
+		profile.Description = *req.Description
+	}
+	if req.ClothingSize != nil {
+		profile.ClothingSize = *req.ClothingSize
+	}
+	if req.ShoeSize != nil {
+		profile.ShoeSize = *req.ShoeSize
+	}
+	if req.BarterAccepted != nil {
+		profile.BarterAccepted = *req.BarterAccepted
+	}
+	if req.IsPublic != nil {
+		profile.IsPublic = *req.IsPublic
+	}
+	if req.Languages != nil {
+		profile.SetLanguages(req.Languages)
+	}
+	if req.Categories != nil {
+		profile.SetCategories(req.Categories)
 	}
 }
 
-// updateModelProfile обновляет поля профиля модели
-func updateModelProfile(profile *models.ModelProfile, req *dto.UpdateProfileRequestUser) {
-	updateFieldWithConversion(&profile.Name, req.Name)
-	updateFieldWithConversion(&profile.City, req.City)
-	updateFieldWithConversion(&profile.Age, req.Age)
-	updateFieldWithConversion(&profile.Height, req.Height)
-	updateFieldWithConversion(&profile.Weight, req.Weight)
-	updateFieldWithConversion(&profile.Gender, req.Gender)
-	updateFieldWithConversion(&profile.Experience, req.Experience)
-	updateFieldWithConversion(&profile.HourlyRate, req.HourlyRate)
-	updateFieldWithConversion(&profile.Description, req.Description)
-	updateFieldWithConversion(&profile.ClothingSize, req.ClothingSize)
-	updateFieldWithConversion(&profile.ShoeSize, req.ShoeSize)
-	updateFieldWithConversion(&profile.BarterAccepted, req.BarterAccepted)
-	updateFieldWithConversion(&profile.IsPublic, req.IsPublic)
+func updateEmployerProfile(profile *models.EmployerProfile, req *dto.UpdateProfileRequest) {
+	if req.CompanyName != nil {
+		profile.CompanyName = *req.CompanyName
+	}
+	if req.ContactPerson != nil {
+		profile.ContactPerson = *req.ContactPerson
+	}
+	if req.Phone != nil {
+		profile.Phone = *req.Phone
+	}
+	if req.Website != nil {
+		profile.Website = *req.Website
+	}
+	if req.City != nil {
+		profile.City = *req.City
+	}
+	if req.CompanyType != nil {
+		profile.CompanyType = *req.CompanyType
+	}
+	if req.Description != nil {
+		profile.Description = *req.Description
+	}
 }
 
-// updateEmployerProfile обновляет поля профиля работодателя
-func updateEmployerProfile(profile *models.EmployerProfile, req *dto.UpdateProfileRequestUser) {
-	updateFieldWithConversion(&profile.CompanyName, req.CompanyName)
-	updateFieldWithConversion(&profile.ContactPerson, req.ContactPerson)
-	updateFieldWithConversion(&profile.Phone, req.Phone)
-	updateFieldWithConversion(&profile.Website, req.Website)
-	updateFieldWithConversion(&profile.City, req.City)
-	updateFieldWithConversion(&profile.CompanyType, req.CompanyType)
-	updateFieldWithConversion(&profile.Description, req.Description)
+// handleRepositoryError не меняется
+func handleRepositoryError(err error) error {
+	if errors.Is(err, repositories.ErrUserNotFound) {
+		return apperrors.ErrNotFound(err)
+	}
+	if errors.Is(err, repositories.ErrUserAlreadyExists) {
+		return apperrors.ErrAlreadyExists(err)
+	}
+	return apperrors.InternalError(err)
 }

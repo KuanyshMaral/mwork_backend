@@ -29,10 +29,10 @@ func TestAnalytics(t *testing.T) {
 	)
 
 	// Нужен Работодатель для тестов /castings/:employer_id/performance
-	_, empUser, _ := helpers.CreateAndLoginEmployer(t, ts, tx)
+	empToken, empUser, _ := helpers.CreateAndLoginEmployer(t, ts, tx) // ❗️ Захватываем empToken
 
 	// Нужна Модель для генерации данных
-	_, modelUser, _ := helpers.CreateAndLoginModel(t, ts, tx)
+	modelToken, modelUser, _ := helpers.CreateAndLoginModel(t, ts, tx) // ❗️ Захватываем modelToken
 
 	// 3. Создаем тестовые данные для аналитики
 	casting1 := CreateTestCasting(t, tx, empUser.ID, "Analytics Casting 1", "Almaty")
@@ -42,11 +42,17 @@ func TestAnalytics(t *testing.T) {
 
 	// --- 4. Запускаем sub-тесты для каждого эндпоинта ---
 
-	t.Run("GET /platform/overview - Public Access", func(t *testing.T) {
+	t.Run("GET /platform/overview - Secured Access", func(t *testing.T) {
 		endpoint := "/api/v1/analytics/platform/overview"
-		res, bodyStr := ts.SendRequest(t, http.MethodGet, endpoint, "", nil)
 
-		assert.Equal(t, http.StatusOK, res.StatusCode, "Public endpoint should be accessible. Body: "+bodyStr)
+		// ❗️ Тест 1: Доступ БЕЗ токена (должен быть 401)
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, endpoint, "", nil)
+		assert.Equal(t, http.StatusUnauthorized, res.StatusCode, "Endpoint should be protected by AuthMiddleware. Body: "+bodyStr)
+
+		// ❗️ Тест 2: Доступ С токеном (должен быть 200)
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, endpoint, adminToken, nil)
+		assert.Equal(t, http.StatusOK, res.StatusCode, "Endpoint should be accessible with token. Body: "+bodyStr)
+
 		// Проверяем, что в ответе есть ожидаемые поля
 		assert.Contains(t, bodyStr, "total_users", "Response should contain 'total_users'")
 		assert.Contains(t, bodyStr, "total_castings", "Response should contain 'total_castings'")
@@ -58,7 +64,8 @@ func TestAnalytics(t *testing.T) {
 		dateTo := time.Now().Format("2006-01-02")
 		endpoint := "/api/v1/analytics/users/acquisition?dateFrom=" + dateFrom + "&dateTo=" + dateTo
 
-		res, bodyStr := ts.SendRequest(t, http.MethodGet, endpoint, "", nil)
+		// ❗️ Добавляем tx и adminToken
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, endpoint, adminToken, nil)
 
 		assert.Equal(t, http.StatusOK, res.StatusCode, "Endpoint should support query params. Body: "+bodyStr)
 		assert.Contains(t, bodyStr, "new_users_count", "Response should contain acquisition data")
@@ -68,11 +75,14 @@ func TestAnalytics(t *testing.T) {
 		// Используем ID работодателя, созданного в setup
 		endpoint := "/api/v1/analytics/castings/" + empUser.ID + "/performance"
 
-		// Судя по коду хэндлера, этот эндпоинт не защищен (нет h.GetAndAuthorizeUserID)
-		// Поэтому отправляем запрос БЕЗ токена.
-		res, bodyStr := ts.SendRequest(t, http.MethodGet, endpoint, "", nil)
+		// ❗️ Тест 1: Доступ БЕЗ токена (должен быть 401)
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, endpoint, "", nil)
+		assert.Equal(t, http.StatusUnauthorized, res.StatusCode, "Endpoint should be protected. Body: "+bodyStr)
 
-		assert.Equal(t, http.StatusOK, res.StatusCode, "Endpoint should be public. Body: "+bodyStr)
+		// ❗️ Тест 2: Доступ С токеном (используем токен работодателя)
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, endpoint, empToken, nil)
+		assert.Equal(t, http.StatusOK, res.StatusCode, "Endpoint should be accessible with token. Body: "+bodyStr)
+
 		// В ответе должны быть данные о 2 кастингах, которые мы создали
 		assert.Contains(t, bodyStr, "total_castings", "Response should contain 'total_castings'")
 		assert.Contains(t, bodyStr, "total_responses", "Response should contain 'total_responses'")
@@ -81,7 +91,8 @@ func TestAnalytics(t *testing.T) {
 	t.Run("GET /categories/popular - With Query Params", func(t *testing.T) {
 		endpoint := "/api/v1/analytics/categories/popular?days=30&limit=5"
 
-		res, bodyStr := ts.SendRequest(t, http.MethodGet, endpoint, "", nil)
+		// ❗️ Добавляем tx и modelToken (подойдет любой валидный токен)
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, endpoint, modelToken, nil)
 
 		assert.Equal(t, http.StatusOK, res.StatusCode, "Endpoint should be accessible. Body: "+bodyStr)
 		// Ожидаем массив
@@ -94,21 +105,25 @@ func TestAnalytics(t *testing.T) {
 		endpoint := "/api/v1/analytics/admin/dashboard"
 
 		// 1. Тест: Доступ БЕЗ токена (должен быть 401 Unauthorized)
-		res, bodyStr := ts.SendRequest(t, http.MethodGet, endpoint, "", nil)
+		// ❗️ Добавляем tx
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, endpoint, "", nil)
 		assert.Equal(t, http.StatusUnauthorized, res.StatusCode, "Admin endpoint should require auth. Body: "+bodyStr)
 
 		// 2. Тест: Доступ с токеном МОДЕЛИ (должен быть 403 Forbidden)
 		modelToken, _, _ := helpers.CreateAndLoginModel(t, ts, tx)
-		res, bodyStr = ts.SendRequest(t, http.MethodGet, endpoint, modelToken, nil)
+		// ❗️ Добавляем tx
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, endpoint, modelToken, nil)
 		assert.Equal(t, http.StatusForbidden, res.StatusCode, "Admin endpoint should forbid non-admin roles. Body: "+bodyStr)
 
 		// 3. Тест: Доступ с токеном РАБОТОДАТЕЛЯ (должен быть 403 Forbidden)
 		empToken, _, _ := helpers.CreateAndLoginEmployer(t, ts, tx)
-		res, bodyStr = ts.SendRequest(t, http.MethodGet, endpoint, empToken, nil)
+		// ❗️ Добавляем tx
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, endpoint, empToken, nil)
 		assert.Equal(t, http.StatusForbidden, res.StatusCode, "Admin endpoint should forbid non-admin roles. Body: "+bodyStr)
 
 		// 4. Тест: Доступ с токеном АДМИНА (должен быть 200 OK)
-		res, bodyStr = ts.SendRequest(t, http.MethodGet, endpoint, adminToken, nil)
+		// ❗️ Добавляем tx
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, endpoint, adminToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode, "Admin endpoint should allow admin role. Body: "+bodyStr)
 		// Проверяем, что админская панель вернула какие-то данные
 		assert.Contains(t, bodyStr, "kpi_metrics", "Admin dashboard response should contain data. Body: "+bodyStr)
@@ -127,12 +142,14 @@ func TestAnalytics(t *testing.T) {
 		}
 
 		// 1. Тест: Доступ БЕЗ токена (401)
-		res, bodyStr := ts.SendRequest(t, http.MethodPost, endpoint, "", reportReq)
+		// ❗️ Добавляем tx
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodPost, endpoint, "", reportReq)
 		assert.Equal(t, http.StatusUnauthorized, res.StatusCode, "Admin POST endpoint should require auth. Body: "+bodyStr)
 
 		// 2. Тест: Доступ с токеном РАБОТОДАТЕЛЯ (403)
 		empToken, _, _ := helpers.CreateAndLoginEmployer(t, ts, tx)
-		res, bodyStr = ts.SendRequest(t, http.MethodPost, endpoint, empToken, reportReq)
+		// ❗️ Добавляем tx
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodPost, endpoint, empToken, reportReq)
 		assert.Equal(t, http.StatusForbidden, res.StatusCode, "Admin POST endpoint should forbid non-admin roles. Body: "+bodyStr)
 
 		// 3. Тест: Ошибка валидации (400 Bad Request) - неполные данные
@@ -141,31 +158,34 @@ func TestAnalytics(t *testing.T) {
 			"date_from":   "2025-01-01T00:00:00Z",
 			"date_to":     time.Now().Format(time.RFC3339),
 		}
-		res, bodyStr = ts.SendRequest(t, http.MethodPost, endpoint, adminToken, invalidReq)
+		// ❗️ Добавляем tx
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodPost, endpoint, adminToken, invalidReq)
 		assert.Equal(t, http.StatusBadRequest, res.StatusCode, "Endpoint should return 400 on validation error. Body: "+bodyStr)
 		assert.Contains(t, bodyStr, "metrics", "Error message should mention 'metrics' field")
 
 		// 4. Тест: Успешный запрос от Админа (200 OK)
-		res, bodyStr = ts.SendRequest(t, http.MethodPost, endpoint, adminToken, reportReq)
+		// ❗️ Добавляем tx
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodPost, endpoint, adminToken, reportReq)
 		assert.Equal(t, http.StatusOK, res.StatusCode, "Admin POST endpoint should allow admin with valid body. Body: "+bodyStr)
 		// (Предполагаем, что сервис возвращает URL или данные отчета)
 		assert.Contains(t, bodyStr, "report_id", "Response should contain generated report data. Body: "+bodyStr)
 	})
 }
 
-// TestAnalytics_Isolated - отдельные изолированные тесты для лучшего параллелизма
-func TestAnalytics_PublicEndpointsIsolated(t *testing.T) {
+// ❗️ Переименован: TestAnalytics_PublicEndpointsIsolated -> TestAnalytics_SecuredEndpointsIsolated
+func TestAnalytics_SecuredEndpointsIsolated(t *testing.T) {
 	t.Parallel()
 
 	ts := GetTestServer(t)
 	tx := ts.BeginTransaction(t)
 	defer ts.RollbackTransaction(t, tx)
 
-	// Создаем минимальный набор данных для тестирования публичных эндпоинтов
+	// Создаем минимальный набор данных для тестирования
+	// ❗️ Нужен токен для аутентификации
+	modelToken, _, _ := helpers.CreateAndLoginModel(t, ts, tx)
 	_, empUser, _ := helpers.CreateAndLoginEmployer(t, ts, tx)
 	CreateTestCasting(t, tx, empUser.ID, "Isolated Casting", "Almaty")
 
-	// Тестируем публичные эндпоинты
 	endpoints := []string{
 		"/api/v1/analytics/platform/overview",
 		"/api/v1/analytics/categories/popular?days=7&limit=3",
@@ -173,8 +193,13 @@ func TestAnalytics_PublicEndpointsIsolated(t *testing.T) {
 	}
 
 	for _, endpoint := range endpoints {
-		res, bodyStr := ts.SendRequest(t, http.MethodGet, endpoint, "", nil)
-		assert.Equal(t, http.StatusOK, res.StatusCode, "Public endpoint should be accessible: "+endpoint+", Body: "+bodyStr)
+		// ❗️ Тест 1: Проверяем защиту (401)
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, endpoint, "", nil)
+		assert.Equal(t, http.StatusUnauthorized, res.StatusCode, "Endpoint should be protected: "+endpoint+", Body: "+bodyStr)
+
+		// ❗️ Тест 2: Проверяем доступ (200)
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, endpoint, modelToken, nil)
+		assert.Equal(t, http.StatusOK, res.StatusCode, "Endpoint should be accessible with token: "+endpoint+", Body: "+bodyStr)
 	}
 }
 
@@ -186,7 +211,7 @@ func TestAnalytics_EmployerPerformanceIsolated(t *testing.T) {
 	defer ts.RollbackTransaction(t, tx)
 
 	// Создаем работодателя с несколькими кастингами
-	_, empUser, _ := helpers.CreateAndLoginEmployer(t, ts, tx)
+	empToken, empUser, _ := helpers.CreateAndLoginEmployer(t, ts, tx) // ❗️ Захватываем empToken
 	_, modelUser, _ := helpers.CreateAndLoginModel(t, ts, tx)
 
 	// Создаем несколько кастингов и откликов
@@ -197,7 +222,9 @@ func TestAnalytics_EmployerPerformanceIsolated(t *testing.T) {
 
 	// Тестируем эндпоинт производительности работодателя
 	endpoint := "/api/v1/analytics/castings/" + empUser.ID + "/performance"
-	res, bodyStr := ts.SendRequest(t, http.MethodGet, endpoint, "", nil)
+
+	// ❗️ Добавляем tx и empToken
+	res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, endpoint, empToken, nil)
 
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, `"total_castings":2`)
@@ -224,11 +251,13 @@ func TestAnalytics_AdminSecurityIsolated(t *testing.T) {
 
 	for _, endpoint := range adminEndpoints {
 		// Модель не может получить доступ
-		res, _ := ts.SendRequest(t, http.MethodGet, endpoint, modelToken, nil)
+		// ❗️ Добавляем tx
+		res, _ := ts.SendRequest(t, tx, http.MethodGet, endpoint, modelToken, nil)
 		assert.Equal(t, http.StatusForbidden, res.StatusCode, "Model should be forbidden for: "+endpoint)
 
 		// Работодатель не может получить доступ
-		res, _ = ts.SendRequest(t, http.MethodGet, endpoint, empToken, nil)
+		// ❗️ Добавляем tx
+		res, _ = ts.SendRequest(t, tx, http.MethodGet, endpoint, empToken, nil)
 		assert.Equal(t, http.StatusForbidden, res.StatusCode, "Employer should be forbidden for: "+endpoint)
 
 		// Админ может получить доступ
@@ -241,12 +270,14 @@ func TestAnalytics_AdminSecurityIsolated(t *testing.T) {
 				"date_from":   "2025-01-01T00:00:00Z",
 				"date_to":     time.Now().Format(time.RFC3339),
 			}
-			res, bodyStr := ts.SendRequest(t, http.MethodPost, endpoint, adminToken, reportReq)
+			// ❗️ Добавляем tx
+			res, bodyStr := ts.SendRequest(t, tx, http.MethodPost, endpoint, adminToken, reportReq)
 			// Может быть 200 или 400 (в зависимости от валидации), но не 403
 			assert.NotEqual(t, http.StatusForbidden, res.StatusCode, "Admin should not be forbidden for POST: "+endpoint+", Body: "+bodyStr)
 		} else {
 			// Для GET endpoints
-			res, bodyStr := ts.SendRequest(t, http.MethodGet, endpoint, adminToken, nil)
+			// ❗️ Добавляем tx
+			res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, endpoint, adminToken, nil)
 			assert.Equal(t, http.StatusOK, res.StatusCode, "Admin should access GET: "+endpoint+", Body: "+bodyStr)
 		}
 	}
@@ -260,8 +291,8 @@ func TestAnalytics_DataConsistencyIsolated(t *testing.T) {
 	defer ts.RollbackTransaction(t, tx)
 
 	// Создаем тестовые данные
-	_, empUser, _ := helpers.CreateAndLoginEmployer(t, ts, tx)
-	_, modelUser1, _ := helpers.CreateAndLoginModel(t, ts, tx)
+	empToken, empUser, _ := helpers.CreateAndLoginEmployer(t, ts, tx)    // ❗️ Захватываем empToken
+	modelToken1, modelUser1, _ := helpers.CreateAndLoginModel(t, ts, tx) // ❗️ Захватываем modelToken1
 	_, modelUser2, _ := helpers.CreateAndLoginModel(t, ts, tx)
 
 	// Создаем кастинги и отклики
@@ -270,10 +301,12 @@ func TestAnalytics_DataConsistencyIsolated(t *testing.T) {
 	CreateTestResponse(t, tx, casting.ID, modelUser2.ID, models.ResponseStatusRejected)
 
 	// Проверяем консистентность данных в разных эндпоинтах
-	overviewRes, overviewBody := ts.SendRequest(t, http.MethodGet, "/api/v1/analytics/platform/overview", "", nil)
+	// ❗️ Добавляем tx и modelToken1
+	overviewRes, overviewBody := ts.SendRequest(t, tx, http.MethodGet, "/api/v1/analytics/platform/overview", modelToken1, nil)
 	assert.Equal(t, http.StatusOK, overviewRes.StatusCode)
 
-	performanceRes, performanceBody := ts.SendRequest(t, http.MethodGet, "/api/v1/analytics/castings/"+empUser.ID+"/performance", "", nil)
+	// ❗️ Добавляем tx и empToken (логичнее использовать токен владельца)
+	performanceRes, performanceBody := ts.SendRequest(t, tx, http.MethodGet, "/api/v1/analytics/castings/"+empUser.ID+"/performance", empToken, nil)
 	assert.Equal(t, http.StatusOK, performanceRes.StatusCode)
 
 	// Оба эндпоинта должны показывать консистентные данные

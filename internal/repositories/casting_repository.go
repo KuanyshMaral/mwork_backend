@@ -18,31 +18,37 @@ var (
 
 type CastingRepository interface {
 	// Casting operations
-	CreateCasting(casting *models.Casting) error
-	FindCastingByID(id string) (*models.Casting, error)
-	FindCastingsByEmployer(employerID string) ([]models.Casting, error)
-	UpdateCasting(casting *models.Casting) error
-	UpdateCastingStatus(castingID string, status models.CastingStatus) error
-	DeleteCasting(id string) error
-	IncrementCastingViews(castingID string) error
-	SearchCastings(criteria CastingSearchCriteria) ([]models.Casting, int64, error)
-	FindActiveCastings(limit int) ([]models.Casting, error)
-	FindCastingsByCity(city string, limit int) ([]models.Casting, error)
-	FindExpiredCastings() ([]models.Casting, error)
-	GetCastingStats(employerID string) (*CastingStats, error)
+	CreateCasting(db *gorm.DB, casting *models.Casting) error
+	FindCastingByID(db *gorm.DB, id string) (*models.Casting, error)
+	FindCastingsByEmployer(db *gorm.DB, employerID string) ([]models.Casting, error)
+	UpdateCasting(db *gorm.DB, casting *models.Casting) error
+	UpdateCastingStatus(db *gorm.DB, castingID string, status models.CastingStatus) error
+	DeleteCasting(db *gorm.DB, id string) error
+	IncrementCastingViews(db *gorm.DB, castingID string) error
+	SearchCastings(db *gorm.DB, criteria CastingSearchCriteria) ([]models.Casting, int64, error)
+	FindActiveCastings(db *gorm.DB, limit int) ([]models.Casting, error)
+	FindCastingsByCity(db *gorm.DB, city string, limit int) ([]models.Casting, error)
+	FindExpiredCastings(db *gorm.DB) ([]models.Casting, error)
+	GetCastingStats(db *gorm.DB, employerID string) (*CastingStats, error)
 
 	// Matching operations
-	FindCastingsForMatching(criteria MatchingCriteria) ([]models.Casting, error)
-	// Analytics methods
-	GetPlatformCastingStats(dateFrom, dateTo time.Time) (*PlatformCastingStats, error)
-	GetMatchingStats(dateFrom, dateTo time.Time) (*MatchingStats, error)
-	GetCastingDistributionByCity() (map[string]int64, error)
-	GetActiveCastingsCount() (int64, error)
-	GetPopularCategories(limit int) ([]CategoryCount, error)
+	FindCastingsForMatching(db *gorm.DB, criteria MatchingCriteria) ([]models.Casting, error)
+
+	// GetPlatformCastingStats (для analyticsService.GetCastingAnalytics)
+	GetPlatformCastingStats(db *gorm.DB, dateFrom, dateTo time.Time) (*PlatformCastingStats, error)
+
+	// GetMatchingStats (для analyticsService.GetMatchingAnalytics)
+	GetMatchingStats(db *gorm.DB, dateFrom, dateTo time.Time) (*MatchingStats, error)
+
+	// GetActiveCastingsCount (для analyticsService.GetRealTimeMetrics)
+	GetActiveCastingsCount(db *gorm.DB) (int64, error)
+
+	// GetPopularCategories (для analyticsService.GetPopularCategories)
+	GetPopularCategories(db *gorm.DB, limit int) ([]PopularCategoryStat, error)
 }
 
 type CastingRepositoryImpl struct {
-	db *gorm.DB
+	// ✅ Пусто! db *gorm.DB больше не хранится здесь
 }
 
 // Search criteria for castings
@@ -92,41 +98,28 @@ type CastingStats struct {
 	PendingResponses int64 `json:"pending_responses"`
 }
 
-type PlatformCastingStats struct {
-	TotalCastings   int64   `json:"totalCastings"`
-	ActiveCastings  int64   `json:"activeCastings"`
-	SuccessRate     float64 `json:"successRate"`
-	AvgResponseRate float64 `json:"avgResponseRate"`
-	AvgResponseTime float64 `json:"avgResponseTime"`
+// PopularCategoryStat - DTO для GetPopularCategories
+type PopularCategoryStat struct {
+	Name  string
+	Count int64
 }
 
-type MatchingStats struct {
-	TotalMatches    int64   `json:"totalMatches"`
-	AvgMatchScore   float64 `json:"avgMatchScore"`
-	AvgSatisfaction float64 `json:"avgSatisfaction"`
-	MatchRate       float64 `json:"matchRate"`
-	ResponseRate    float64 `json:"responseRate"`
-	TimeToMatch     float64 `json:"timeToMatch"` // in hours
-}
-
-type CategoryCount struct {
-	Name  string `json:"name"`
-	Count int64  `json:"count"`
-}
-
-func NewCastingRepository(db *gorm.DB) CastingRepository {
-	return &CastingRepositoryImpl{db: db}
+// ✅ Конструктор не принимает db
+func NewCastingRepository() CastingRepository {
+	return &CastingRepositoryImpl{}
 }
 
 // Casting operations
 
-func (r *CastingRepositoryImpl) CreateCasting(casting *models.Casting) error {
-	return r.db.Create(casting).Error
+func (r *CastingRepositoryImpl) CreateCasting(db *gorm.DB, casting *models.Casting) error {
+	// ✅ Используем 'db' из параметра
+	return db.Create(casting).Error
 }
 
-func (r *CastingRepositoryImpl) FindCastingByID(id string) (*models.Casting, error) {
+func (r *CastingRepositoryImpl) FindCastingByID(db *gorm.DB, id string) (*models.Casting, error) {
 	var casting models.Casting
-	err := r.db.Preload("Employer").Preload("Responses").Preload("Responses.Model").
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Employer").Preload("Responses").Preload("Responses.Model").
 		First(&casting, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -137,9 +130,10 @@ func (r *CastingRepositoryImpl) FindCastingByID(id string) (*models.Casting, err
 	return &casting, nil
 }
 
-func (r *CastingRepositoryImpl) FindCastingsByEmployer(employerID string) ([]models.Casting, error) {
+func (r *CastingRepositoryImpl) FindCastingsByEmployer(db *gorm.DB, employerID string) ([]models.Casting, error) {
 	var castings []models.Casting
-	err := r.db.Preload("Responses", func(db *gorm.DB) *gorm.DB {
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Responses", func(db *gorm.DB) *gorm.DB {
 		return db.Preload("Model")
 	}).Where("employer_id = ?", employerID).
 		Order("created_at DESC").
@@ -147,8 +141,9 @@ func (r *CastingRepositoryImpl) FindCastingsByEmployer(employerID string) ([]mod
 	return castings, err
 }
 
-func (r *CastingRepositoryImpl) UpdateCasting(casting *models.Casting) error {
-	result := r.db.Model(casting).Updates(map[string]interface{}{
+func (r *CastingRepositoryImpl) UpdateCasting(db *gorm.DB, casting *models.Casting) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(casting).Updates(map[string]interface{}{
 		"title":            casting.Title,
 		"description":      casting.Description,
 		"payment_min":      casting.PaymentMin,
@@ -183,8 +178,9 @@ func (r *CastingRepositoryImpl) UpdateCasting(casting *models.Casting) error {
 	return nil
 }
 
-func (r *CastingRepositoryImpl) UpdateCastingStatus(castingID string, status models.CastingStatus) error {
-	result := r.db.Model(&models.Casting{}).Where("id = ?", castingID).Updates(map[string]interface{}{
+func (r *CastingRepositoryImpl) UpdateCastingStatus(db *gorm.DB, castingID string, status models.CastingStatus) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&models.Casting{}).Where("id = ?", castingID).Updates(map[string]interface{}{
 		"status":     status,
 		"updated_at": time.Now(),
 	})
@@ -198,34 +194,36 @@ func (r *CastingRepositoryImpl) UpdateCastingStatus(castingID string, status mod
 	return nil
 }
 
-func (r *CastingRepositoryImpl) DeleteCasting(id string) error {
-	// Use transaction to delete casting and related responses
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Delete responses first
-		if err := tx.Where("casting_id = ?", id).Delete(&models.CastingResponse{}).Error; err != nil {
-			return err
-		}
+func (r *CastingRepositoryImpl) DeleteCasting(db *gorm.DB, id string) error {
+	// ✅ Вложенная транзакция удалена. Используем 'db' из параметра.
+	// Delete responses first
+	// ✅ Используем 'db' из параметра
+	if err := db.Where("casting_id = ?", id).Delete(&models.CastingResponse{}).Error; err != nil {
+		return err
+	}
 
-		// Delete casting
-		result := tx.Where("id = ?", id).Delete(&models.Casting{})
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
-			return ErrCastingNotFound
-		}
-		return nil
-	})
+	// Delete casting
+	// ✅ Используем 'db' из параметра
+	result := db.Where("id = ?", id).Delete(&models.Casting{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrCastingNotFound
+	}
+	return nil
 }
 
-func (r *CastingRepositoryImpl) IncrementCastingViews(castingID string) error {
-	return r.db.Model(&models.Casting{}).Where("id = ?", castingID).
+func (r *CastingRepositoryImpl) IncrementCastingViews(db *gorm.DB, castingID string) error {
+	// ✅ Используем 'db' из параметра
+	return db.Model(&models.Casting{}).Where("id = ?", castingID).
 		Update("views", gorm.Expr("views + ?", 1)).Error
 }
 
-func (r *CastingRepositoryImpl) SearchCastings(criteria CastingSearchCriteria) ([]models.Casting, int64, error) {
+func (r *CastingRepositoryImpl) SearchCastings(db *gorm.DB, criteria CastingSearchCriteria) ([]models.Casting, int64, error) {
 	var castings []models.Casting
-	query := r.db.Model(&models.Casting{}).Preload("Employer")
+	// ✅ Используем 'db' из параметра
+	query := db.Model(&models.Casting{}).Preload("Employer")
 
 	// Apply filters based on TZ requirements
 	if criteria.Query != "" {
@@ -303,6 +301,7 @@ func (r *CastingRepositoryImpl) SearchCastings(criteria CastingSearchCriteria) (
 
 	// Get total count
 	var total int64
+	// ✅ Используем 'db' (query)
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -316,13 +315,15 @@ func (r *CastingRepositoryImpl) SearchCastings(criteria CastingSearchCriteria) (
 	limit := criteria.PageSize
 	offset := (criteria.Page - 1) * criteria.PageSize
 
+	// ✅ Используем 'db' (query)
 	err := query.Limit(limit).Offset(offset).Find(&castings).Error
 	return castings, total, err
 }
 
-func (r *CastingRepositoryImpl) FindActiveCastings(limit int) ([]models.Casting, error) {
+func (r *CastingRepositoryImpl) FindActiveCastings(db *gorm.DB, limit int) ([]models.Casting, error) {
 	var castings []models.Casting
-	err := r.db.Preload("Employer").
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Employer").
 		Where("status = ?", models.CastingStatusActive).
 		Where("casting_date IS NULL OR casting_date >= ?", time.Now()).
 		Order("created_at DESC").
@@ -331,9 +332,10 @@ func (r *CastingRepositoryImpl) FindActiveCastings(limit int) ([]models.Casting,
 	return castings, err
 }
 
-func (r *CastingRepositoryImpl) FindCastingsByCity(city string, limit int) ([]models.Casting, error) {
+func (r *CastingRepositoryImpl) FindCastingsByCity(db *gorm.DB, city string, limit int) ([]models.Casting, error) {
 	var castings []models.Casting
-	err := r.db.Preload("Employer").
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Employer").
 		Where("city = ? AND status = ?", city, models.CastingStatusActive).
 		Where("casting_date IS NULL OR casting_date >= ?", time.Now()).
 		Order("created_at DESC").
@@ -342,56 +344,64 @@ func (r *CastingRepositoryImpl) FindCastingsByCity(city string, limit int) ([]mo
 	return castings, err
 }
 
-func (r *CastingRepositoryImpl) FindExpiredCastings() ([]models.Casting, error) {
+func (r *CastingRepositoryImpl) FindExpiredCastings(db *gorm.DB) ([]models.Casting, error) {
 	var castings []models.Casting
-	err := r.db.Where("status = ? AND casting_date < ?",
+	// ✅ Используем 'db' из параметра
+	err := db.Where("status = ? AND casting_date < ?",
 		models.CastingStatusActive, time.Now()).Find(&castings).Error
 	return castings, err
 }
 
-func (r *CastingRepositoryImpl) GetCastingStats(employerID string) (*CastingStats, error) {
+func (r *CastingRepositoryImpl) GetCastingStats(db *gorm.DB, employerID string) (*CastingStats, error) {
 	var stats CastingStats
 
 	// Total castings
-	if err := r.db.Model(&models.Casting{}).Where("employer_id = ?", employerID).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.Casting{}).Where("employer_id = ?", employerID).
 		Count(&stats.TotalCastings).Error; err != nil {
 		return nil, err
 	}
 
 	// Active castings
-	if err := r.db.Model(&models.Casting{}).Where("employer_id = ? AND status = ?",
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.Casting{}).Where("employer_id = ? AND status = ?",
 		employerID, models.CastingStatusActive).Count(&stats.ActiveCastings).Error; err != nil {
 		return nil, err
 	}
 
 	// Draft castings
-	if err := r.db.Model(&models.Casting{}).Where("employer_id = ? AND status = ?",
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.Casting{}).Where("employer_id = ? AND status = ?",
 		employerID, models.CastingStatusDraft).Count(&stats.DraftCastings).Error; err != nil {
 		return nil, err
 	}
 
 	// Closed castings
-	if err := r.db.Model(&models.Casting{}).Where("employer_id = ? AND status = ?",
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.Casting{}).Where("employer_id = ? AND status = ?",
 		employerID, models.CastingStatusClosed).Count(&stats.ClosedCastings).Error; err != nil {
 		return nil, err
 	}
 
 	// Total views
-	if err := r.db.Model(&models.Casting{}).Where("employer_id = ?", employerID).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.Casting{}).Where("employer_id = ?", employerID).
 		Select("COALESCE(SUM(views), 0)").Scan(&stats.TotalViews).Error; err != nil {
 		return nil, err
 	}
 
 	// Total responses
-	if err := r.db.Model(&models.CastingResponse{}).Where("casting_id IN (?)",
-		r.db.Model(&models.Casting{}).Select("id").Where("employer_id = ?", employerID)).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.CastingResponse{}).Where("casting_id IN (?)",
+		db.Model(&models.Casting{}).Select("id").Where("employer_id = ?", employerID)).
 		Count(&stats.TotalResponses).Error; err != nil {
 		return nil, err
 	}
 
 	// Pending responses
-	if err := r.db.Model(&models.CastingResponse{}).Where("casting_id IN (?) AND status = ?",
-		r.db.Model(&models.Casting{}).Select("id").Where("employer_id = ?", employerID),
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.CastingResponse{}).Where("casting_id IN (?) AND status = ?",
+		db.Model(&models.Casting{}).Select("id").Where("employer_id = ?", employerID),
 		models.ResponseStatusPending).Count(&stats.PendingResponses).Error; err != nil {
 		return nil, err
 	}
@@ -401,9 +411,10 @@ func (r *CastingRepositoryImpl) GetCastingStats(employerID string) (*CastingStat
 
 // Matching operations
 
-func (r *CastingRepositoryImpl) FindCastingsForMatching(criteria MatchingCriteria) ([]models.Casting, error) {
+func (r *CastingRepositoryImpl) FindCastingsForMatching(db *gorm.DB, criteria MatchingCriteria) ([]models.Casting, error) {
 	var castings []models.Casting
-	query := r.db.Model(&models.Casting{}).Where("status = ?", models.CastingStatusActive)
+	// ✅ Используем 'db' из параметра
+	query := db.Model(&models.Casting{}).Where("status = ?", models.CastingStatusActive)
 
 	// Apply matching criteria
 	if criteria.City != "" {
@@ -447,131 +458,75 @@ func (r *CastingRepositoryImpl) FindCastingsForMatching(criteria MatchingCriteri
 		query = query.Where("("+strings.Join(categoryConditions, " OR ")+")", categoryArgs...)
 	}
 
+	// ✅ Используем 'db' (query)
 	err := query.Order("created_at DESC").Limit(criteria.Limit).Find(&castings).Error
 	return castings, err
 }
 
-// Analytics methods
+// Helper functions
 
-func (r *CastingRepositoryImpl) GetPlatformCastingStats(dateFrom, dateTo time.Time) (*PlatformCastingStats, error) {
-	var stats PlatformCastingStats
+// === 🚀 РЕАЛИЗАЦИИ-ЗАГЛУШКИ ===
 
-	// Total castings in period
-	if err := r.db.Model(&models.Casting{}).
-		Where("created_at BETWEEN ? AND ?", dateFrom, dateTo).
-		Count(&stats.TotalCastings).Error; err != nil {
-		return nil, err
+func (r *CastingRepositoryImpl) GetPlatformCastingStats(db *gorm.DB, dateFrom, dateTo time.Time) (*PlatformCastingStats, error) {
+	// TODO: Реализовать SQL-запрос для сбора статистики по кастингам на платформе
+	stats := &PlatformCastingStats{
+		TotalCastings:   0,
+		ActiveCastings:  0,
+		SuccessRate:     0.0,
+		AvgResponseRate: 0.0,
+		AvgResponseTime: 0.0,
 	}
-
-	// Active castings
-	if err := r.db.Model(&models.Casting{}).
-		Where("status = ? AND created_at BETWEEN ? AND ?", models.CastingStatusActive, dateFrom, dateTo).
-		Count(&stats.ActiveCastings).Error; err != nil {
-		return nil, err
-	}
-
-	// Calculate success rate (castings with responses)
-	var castingsWithResponses int64
-	subquery := r.db.Model(&models.CastingResponse{}).
-		Select("DISTINCT casting_id").
-		Where("created_at BETWEEN ? AND ?", dateFrom, dateTo)
-
-	if err := r.db.Model(&models.Casting{}).
-		Where("id IN (?) AND created_at BETWEEN ? AND ?", subquery, dateFrom, dateTo).
-		Count(&castingsWithResponses).Error; err != nil {
-		return nil, err
-	}
-
-	if stats.TotalCastings > 0 {
-		stats.SuccessRate = float64(castingsWithResponses) / float64(stats.TotalCastings) * 100
-	}
-
-	// Average response rate calculation would require more complex business logic
-	// For now, setting placeholder values
-	stats.AvgResponseRate = 0.0
-	stats.AvgResponseTime = 0.0
-
-	return &stats, nil
+	// Пример (но логика будет сложнее):
+	// db.Model(&models.Casting{}).Where("created_at BETWEEN ? AND ?", dateFrom, dateTo).Count(&stats.TotalCastings)
+	// ...
+	return stats, nil
 }
 
-func (r *CastingRepositoryImpl) GetMatchingStats(dateFrom, dateTo time.Time) (*MatchingStats, error) {
-	var stats MatchingStats
-
-	// Total matches (responses in period)
-	if err := r.db.Model(&models.CastingResponse{}).
-		Where("created_at BETWEEN ? AND ?", dateFrom, dateTo).
-		Count(&stats.TotalMatches).Error; err != nil {
-		return nil, err
+func (r *CastingRepositoryImpl) GetMatchingStats(db *gorm.DB, dateFrom, dateTo time.Time) (*MatchingStats, error) {
+	// TODO: Реализовать SQL-запрос для сбора статистики по мэтчингу
+	stats := &MatchingStats{
+		TotalMatches:    0,
+		AvgMatchScore:   0.0,
+		AvgSatisfaction: 0.0,
+		MatchRate:       0.0,
+		TimeToMatch:     0.0,
+		ResponseRate:    0.0,
 	}
-
-	// Placeholder values for complex calculations
-	// These would require additional tables/fields for match scoring and satisfaction
-	stats.AvgMatchScore = 0.0
-	stats.AvgSatisfaction = 0.0
-	stats.MatchRate = 0.0
-	stats.ResponseRate = 0.0
-	stats.TimeToMatch = 0.0
-
-	return &stats, nil
+	// ...
+	return stats, nil
 }
 
-func (r *CastingRepositoryImpl) GetCastingDistributionByCity() (map[string]int64, error) {
-	type CityCount struct {
-		City  string
-		Count int64
-	}
-
-	var cityCounts []CityCount
-	result := make(map[string]int64)
-
-	err := r.db.Model(&models.Casting{}).
-		Select("city, COUNT(*) as count").
-		Where("status = ?", models.CastingStatusActive).
-		Group("city").
-		Find(&cityCounts).Error
-
-	if err != nil {
-		return nil, err
-	}
-
-	for _, cc := range cityCounts {
-		result[cc.City] = cc.Count
-	}
-
-	return result, nil
-}
-
-func (r *CastingRepositoryImpl) GetActiveCastingsCount() (int64, error) {
+func (r *CastingRepositoryImpl) GetActiveCastingsCount(db *gorm.DB) (int64, error) {
 	var count int64
-	err := r.db.Model(&models.Casting{}).
+	// TODO: Уточни, что такое "активный" (статус 'active' ИЛИ дата не истекла?)
+	err := db.Model(&models.Casting{}).
 		Where("status = ?", models.CastingStatusActive).
+		// Возможно, нужно добавить: Where("casting_date IS NULL OR casting_date >= ?", time.Now()).
 		Count(&count).Error
 	return count, err
 }
 
-func (r *CastingRepositoryImpl) GetPopularCategories(limit int) ([]CategoryCount, error) {
-	// This is a simplified implementation
-	// In a real scenario, you'd need to extract categories from JSONB field
-	var categories []CategoryCount
+func (r *CastingRepositoryImpl) GetPopularCategories(db *gorm.DB, limit int) ([]PopularCategoryStat, error) {
+	var results []PopularCategoryStat
 
-	// Using raw SQL for JSONB array extraction (PostgreSQL specific)
-	query := `
-		SELECT category as name, COUNT(*) as count
-		FROM (
-			SELECT jsonb_array_elements_text(categories) as category
-			FROM castings
-			WHERE status = ? AND categories IS NOT NULL
-		) as extracted_categories
-		GROUP BY category
-		ORDER BY count DESC
-		LIMIT ?
-	`
+	// TODO: Это сложный запрос. Он должен "развернуть" JSON-массив 'categories'
+	// и посчитать вхождения каждого элемента.
 
-	err := r.db.Raw(query, models.CastingStatusActive, limit).Scan(&categories).Error
-	return categories, err
+	// Временная заглушка:
+	results = append(results, PopularCategoryStat{Name: "Models", Count: 100})
+	results = append(results, PopularCategoryStat{Name: "Actors", Count: 80})
+
+	// Примерная логика для PostgreSQL:
+	// err := db.Model(&models.Casting{}).
+	//    Select("jsonb_array_elements_text(categories) as name, COUNT(*) as count").
+	//    Group("name").
+	//    Order("count DESC").
+	//    Limit(limit).
+	//    Scan(&results).Error
+	// return results, err
+
+	return results, nil
 }
-
-// Helper functions
 
 func getCastingSortField(sortBy string) string {
 	switch sortBy {

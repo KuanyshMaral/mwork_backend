@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"mwork_backend/internal/appErrors" // <-- Добавлен импорт
+	"mwork_backend/pkg/apperrors" // <-- Добавлен импорт
 
 	"mwork_backend/internal/middleware" // <-- Все еще нужен для RegisterRoutes
 	"mwork_backend/internal/models"
@@ -14,19 +14,17 @@ import (
 )
 
 type SearchHandler struct {
-	*BaseHandler  // <-- 1. Встраиваем BaseHandler
+	*BaseHandler
 	searchService services.SearchService
 }
 
-// 2. Обновляем конструктор
 func NewSearchHandler(base *BaseHandler, searchService services.SearchService) *SearchHandler {
 	return &SearchHandler{
-		BaseHandler:   base, // <-- 3. Сохраняем его
+		BaseHandler:   base,
 		searchService: searchService,
 	}
 }
 
-// RegisterRoutes не требует изменений
 func (h *SearchHandler) RegisterRoutes(r *gin.RouterGroup) {
 	// Public search routes
 	search := r.Group("/search")
@@ -69,12 +67,10 @@ func (h *SearchHandler) RegisterRoutes(r *gin.RouterGroup) {
 
 func (h *SearchHandler) SearchCastings(c *gin.Context) {
 	var req dto.SearchCastingsRequest
-	// 4. Используем BindAndValidate_JSON
 	if !h.BindAndValidate_JSON(c, &req) {
 		return
 	}
 
-	// Пагинация (оставляем, т.к. она часть request body, а не query)
 	if req.Page == 0 {
 		req.Page = 1
 	}
@@ -82,9 +78,11 @@ func (h *SearchHandler) SearchCastings(c *gin.Context) {
 		req.PageSize = 20
 	}
 
-	response, err := h.searchService.SearchCastings(&req)
+	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
+	response, err := h.searchService.SearchCastings(h.GetDB(c), &req)
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	if err != nil {
-		h.HandleServiceError(c, err) // <-- 5. Используем HandleServiceError
+		h.HandleServiceError(c, err)
 		return
 	}
 
@@ -104,7 +102,9 @@ func (h *SearchHandler) SearchCastingsAdvanced(c *gin.Context) {
 		req.PageSize = 20
 	}
 
-	response, err := h.searchService.SearchCastingsAdvanced(&req)
+	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
+	response, err := h.searchService.SearchCastingsAdvanced(h.GetDB(c), &req)
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -116,18 +116,18 @@ func (h *SearchHandler) SearchCastingsAdvanced(c *gin.Context) {
 func (h *SearchHandler) GetCastingSearchSuggestions(c *gin.Context) {
 	query := c.Query("query")
 	if query == "" {
-		// 6. Используем appErrors
-		appErrors.HandleError(c, appErrors.NewBadRequestError("query parameter is required"))
+		apperrors.HandleError(c, apperrors.NewBadRequestError("query parameter is required"))
 		return
 	}
 
-	// 7. Используем ParseQueryInt
 	limit := ParseQueryInt(c, "limit", 10)
 	if limit <= 0 || limit > 50 {
-		limit = 10 // Восстанавливаем default, если значение некорректно
+		limit = 10
 	}
 
-	suggestions, err := h.searchService.GetCastingSearchSuggestions(query, limit)
+	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
+	suggestions, err := h.searchService.GetCastingSearchSuggestions(h.GetDB(c), query, limit)
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -154,7 +154,9 @@ func (h *SearchHandler) SearchModels(c *gin.Context) {
 		req.PageSize = 20
 	}
 
-	response, err := h.searchService.SearchModels(&req)
+	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
+	response, err := h.searchService.SearchModels(h.GetDB(c), &req)
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -176,7 +178,9 @@ func (h *SearchHandler) SearchModelsAdvanced(c *gin.Context) {
 		req.PageSize = 20
 	}
 
-	response, err := h.searchService.SearchModelsAdvanced(&req)
+	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
+	response, err := h.searchService.SearchModelsAdvanced(h.GetDB(c), &req)
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -188,7 +192,7 @@ func (h *SearchHandler) SearchModelsAdvanced(c *gin.Context) {
 func (h *SearchHandler) GetModelSearchSuggestions(c *gin.Context) {
 	query := c.Query("query")
 	if query == "" {
-		appErrors.HandleError(c, appErrors.NewBadRequestError("query parameter is required"))
+		apperrors.HandleError(c, apperrors.NewBadRequestError("query parameter is required"))
 		return
 	}
 
@@ -197,7 +201,9 @@ func (h *SearchHandler) GetModelSearchSuggestions(c *gin.Context) {
 		limit = 10
 	}
 
-	suggestions, err := h.searchService.GetModelSearchSuggestions(query, limit)
+	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
+	suggestions, err := h.searchService.GetModelSearchSuggestions(h.GetDB(c), query, limit)
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -224,7 +230,9 @@ func (h *SearchHandler) SearchEmployers(c *gin.Context) {
 		req.PageSize = 20
 	}
 
-	response, err := h.searchService.SearchEmployers(&req)
+	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
+	response, err := h.searchService.SearchEmployers(h.GetDB(c), &req)
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -248,7 +256,9 @@ func (h *SearchHandler) UnifiedSearch(c *gin.Context) {
 		req.PageSize = 30
 	}
 
-	response, err := h.searchService.UnifiedSearch(&req)
+	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
+	response, err := h.searchService.UnifiedSearch(h.GetDB(c), &req)
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -260,11 +270,13 @@ func (h *SearchHandler) UnifiedSearch(c *gin.Context) {
 func (h *SearchHandler) GetSearchAutoComplete(c *gin.Context) {
 	query := c.Query("query")
 	if query == "" {
-		appErrors.HandleError(c, appErrors.NewBadRequestError("query parameter is required"))
+		apperrors.HandleError(c, apperrors.NewBadRequestError("query parameter is required"))
 		return
 	}
 
-	response, err := h.searchService.GetSearchAutoComplete(query)
+	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
+	response, err := h.searchService.GetSearchAutoComplete(h.GetDB(c), query)
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -281,7 +293,9 @@ func (h *SearchHandler) GetPopularSearches(c *gin.Context) {
 		limit = 20
 	}
 
-	searches, err := h.searchService.GetPopularSearches(limit)
+	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
+	searches, err := h.searchService.GetPopularSearches(h.GetDB(c), limit)
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -299,7 +313,9 @@ func (h *SearchHandler) GetSearchTrends(c *gin.Context) {
 		days = 7
 	}
 
-	trends, err := h.searchService.GetSearchTrends(days)
+	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
+	trends, err := h.searchService.GetSearchTrends(h.GetDB(c), days)
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -309,7 +325,6 @@ func (h *SearchHandler) GetSearchTrends(c *gin.Context) {
 }
 
 func (h *SearchHandler) GetSearchHistory(c *gin.Context) {
-	// 8. Используем GetAndAuthorizeUserID
 	userID, ok := h.GetAndAuthorizeUserID(c)
 	if !ok {
 		return
@@ -320,7 +335,9 @@ func (h *SearchHandler) GetSearchHistory(c *gin.Context) {
 		limit = 20
 	}
 
-	history, err := h.searchService.GetSearchHistory(userID, limit)
+	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
+	history, err := h.searchService.GetSearchHistory(h.GetDB(c), userID, limit)
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -338,7 +355,9 @@ func (h *SearchHandler) ClearSearchHistory(c *gin.Context) {
 		return
 	}
 
-	if err := h.searchService.ClearSearchHistory(userID); err != nil {
+	// ▼▼▼ ИZМЕНЕНО ▼▼▼
+	if err := h.searchService.ClearSearchHistory(h.GetDB(c), userID); err != nil {
+		// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -349,7 +368,6 @@ func (h *SearchHandler) ClearSearchHistory(c *gin.Context) {
 // --- Admin handlers ---
 
 func (h *SearchHandler) GetSearchAnalytics(c *gin.Context) {
-	// Админские ручки также должны проверять авторизацию
 	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
 		return
 	}
@@ -359,7 +377,9 @@ func (h *SearchHandler) GetSearchAnalytics(c *gin.Context) {
 		days = 30
 	}
 
-	analytics, err := h.searchService.GetSearchAnalytics(days)
+	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
+	analytics, err := h.searchService.GetSearchAnalytics(h.GetDB(c), days)
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -374,7 +394,9 @@ func (h *SearchHandler) ReindexSearchData(c *gin.Context) {
 		return
 	}
 
-	if err := h.searchService.ReindexSearchData(adminID); err != nil {
+	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
+	if err := h.searchService.ReindexSearchData(h.GetDB(c), adminID); err != nil {
+		// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 		h.HandleServiceError(c, err)
 		return
 	}

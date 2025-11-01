@@ -120,28 +120,12 @@ type CastingStatsResponse struct {
 }
 
 // --- Search Criteria ---
-
-type CastingSearchCriteria struct {
-	Query      string     `form:"query"`
-	City       string     `form:"city"`
-	Categories []string   `form:"categories[]"`
-	Gender     string     `form:"gender"`
-	MinAge     *int       `form:"min_age"`
-	MaxAge     *int       `form:"max_age"`
-	MinHeight  *int       `form:"min_height"`
-	MaxHeight  *int       `form:"max_height"`
-	MinSalary  *int       `form:"min_salary"`
-	MaxSalary  *int       `form:"max_salary"`
-	JobType    string     `form:"job_type" validate:"omitempty,is-job-type"`     // Кастомное правило
-	Status     string     `form:"status" validate:"omitempty,is-casting-status"` // Кастомное правило
-	EmployerID string     `form:"employer_id"`
-	DateFrom   *time.Time `form:"date_from"`
-	DateTo     *time.Time `form:"date_to"`
-	Page       int        `form:"page" validate:"omitempty,min=1"`
-	PageSize   int        `form:"page_size" validate:"omitempty,min=1,max=100"`
-	SortBy     string     `form:"sort_by"`
-	SortOrder  string     `form:"sort_order"`
-}
+//
+// !!!!!!!!!!!!!
+// СТРУКТУРА CastingSearchCriteria БЫЛА УДАЛЕНА.
+// Вместо нее используется SearchCastingsRequest из dto/search.go
+// !!!!!!!!!!!!!
+//
 
 type PlatformStatsResponse struct {
 	TotalCastings    int64     `json:"total_castings"`

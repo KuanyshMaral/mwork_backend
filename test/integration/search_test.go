@@ -48,7 +48,8 @@ func TestSearch(t *testing.T) {
 			"pageSize": 10,
 		}
 
-		res, bodyStr := ts.SendRequest(t, http.MethodPost, endpoint, "", body)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodPost, endpoint, "", body)
 		assert.Equal(t, http.StatusOK, res.StatusCode, "Public search should succeed. Body: "+bodyStr)
 		// Проверяем структуру PaginatedResponse
 		assert.Contains(t, bodyStr, `"total":1`, "Should find 1 casting in Almaty")
@@ -57,14 +58,16 @@ func TestSearch(t *testing.T) {
 
 		// Тест 2: Пустой результат
 		body["city"] = "Mordor"
-		res, bodyStr = ts.SendRequest(t, http.MethodPost, endpoint, "", body)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodPost, endpoint, "", body)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Contains(t, bodyStr, `"total":0`, "Should find 0 castings in Mordor")
 		assert.Contains(t, bodyStr, `"data":[]`, "Data array should be empty")
 
 		// Тест 3: Ошибка валидации (невалидный pageSize)
 		body = gin.H{"page": 1, "pageSize": 999}
-		res, bodyStr = ts.SendRequest(t, http.MethodPost, endpoint, "", body)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodPost, endpoint, "", body)
 		// (Предполагаем, что сервис-слой или DTO имеет валидацию max=100)
 		assert.Equal(t, http.StatusBadRequest, res.StatusCode, "Should fail validation for large pageSize. Body: "+bodyStr)
 	})
@@ -73,18 +76,21 @@ func TestSearch(t *testing.T) {
 		endpoint := "/api/v1/search/castings/suggestions"
 
 		// 1. Ошибка: Нет query
-		res, bodyStr := ts.SendRequest(t, http.MethodGet, endpoint, "", nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, endpoint, "", nil)
 		assert.Equal(t, http.StatusBadRequest, res.StatusCode)
 		assert.Contains(t, bodyStr, "query parameter is required", "Error message should be correct")
 
 		// 2. Успешно (Кастинги)
-		res, bodyStr = ts.SendRequest(t, http.MethodGet, endpoint+"?query=Actor&limit=5", "", nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, endpoint+"?query=Actor&limit=5", "", nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Contains(t, bodyStr, `"suggestions":`, "Response should contain suggestions key")
 
 		// 3. Успешно (Модели)
 		endpointModels := "/api/v1/search/models/suggestions"
-		res, bodyStr = ts.SendRequest(t, http.MethodGet, endpointModels+"?query=Model&limit=5", "", nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, endpointModels+"?query=Model&limit=5", "", nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Contains(t, bodyStr, `"suggestions":`)
 	})
@@ -97,7 +103,8 @@ func TestSearch(t *testing.T) {
 			"page":     1,
 			"pageSize": 10,
 		}
-		res, bodyStr := ts.SendRequest(t, http.MethodPost, modelEndpoint, "", body)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodPost, modelEndpoint, "", body)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Contains(t, bodyStr, `"total":1`, "Should find 1 model in Almaty")
 		assert.Contains(t, bodyStr, modelProfile.ID, "Response should contain model ID")
@@ -109,7 +116,8 @@ func TestSearch(t *testing.T) {
 			"page":     1,
 			"pageSize": 10,
 		}
-		res, bodyStr = ts.SendRequest(t, http.MethodPost, empEndpoint, "", body)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodPost, empEndpoint, "", body)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Contains(t, bodyStr, `"total":1`, "Should find 1 employer in Almaty")
 		assert.Contains(t, bodyStr, empProfile.ID, "Response should contain employer ID")
@@ -124,7 +132,8 @@ func TestSearch(t *testing.T) {
 			"pageSize": 10,
 		}
 
-		res, bodyStr := ts.SendRequest(t, http.MethodPost, endpoint, "", body)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodPost, endpoint, "", body)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		// Проверяем, что в ответе есть все 3 типа
 		assert.Contains(t, bodyStr, `"castings":`, "Unified search should return castings")
@@ -137,16 +146,19 @@ func TestSearch(t *testing.T) {
 		endpoint := "/api/v1/search/history"
 
 		// 1. Ошибка: Без токена
-		res, bodyStr := ts.SendRequest(t, http.MethodGet, endpoint, "", nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, endpoint, "", nil)
 		assert.Equal(t, http.StatusUnauthorized, res.StatusCode, "History endpoint requires auth. Body: "+bodyStr)
 
 		// 2. Успешно (Модель)
-		res, bodyStr = ts.SendRequest(t, http.MethodGet, endpoint, modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, endpoint, modelToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Contains(t, bodyStr, `"history":`, "Response should contain history key")
 
 		// 3. Успешно (Работодатель)
-		res, _ = ts.SendRequest(t, http.MethodGet, endpoint, empToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodGet, endpoint, empToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 	})
 
@@ -156,17 +168,20 @@ func TestSearch(t *testing.T) {
 		// (Предположим, что сервис записал историю поиска для modelToken)
 
 		// 1. Успешно (Модель чистит свою историю)
-		res, bodyStr := ts.SendRequest(t, http.MethodDelete, endpoint, modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodDelete, endpoint, modelToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Contains(t, bodyStr, "history cleared", "Success message mismatch")
 
 		// 2. Проверяем, что история пуста
-		res, bodyStr = ts.SendRequest(t, http.MethodGet, endpoint, modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, endpoint, modelToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Contains(t, bodyStr, `"total":0`, "History total should be 0 after delete")
 
 		// 3. Ошибка: Без токена
-		res, _ = ts.SendRequest(t, http.MethodDelete, endpoint, "", nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodDelete, endpoint, "", nil)
 		assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	})
 
@@ -175,24 +190,29 @@ func TestSearch(t *testing.T) {
 		reindexEndpoint := "/api/v1/admin/search/reindex"
 
 		// 1. Ошибка: Без токена
-		res, _ := ts.SendRequest(t, http.MethodGet, analyticsEndpoint, "", nil)
+		// ❗️ Добавлен 'tx'
+		res, _ := ts.SendRequest(t, tx, http.MethodGet, analyticsEndpoint, "", nil)
 		assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 
 		// 2. Ошибка: Не та роль (Модель)
-		res, bodyStr := ts.SendRequest(t, http.MethodGet, analyticsEndpoint, modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, analyticsEndpoint, modelToken, nil)
 		assert.Equal(t, http.StatusForbidden, res.StatusCode, "RoleMiddleware should block non-admin. Body: "+bodyStr)
 
 		// 3. Ошибка: Не та роль (Работодатель)
-		res, _ = ts.SendRequest(t, http.MethodPost, reindexEndpoint, empToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodPost, reindexEndpoint, empToken, nil)
 		assert.Equal(t, http.StatusForbidden, res.StatusCode, "RoleMiddleware should block non-admin")
 
 		// 4. Успешно: Админ GET Analytics
-		res, bodyStr = ts.SendRequest(t, http.MethodGet, analyticsEndpoint, adminToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, analyticsEndpoint, adminToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Contains(t, bodyStr, "total_searches", "Admin analytics response missing keys") // (Предположение о DTO)
 
 		// 5. Успешно: Админ POST Reindex
-		res, bodyStr = ts.SendRequest(t, http.MethodPost, reindexEndpoint, adminToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodPost, reindexEndpoint, adminToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Contains(t, bodyStr, "reindexing started", "Admin reindex response mismatch")
 	})
@@ -217,7 +237,8 @@ func TestSearch_CastingsIsolated(t *testing.T) {
 		"page":     1,
 		"pageSize": 10,
 	}
-	res, bodyStr := ts.SendRequest(t, http.MethodPost, "/api/v1/search/castings", "", body)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, http.MethodPost, "/api/v1/search/castings", "", body)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, `"total":1`, "Should find only 1 casting in Almaty")
 	assert.Contains(t, bodyStr, "Almaty Casting")
@@ -251,7 +272,8 @@ func TestSearch_ModelsIsolated(t *testing.T) {
 		"city":      "Astana", // Другой город
 		"is_public": true,
 	}
-	ts.SendRequest(t, http.MethodPost, "/api/v1/profiles/model", userToken, astanaBody)
+	// ❗️ Добавлен 'tx'
+	ts.SendRequest(t, tx, http.MethodPost, "/api/v1/profiles/model", userToken, astanaBody)
 
 	// Тестируем поиск моделей по городу
 	body := gin.H{
@@ -259,7 +281,8 @@ func TestSearch_ModelsIsolated(t *testing.T) {
 		"page":     1,
 		"pageSize": 10,
 	}
-	res, bodyStr := ts.SendRequest(t, http.MethodPost, "/api/v1/search/models", "", body)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, http.MethodPost, "/api/v1/search/models", "", body)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, `"total":1`, "Should find only 1 model in Astana")
 	assert.Contains(t, bodyStr, "Astana Model")
@@ -277,12 +300,14 @@ func TestSearch_SuggestionsIsolated(t *testing.T) {
 	CreateTestCasting(t, tx, empUser.ID, "Unique Casting Name", "Almaty")
 
 	// Тестируем suggestions
-	res, bodyStr := ts.SendRequest(t, http.MethodGet, "/api/v1/search/castings/suggestions?query=Unique&limit=5", "", nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, "/api/v1/search/castings/suggestions?query=Unique&limit=5", "", nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, "Unique Casting Name", "Suggestions should contain matching casting")
 
 	// Тестируем пустой запрос
-	res, bodyStr = ts.SendRequest(t, http.MethodGet, "/api/v1/search/castings/suggestions?query=NonExistent&limit=5", "", nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/search/castings/suggestions?query=NonExistent&limit=5", "", nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, `"suggestions":[]`, "Should return empty suggestions for non-existent query")
 }
@@ -302,24 +327,29 @@ func TestSearch_HistorySecurity(t *testing.T) {
 	// (предполагаем, что история сохраняется при поиске)
 
 	// Пользователь 1 получает свою историю
-	res, bodyStr := ts.SendRequest(t, http.MethodGet, "/api/v1/search/history", modelToken1, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, "/api/v1/search/history", modelToken1, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	// Пользователь 2 получает свою историю
-	res, bodyStr = ts.SendRequest(t, http.MethodGet, "/api/v1/search/history", modelToken2, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/search/history", modelToken2, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	// Пользователь 1 очищает свою историю
-	res, bodyStr = ts.SendRequest(t, http.MethodDelete, "/api/v1/search/history", modelToken1, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, http.MethodDelete, "/api/v1/search/history", modelToken1, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	// Проверяем, что история пользователя 1 пуста
-	res, bodyStr = ts.SendRequest(t, http.MethodGet, "/api/v1/search/history", modelToken1, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/search/history", modelToken1, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, `"total":0`, "User 1 history should be empty")
 
 	// Проверяем, что история пользователя 2 не затронута
-	res, bodyStr = ts.SendRequest(t, http.MethodGet, "/api/v1/search/history", modelToken2, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/search/history", modelToken2, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	// История пользователя 2 должна остаться неизменной
 }

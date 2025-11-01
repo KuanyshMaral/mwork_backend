@@ -5,10 +5,11 @@ import (
 	"net/http"
 	// "strconv" // <-- No longer needed
 
-	"mwork_backend/internal/appErrors" // <-- Added import
+	"mwork_backend/internal/middleware" // <-- Need this for RegisterRoutes
 	"mwork_backend/internal/services"
 	"mwork_backend/internal/services/dto"
 	"mwork_backend/internal/validator" // <-- Added import (for manual validation)
+	"mwork_backend/pkg/apperrors"      // <-- Added import
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,6 +29,9 @@ func NewChatHandler(base *BaseHandler, chatService services.ChatService) *ChatHa
 
 // RegisterRoutes (no changes, but middleware imports are now required)
 func (h *ChatHandler) RegisterRoutes(router *gin.RouterGroup) {
+	// Need to add middleware back for routes
+	router.Use(middleware.AuthMiddleware())
+
 	// Dialog routes
 	router.POST("/dialogs", h.CreateDialog)
 	router.POST("/dialogs/casting", h.CreateCastingDialog)
@@ -97,7 +101,8 @@ func (h *ChatHandler) CreateDialog(c *gin.Context) {
 		return
 	}
 
-	dialog, err := h.chatService.CreateDialog(userID, &req)
+	// ✅ DB: Используем h.GetDB(c)
+	dialog, err := h.chatService.CreateDialog(h.GetDB(c), userID, &req)
 	if err != nil {
 		// 6. Use HandleServiceError
 		h.HandleServiceError(c, err)
@@ -122,7 +127,8 @@ func (h *ChatHandler) CreateCastingDialog(c *gin.Context) {
 		return
 	}
 
-	dialog, err := h.chatService.CreateCastingDialog(req.CastingID, req.EmployerID, req.ModelID)
+	// ✅ DB: Используем h.GetDB(c)
+	dialog, err := h.chatService.CreateCastingDialog(h.GetDB(c), req.CastingID, req.EmployerID, req.ModelID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -138,7 +144,8 @@ func (h *ChatHandler) GetDialog(c *gin.Context) {
 	}
 	dialogID := c.Param("dialogID")
 
-	dialog, err := h.chatService.GetDialog(dialogID, userID)
+	// ✅ DB: Используем h.GetDB(c)
+	dialog, err := h.chatService.GetDialog(h.GetDB(c), dialogID, userID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -153,7 +160,8 @@ func (h *ChatHandler) GetUserDialogs(c *gin.Context) {
 		return
 	}
 
-	dialogs, err := h.chatService.GetUserDialogs(userID)
+	// ✅ DB: Используем h.GetDB(c)
+	dialogs, err := h.chatService.GetUserDialogs(h.GetDB(c), userID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -169,7 +177,8 @@ func (h *ChatHandler) GetDialogBetweenUsers(c *gin.Context) {
 	user1ID := c.Param("user1ID")
 	user2ID := c.Param("user2ID")
 
-	dialog, err := h.chatService.GetDialogBetweenUsers(user1ID, user2ID)
+	// ✅ DB: Используем h.GetDB(c)
+	dialog, err := h.chatService.GetDialogBetweenUsers(h.GetDB(c), user1ID, user2ID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -190,7 +199,8 @@ func (h *ChatHandler) UpdateDialog(c *gin.Context) {
 		return
 	}
 
-	if err := h.chatService.UpdateDialog(userID, dialogID, &req); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.chatService.UpdateDialog(h.GetDB(c), userID, dialogID, &req); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -205,7 +215,8 @@ func (h *ChatHandler) DeleteDialog(c *gin.Context) {
 	}
 	dialogID := c.Param("dialogID")
 
-	if err := h.chatService.DeleteDialog(userID, dialogID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.chatService.DeleteDialog(h.GetDB(c), userID, dialogID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -220,7 +231,8 @@ func (h *ChatHandler) LeaveDialog(c *gin.Context) {
 	}
 	dialogID := c.Param("dialogID")
 
-	if err := h.chatService.LeaveDialog(userID, dialogID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.chatService.LeaveDialog(h.GetDB(c), userID, dialogID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -245,7 +257,8 @@ func (h *ChatHandler) AddParticipants(c *gin.Context) {
 		return
 	}
 
-	if err := h.chatService.AddParticipants(userID, dialogID, req.ParticipantIDs); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.chatService.AddParticipants(h.GetDB(c), userID, dialogID, req.ParticipantIDs); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -261,7 +274,8 @@ func (h *ChatHandler) RemoveParticipant(c *gin.Context) {
 	dialogID := c.Param("dialogID")
 	targetUserID := c.Param("userID")
 
-	if err := h.chatService.RemoveParticipant(userID, dialogID, targetUserID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.chatService.RemoveParticipant(h.GetDB(c), userID, dialogID, targetUserID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -285,7 +299,8 @@ func (h *ChatHandler) UpdateParticipantRole(c *gin.Context) {
 		return
 	}
 
-	if err := h.chatService.UpdateParticipantRole(userID, dialogID, targetUserID, req.Role); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.chatService.UpdateParticipantRole(h.GetDB(c), userID, dialogID, targetUserID, req.Role); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -308,7 +323,8 @@ func (h *ChatHandler) MuteDialog(c *gin.Context) {
 		return
 	}
 
-	if err := h.chatService.MuteDialog(userID, dialogID, req.Muted); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.chatService.MuteDialog(h.GetDB(c), userID, dialogID, req.Muted); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -323,7 +339,8 @@ func (h *ChatHandler) UpdateLastSeen(c *gin.Context) {
 	}
 	dialogID := c.Param("dialogID")
 
-	if err := h.chatService.UpdateLastSeen(userID, dialogID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.chatService.UpdateLastSeen(h.GetDB(c), userID, dialogID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -346,7 +363,8 @@ func (h *ChatHandler) SetTyping(c *gin.Context) {
 		return
 	}
 
-	if err := h.chatService.SetTyping(userID, dialogID, req.Typing); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.chatService.SetTyping(h.GetDB(c), userID, dialogID, req.Typing); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -367,7 +385,8 @@ func (h *ChatHandler) SendMessage(c *gin.Context) {
 		return
 	}
 
-	message, err := h.chatService.SendMessage(userID, &req)
+	// ✅ DB: Используем h.GetDB(c)
+	message, err := h.chatService.SendMessage(h.GetDB(c), userID, &req)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -384,7 +403,7 @@ func (h *ChatHandler) SendMessageWithAttachments(c *gin.Context) {
 
 	// 50 MB лимит
 	if err := c.Request.ParseMultipartForm(50 << 20); err != nil {
-		h.HandleServiceError(c, appErrors.NewBadRequestError("failed to parse multipart form: "+err.Error()))
+		h.HandleServiceError(c, apperrors.NewBadRequestError("failed to parse multipart form: "+err.Error()))
 		return
 	}
 
@@ -392,16 +411,16 @@ func (h *ChatHandler) SendMessageWithAttachments(c *gin.Context) {
 	var req dto.SendMessageRequest
 	messageData := c.Request.FormValue("message")
 	if err := json.Unmarshal([]byte(messageData), &req); err != nil {
-		h.HandleServiceError(c, appErrors.NewBadRequestError("invalid message data: "+err.Error()))
+		h.HandleServiceError(c, apperrors.NewBadRequestError("invalid message data: "+err.Error()))
 		return
 	}
 
 	// 7. Manually call validator (since BindAndValidate_JSON won't work on a string field)
 	if err := h.validator.Validate(&req); err != nil {
 		if vErr, ok := err.(*validator.ValidationError); ok {
-			appErrors.HandleError(c, appErrors.ValidationError(vErr.Errors))
+			apperrors.HandleError(c, apperrors.ValidationError(vErr.Errors))
 		} else {
-			appErrors.HandleError(c, appErrors.InternalError(err))
+			apperrors.HandleError(c, apperrors.InternalError(err))
 		}
 		return
 	}
@@ -409,7 +428,8 @@ func (h *ChatHandler) SendMessageWithAttachments(c *gin.Context) {
 	// Get files
 	files := c.Request.MultipartForm.File["files"]
 
-	message, err := h.chatService.SendMessageWithAttachments(userID, &req, files)
+	// ✅ DB: Используем h.GetDB(c)
+	message, err := h.chatService.SendMessageWithAttachments(h.GetDB(c), userID, &req, files)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -428,7 +448,8 @@ func (h *ChatHandler) GetMessages(c *gin.Context) {
 	// 8. Use refactored helper
 	criteria := parseMessageCriteria(c)
 
-	messages, err := h.chatService.GetMessages(dialogID, userID, criteria)
+	// ✅ DB: Используем h.GetDB(c)
+	messages, err := h.chatService.GetMessages(h.GetDB(c), dialogID, userID, criteria)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -444,7 +465,8 @@ func (h *ChatHandler) GetMessage(c *gin.Context) {
 	}
 	messageID := c.Param("messageID")
 
-	message, err := h.chatService.GetMessage(messageID, userID)
+	// ✅ DB: Используем h.GetDB(c)
+	message, err := h.chatService.GetMessage(h.GetDB(c), messageID, userID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -465,7 +487,8 @@ func (h *ChatHandler) UpdateMessage(c *gin.Context) {
 		return
 	}
 
-	if err := h.chatService.UpdateMessage(userID, messageID, &req); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.chatService.UpdateMessage(h.GetDB(c), userID, messageID, &req); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -480,7 +503,8 @@ func (h *ChatHandler) DeleteMessage(c *gin.Context) {
 	}
 	messageID := c.Param("messageID")
 
-	if err := h.chatService.DeleteMessage(userID, messageID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.chatService.DeleteMessage(h.GetDB(c), userID, messageID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -499,7 +523,8 @@ func (h *ChatHandler) ForwardMessage(c *gin.Context) {
 		return
 	}
 
-	message, err := h.chatService.ForwardMessage(userID, &req)
+	// ✅ DB: Используем h.GetDB(c)
+	message, err := h.chatService.ForwardMessage(h.GetDB(c), userID, &req)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -516,7 +541,8 @@ func (h *ChatHandler) SearchMessages(c *gin.Context) {
 	dialogID := c.Param("dialogID")
 	query := c.Query("q")
 
-	messages, err := h.chatService.SearchMessages(userID, dialogID, query)
+	// ✅ DB: Используем h.GetDB(c)
+	messages, err := h.chatService.SearchMessages(h.GetDB(c), userID, dialogID, query)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -536,11 +562,12 @@ func (h *ChatHandler) UploadAttachment(c *gin.Context) {
 	// Используем Gin-метод FormFile
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
-		appErrors.HandleError(c, appErrors.NewBadRequestError("no file provided"))
+		apperrors.HandleError(c, apperrors.NewBadRequestError("no file provided"))
 		return
 	}
 
-	attachment, err := h.chatService.UploadAttachment(userID, fileHeader)
+	// ✅ DB: Используем h.GetDB(c)
+	attachment, err := h.chatService.UploadAttachment(h.GetDB(c), userID, fileHeader)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -556,7 +583,8 @@ func (h *ChatHandler) GetMessageAttachments(c *gin.Context) {
 	}
 	messageID := c.Param("messageID")
 
-	attachments, err := h.chatService.GetMessageAttachments(messageID, userID)
+	// ✅ DB: Используем h.GetDB(c)
+	attachments, err := h.chatService.GetMessageAttachments(h.GetDB(c), messageID, userID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -572,7 +600,8 @@ func (h *ChatHandler) GetDialogAttachments(c *gin.Context) {
 	}
 	dialogID := c.Param("dialogID")
 
-	attachments, err := h.chatService.GetDialogAttachments(dialogID, userID)
+	// ✅ DB: Используем h.GetDB(c)
+	attachments, err := h.chatService.GetDialogAttachments(h.GetDB(c), dialogID, userID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -588,7 +617,8 @@ func (h *ChatHandler) DeleteAttachment(c *gin.Context) {
 	}
 	attachmentID := c.Param("attachmentID")
 
-	if err := h.chatService.DeleteAttachment(userID, attachmentID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.chatService.DeleteAttachment(h.GetDB(c), userID, attachmentID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -613,7 +643,8 @@ func (h *ChatHandler) AddReaction(c *gin.Context) {
 		return
 	}
 
-	if err := h.chatService.AddReaction(userID, messageID, req.Emoji); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.chatService.AddReaction(h.GetDB(c), userID, messageID, req.Emoji); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -628,7 +659,8 @@ func (h *ChatHandler) RemoveReaction(c *gin.Context) {
 	}
 	messageID := c.Param("messageID")
 
-	if err := h.chatService.RemoveReaction(userID, messageID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.chatService.RemoveReaction(h.GetDB(c), userID, messageID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -643,7 +675,8 @@ func (h *ChatHandler) GetMessageReactions(c *gin.Context) {
 	}
 	messageID := c.Param("messageID")
 
-	reactions, err := h.chatService.GetMessageReactions(messageID, userID)
+	// ✅ DB: Используем h.GetDB(c)
+	reactions, err := h.chatService.GetMessageReactions(h.GetDB(c), messageID, userID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -661,7 +694,8 @@ func (h *ChatHandler) MarkMessagesAsRead(c *gin.Context) {
 	}
 	dialogID := c.Param("dialogID")
 
-	if err := h.chatService.MarkMessagesAsRead(userID, dialogID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.chatService.MarkMessagesAsRead(h.GetDB(c), userID, dialogID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -676,7 +710,8 @@ func (h *ChatHandler) GetUnreadCount(c *gin.Context) {
 	}
 	dialogID := c.Param("dialogID")
 
-	count, err := h.chatService.GetUnreadCount(dialogID, userID)
+	// ✅ DB: Используем h.GetDB(c)
+	count, err := h.chatService.GetUnreadCount(h.GetDB(c), dialogID, userID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -692,7 +727,8 @@ func (h *ChatHandler) GetReadReceipts(c *gin.Context) {
 	}
 	messageID := c.Param("messageID")
 
-	receipts, err := h.chatService.GetReadReceipts(messageID, userID)
+	// ✅ DB: Используем h.GetDB(c)
+	receipts, err := h.chatService.GetReadReceipts(h.GetDB(c), messageID, userID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -712,7 +748,8 @@ func (h *ChatHandler) GetDialogWithMessages(c *gin.Context) {
 
 	criteria := parseMessageCriteria(c)
 
-	result, err := h.chatService.GetDialogWithMessages(dialogID, userID, criteria)
+	// ✅ DB: Используем h.GetDB(c)
+	result, err := h.chatService.GetDialogWithMessages(h.GetDB(c), dialogID, userID, criteria)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -729,7 +766,8 @@ func (h *ChatHandler) GetAllDialogs(c *gin.Context) {
 	}
 	criteria := parseDialogCriteria(c)
 
-	dialogs, err := h.chatService.GetAllDialogs(criteria)
+	// ✅ DB: Используем h.GetDB(c)
+	dialogs, err := h.chatService.GetAllDialogs(h.GetDB(c), criteria)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -743,7 +781,8 @@ func (h *ChatHandler) GetChatStats(c *gin.Context) {
 		return
 	}
 
-	stats, err := h.chatService.GetChatStats()
+	// ✅ DB: Используем h.GetDB(c)
+	stats, err := h.chatService.GetChatStats(h.GetDB(c))
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -765,7 +804,8 @@ func (h *ChatHandler) CleanOldMessages(c *gin.Context) {
 		return
 	}
 
-	if err := h.chatService.CleanOldMessages(req.Days); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.chatService.CleanOldMessages(h.GetDB(c), req.Days); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -780,7 +820,15 @@ func (h *ChatHandler) DeleteUserMessages(c *gin.Context) {
 	}
 	userID := c.Param("userID")
 
-	if err := h.chatService.DeleteUserMessages(adminID, userID); err != nil {
+	// ⭐️ ИСПРАВЛЕНИЕ: Получаем dialog_id из query
+	dialogID := c.Query("dialog_id")
+	if dialogID == "" {
+		apperrors.HandleError(c, apperrors.NewBadRequestError("dialog_id query parameter is required"))
+		return
+	}
+
+	// ✅ DB: Используем h.GetDB(c) и передаем dialogID
+	if err := h.chatService.DeleteUserMessages(h.GetDB(c), adminID, dialogID, userID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}

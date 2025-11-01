@@ -31,7 +31,8 @@ func TestChat_DialogAndMessageFlow(t *testing.T) {
 		"participant_ids": []string{employerUser.ID},
 		"is_group":        false,
 	}
-	res, bodyStr := ts.SendRequest(t, "POST", "/api/v1/dialogs", modelToken, createDialogBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "POST", "/api/v1/dialogs", modelToken, createDialogBody)
 
 	// 3. Проверка: Диалог создан
 	assert.Equal(t, http.StatusCreated, res.StatusCode)
@@ -51,7 +52,8 @@ func TestChat_DialogAndMessageFlow(t *testing.T) {
 		"dialog_id": dialogID,
 		"content":   "Привет! Это тестовое сообщение от Модели.",
 	}
-	res, bodyStr = ts.SendRequest(t, "POST", "/api/v1/messages", modelToken, sendMessageBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "POST", "/api/v1/messages", modelToken, sendMessageBody)
 
 	// 5. Проверка: Сообщение создано
 	assert.Equal(t, http.StatusCreated, res.StatusCode)
@@ -67,7 +69,8 @@ func TestChat_DialogAndMessageFlow(t *testing.T) {
 
 	// --- 6. Работодатель (Б) получает свой список диалогов ---
 	// Роут: GET /api/v1/dialogs
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/dialogs", employerToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/dialogs", employerToken, nil)
 
 	// 7. Проверка:
 	assert.Equal(t, http.StatusOK, res.StatusCode)
@@ -78,7 +81,8 @@ func TestChat_DialogAndMessageFlow(t *testing.T) {
 	// --- 8. Работодатель (Б) получает сообщения из этого диалога ---
 	// Роут: GET /api/v1/dialogs/:dialogID/messages
 	messagesURL := "/api/v1/dialogs/" + dialogID + "/messages"
-	res, bodyStr = ts.SendRequest(t, "GET", messagesURL, employerToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", messagesURL, employerToken, nil)
 
 	// 9. Проверка:
 	assert.Equal(t, http.StatusOK, res.StatusCode)
@@ -104,14 +108,16 @@ func TestChat_Security(t *testing.T) {
 
 	// 2. Создаем диалог между A и Б
 	createDialogBody := map[string]interface{}{"participant_ids": []string{userB.ID}}
-	res, bodyStr := ts.SendRequest(t, "POST", "/api/v1/dialogs", tokenA, createDialogBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "POST", "/api/v1/dialogs", tokenA, createDialogBody)
 	var dialog chatmodels.Dialog
 	json.Unmarshal([]byte(bodyStr), &dialog)
 	dialogID := dialog.ID
 
 	// 3. А отправляет секретное сообщение
 	sendMessageBody := map[string]interface{}{"dialog_id": dialogID, "content": "Секретное сообщение для Работодателя"}
-	res, bodyStr = ts.SendRequest(t, "POST", "/api/v1/messages", tokenA, sendMessageBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "POST", "/api/v1/messages", tokenA, sendMessageBody)
 	var message chatmodels.Message
 	json.Unmarshal([]byte(bodyStr), &message)
 	messageID := message.ID
@@ -120,7 +126,8 @@ func TestChat_Security(t *testing.T) {
 
 	// 4.1. Действие: Хакер (С) пытается получить список сообщений диалога (А-Б)
 	messagesURL := "/api/v1/dialogs/" + dialogID + "/messages"
-	res, _ = ts.SendRequest(t, "GET", messagesURL, tokenC, nil)
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, "GET", messagesURL, tokenC, nil)
 
 	// 4.2. Проверка: (403 Forbidden или 404 Not Found)
 	// (Сервис не должен разрешать доступ, т.к. юзер С не участник)
@@ -129,14 +136,16 @@ func TestChat_Security(t *testing.T) {
 
 	// 4.3. Действие: Хакер (С) пытается получить конкретное сообщение
 	messageURL := "/api/v1/messages/" + messageID
-	res, _ = ts.SendRequest(t, "GET", messageURL, tokenC, nil)
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, "GET", messageURL, tokenC, nil)
 
 	// 4.4. Проверка: (403 Forbidden или 404 Not Found)
 	assert.Contains(t, []int{http.StatusForbidden, http.StatusNotFound}, res.StatusCode)
 	t.Logf("БЕЗОПАСНОСТЬ (Чат): Хакер не может читать чужое сообщение (%d) - Успешно.", res.StatusCode)
 
 	// 4.5. Действие: Хакер (С) получает свой (пустой) список диалогов
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/dialogs", tokenC, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/dialogs", tokenC, nil)
 
 	// 4.6. Проверка: (200 OK, но нет чужого диалога)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
@@ -165,7 +174,8 @@ func TestChat_GroupDialog(t *testing.T) {
 		"is_group":        true,
 		"group_name":      "Тестовая группа кастинга",
 	}
-	res, bodyStr := ts.SendRequest(t, "POST", "/api/v1/dialogs", creatorToken, createGroupBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "POST", "/api/v1/dialogs", creatorToken, createGroupBody)
 
 	// 3. Проверка: Групповой диалог создан
 	assert.Equal(t, http.StatusCreated, res.StatusCode)
@@ -189,7 +199,8 @@ func TestChat_GroupDialog(t *testing.T) {
 	}
 
 	for _, p := range participants {
-		res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/dialogs", p.token, nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/dialogs", p.token, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Contains(t, bodyStr, groupDialog.ID, "%s должен видеть групповой диалог", p.name)
 		t.Logf("ЧАТ: %s видит групповой диалог - Успешно.", p.name)
@@ -210,19 +221,22 @@ func TestChat_MessageReactions(t *testing.T) {
 
 	// Создаем диалог
 	createDialogBody := map[string]interface{}{"participant_ids": []string{user2.ID}}
-	res, bodyStr := ts.SendRequest(t, "POST", "/api/v1/dialogs", user1Token, createDialogBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "POST", "/api/v1/dialogs", user1Token, createDialogBody)
 	var dialog chatmodels.Dialog
 	json.Unmarshal([]byte(bodyStr), &dialog)
 
 	// Отправляем сообщение
 	sendMessageBody := map[string]interface{}{"dialog_id": dialog.ID, "content": "Тестовое сообщение"}
-	res, bodyStr = ts.SendRequest(t, "POST", "/api/v1/messages", user1Token, sendMessageBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "POST", "/api/v1/messages", user1Token, sendMessageBody)
 	var message chatmodels.Message
 	json.Unmarshal([]byte(bodyStr), &message)
 
 	// Добавляем реакцию
 	reactionBody := map[string]interface{}{"reaction": "👍"}
-	res, bodyStr = ts.SendRequest(t, "POST", "/api/v1/messages/"+message.ID+"/reactions", user2Token, reactionBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "POST", "/api/v1/messages/"+message.ID+"/reactions", user2Token, reactionBody)
 	assert.Equal(t, http.StatusCreated, res.StatusCode)
 	t.Logf("ЧАТ: Реакция добавлена - Успешно.")
 }
@@ -241,19 +255,22 @@ func TestChat_MessageEditing(t *testing.T) {
 
 	// Создаем диалог
 	createDialogBody := map[string]interface{}{"participant_ids": []string{otherUser.ID}}
-	res, bodyStr := ts.SendRequest(t, "POST", "/api/v1/dialogs", userToken, createDialogBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "POST", "/api/v1/dialogs", userToken, createDialogBody)
 	var dialog chatmodels.Dialog
 	json.Unmarshal([]byte(bodyStr), &dialog)
 
 	// Отправляем сообщение
 	sendMessageBody := map[string]interface{}{"dialog_id": dialog.ID, "content": "Оригинальное сообщение"}
-	res, bodyStr = ts.SendRequest(t, "POST", "/api/v1/messages", userToken, sendMessageBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "POST", "/api/v1/messages", userToken, sendMessageBody)
 	var message chatmodels.Message
 	json.Unmarshal([]byte(bodyStr), &message)
 
 	// Редактируем сообщение
 	editBody := map[string]interface{}{"content": "Отредактированное сообщение"}
-	res, bodyStr = ts.SendRequest(t, "PUT", "/api/v1/messages/"+message.ID, userToken, editBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "PUT", "/api/v1/messages/"+message.ID, userToken, editBody)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, "Отредактированное сообщение")
 	t.Logf("ЧАТ: Сообщение отредактировано - Успешно.")
@@ -273,18 +290,21 @@ func TestChat_MessageDeletion(t *testing.T) {
 
 	// Создаем диалог
 	createDialogBody := map[string]interface{}{"participant_ids": []string{otherUser.ID}}
-	res, bodyStr := ts.SendRequest(t, "POST", "/api/v1/dialogs", userToken, createDialogBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "POST", "/api/v1/dialogs", userToken, createDialogBody)
 	var dialog chatmodels.Dialog
 	json.Unmarshal([]byte(bodyStr), &dialog)
 
 	// Отправляем сообщение
 	sendMessageBody := map[string]interface{}{"dialog_id": dialog.ID, "content": "Сообщение для удаления"}
-	res, bodyStr = ts.SendRequest(t, "POST", "/api/v1/messages", userToken, sendMessageBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "POST", "/api/v1/messages", userToken, sendMessageBody)
 	var message chatmodels.Message
 	json.Unmarshal([]byte(bodyStr), &message)
 
 	// Удаляем сообщение
-	res, bodyStr = ts.SendRequest(t, "DELETE", "/api/v1/messages/"+message.ID, userToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "DELETE", "/api/v1/messages/"+message.ID, userToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	t.Logf("ЧАТ: Сообщение удалено - Успешно.")
 }
@@ -303,12 +323,14 @@ func TestChat_DialogDeletion(t *testing.T) {
 
 	// Создаем диалог
 	createDialogBody := map[string]interface{}{"participant_ids": []string{otherUser.ID}}
-	res, bodyStr := ts.SendRequest(t, "POST", "/api/v1/dialogs", userToken, createDialogBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "POST", "/api/v1/dialogs", userToken, createDialogBody)
 	var dialog chatmodels.Dialog
 	json.Unmarshal([]byte(bodyStr), &dialog)
 
 	// Удаляем диалог
-	res, bodyStr = ts.SendRequest(t, "DELETE", "/api/v1/dialogs/"+dialog.ID, userToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "DELETE", "/api/v1/dialogs/"+dialog.ID, userToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	t.Logf("ЧАТ: Диалог удален - Успешно.")
 }

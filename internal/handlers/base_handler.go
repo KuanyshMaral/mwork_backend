@@ -1,14 +1,17 @@
 package handlers
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
-	"mwork_backend/internal/appErrors"
 	"mwork_backend/internal/logger"
 	"mwork_backend/internal/validator"
+	"mwork_backend/pkg/apperrors"
+	"mwork_backend/pkg/contextkeys" // 👈 ДОБАВЛЕН ИМПОРТ
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm" // 👈 ДОБАВЛЕН ИМПОРТ
 )
 
 // ============================================================================
@@ -26,7 +29,34 @@ func NewBaseHandler(v *validator.Validator) *BaseHandler {
 }
 
 // ============================================================================
-// 2. Методы привязки и валидации (с контекстным логгированием)
+// ⭐️ 2. НОВЫЙ МЕТОД ДЛЯ ИЗВЛЕЧЕНИЯ DB ⭐️
+// ============================================================================
+
+// GetDB извлекает *gorm.DB (пул или транзакцию) из gin.Context
+// Этот метод ДОЛЖЕН вызываться в каждом хендлере, который обращается к сервисам
+func (h *BaseHandler) GetDB(c *gin.Context) *gorm.DB {
+	dbKey := string(contextkeys.DBContextKey)
+
+	val, ok := c.Get(dbKey)
+	if !ok {
+		// Этого никогда не должно случиться, если DBMiddleware настроен
+		logger.CtxError(c.Request.Context(), "critical error: db key not found in context", "key", dbKey)
+		// Паника здесь уместна, т.к. приложение неверно сконфигурировано
+		panic("critical error: DBMiddleware did not set the db key")
+	}
+
+	db, ok := val.(*gorm.DB)
+	if !ok {
+		// Этого тоже не должно случиться, если DBMiddleware настроен
+		logger.CtxError(c.Request.Context(), "critical error: db in context is not *gorm.DB", "key", dbKey, "type", fmt.Sprintf("%T", val))
+		panic("critical error: db in context has incorrect type")
+	}
+
+	return db
+}
+
+// ============================================================================
+// 3. Методы привязки и валидации (с контекстным логгированием)
 // ============================================================================
 
 func (h *BaseHandler) BindAndValidate_JSON(c *gin.Context, obj interface{}) bool {
@@ -34,7 +64,7 @@ func (h *BaseHandler) BindAndValidate_JSON(c *gin.Context, obj interface{}) bool
 
 	if err := c.ShouldBind(obj); err != nil {
 		logger.CtxWithError(ctx, "Failed to bind JSON body", err, "path", c.Request.URL.Path)
-		appErrors.HandleError(c, appErrors.NewBadRequestError("Invalid request body: "+err.Error()))
+		apperrors.HandleError(c, apperrors.NewBadRequestError("Invalid request body: "+err.Error()))
 		return false
 	}
 
@@ -45,12 +75,12 @@ func (h *BaseHandler) BindAndValidate_JSON(c *gin.Context, obj interface{}) bool
 			// --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
 			// Было: appErrors.HandleError(c, appErrors.NewValidationError(vErr.Errors))
 			// Стало:
-			appErrors.HandleError(c, appErrors.ValidationError(vErr.Errors))
+			apperrors.HandleError(c, apperrors.ValidationError(vErr.Errors))
 			// -------------------------
 
 		} else {
 			logger.CtxWithError(ctx, "Internal validator error", err, "path", c.Request.URL.Path)
-			appErrors.HandleError(c, appErrors.InternalError(err))
+			apperrors.HandleError(c, apperrors.InternalError(err))
 		}
 		return false
 	}
@@ -62,7 +92,7 @@ func (h *BaseHandler) BindAndValidate_Query(c *gin.Context, obj interface{}) boo
 
 	if err := c.ShouldBindQuery(obj); err != nil {
 		logger.CtxWithError(ctx, "Failed to bind query params", err, "path", c.Request.URL.Path)
-		appErrors.HandleError(c, appErrors.NewBadRequestError("Invalid query parameters: "+err.Error()))
+		apperrors.HandleError(c, apperrors.NewBadRequestError("Invalid query parameters: "+err.Error()))
 		return false
 	}
 
@@ -73,12 +103,12 @@ func (h *BaseHandler) BindAndValidate_Query(c *gin.Context, obj interface{}) boo
 			// --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
 			// Было: appErrors.HandleError(c, appErrors.NewValidationError(vErr.Errors))
 			// Стало:
-			appErrors.HandleError(c, appErrors.ValidationError(vErr.Errors))
+			apperrors.HandleError(c, apperrors.ValidationError(vErr.Errors))
 			// -------------------------
 
 		} else {
 			logger.CtxWithError(ctx, "Internal validator error (query)", err, "path", c.Request.URL.Path)
-			appErrors.HandleError(c, appErrors.InternalError(err))
+			apperrors.HandleError(c, apperrors.InternalError(err))
 		}
 		return false
 	}
@@ -86,28 +116,28 @@ func (h *BaseHandler) BindAndValidate_Query(c *gin.Context, obj interface{}) boo
 }
 
 // ============================================================================
-// 3. Обработчики ошибок (с контекстным логгированием)
+// 4. Обработчики ошибок (с контекстным логгированием)
 // ============================================================================
 
 func (h *BaseHandler) HandleServiceError(c *gin.Context, err error) {
 	ctx := c.Request.Context()
 
-	var appErr *appErrors.AppError
-	if appErrors.As(err, &appErr) {
+	var appErr *apperrors.AppError
+	if apperrors.As(err, &appErr) {
 		logger.CtxWarn(ctx, "Service error",
 			"error", appErr.Message,
 			"details", appErr.Details,
 			"path", c.Request.URL.Path,
 		)
-		appErrors.HandleError(c, appErr)
+		apperrors.HandleError(c, appErr)
 	} else {
 		logger.CtxWithError(ctx, "Internal server error", err, "path", c.Request.URL.Path)
-		appErrors.HandleError(c, appErrors.InternalError(err))
+		apperrors.HandleError(c, apperrors.InternalError(err))
 	}
 }
 
 // ============================================================================
-// 4. Вспомогательные функции (с контекстным логгированием)
+// 5. Вспомогательные функции (с контекстным логгированием)
 // ============================================================================
 
 func (h *BaseHandler) GetAndAuthorizeUserID(c *gin.Context) (string, bool) {
@@ -119,7 +149,7 @@ func (h *BaseHandler) GetAndAuthorizeUserID(c *gin.Context) (string, bool) {
 			"path", c.Request.URL.Path,
 			"ip", c.ClientIP(),
 		)
-		appErrors.HandleError(c, appErrors.NewUnauthorizedError("User not authenticated"))
+		apperrors.HandleError(c, apperrors.NewUnauthorizedError("User not authenticated"))
 		return "", false
 	}
 
@@ -129,7 +159,7 @@ func (h *BaseHandler) GetAndAuthorizeUserID(c *gin.Context) (string, bool) {
 			"path", c.Request.URL.Path,
 			"ip", c.ClientIP(),
 		)
-		appErrors.HandleError(c, appErrors.NewUnauthorizedError("Invalid user ID in context"))
+		apperrors.HandleError(c, apperrors.NewUnauthorizedError("Invalid user ID in context"))
 		return "", false
 	}
 
@@ -137,7 +167,7 @@ func (h *BaseHandler) GetAndAuthorizeUserID(c *gin.Context) (string, bool) {
 }
 
 // ============================================================================
-// 5. Функции парсинга (остаются как есть)
+// 6. Функции парсинга (остаются как есть)
 // ============================================================================
 
 func ParseQueryInt(c *gin.Context, key string, defaultValue int) int {
@@ -155,11 +185,11 @@ func ParseQueryInt(c *gin.Context, key string, defaultValue int) int {
 func ParseParamInt(c *gin.Context, key string) (int, error) {
 	valueStr := c.Param(key)
 	if valueStr == "" {
-		return 0, appErrors.NewBadRequestError("Missing required path parameter: " + key)
+		return 0, apperrors.NewBadRequestError("Missing required path parameter: " + key)
 	}
 	value, err := strconv.Atoi(valueStr)
 	if err != nil {
-		return 0, appErrors.NewBadRequestError("Invalid path parameter: " + key + " is not an integer")
+		return 0, apperrors.NewBadRequestError("Invalid path parameter: " + key + " is not an integer")
 	}
 	return value, nil
 }
@@ -196,19 +226,19 @@ func ParseQueryDateRange(c *gin.Context, defaultDaysAgo int) (time.Time, time.Ti
 	if dateFromStr != "" {
 		dateFrom, err = time.Parse(time.RFC3339, dateFromStr)
 		if err != nil {
-			return time.Time{}, time.Time{}, appErrors.NewBadRequestError("Invalid date_from format. Use RFC3339 (YYYY-M-DDTHH:MM:SSZ)")
+			return time.Time{}, time.Time{}, apperrors.NewBadRequestError("Invalid date_from format. Use RFC3339 (YYYY-M-DDTHH:MM:SSZ)")
 		}
 	}
 
 	if dateToStr != "" {
 		dateTo, err = time.Parse(time.RFC3339, dateToStr)
 		if err != nil {
-			return time.Time{}, time.Time{}, appErrors.NewBadRequestError("Invalid date_to format. Use RFC3339 (YYYY-M-DDTHH:MM:SSZ)")
+			return time.Time{}, time.Time{}, apperrors.NewBadRequestError("Invalid date_to format. Use RFC3339 (YYYY-M-DDTHH:MM:SSZ)")
 		}
 	}
 
 	if dateFrom.After(dateTo) {
-		return time.Time{}, time.Time{}, appErrors.NewBadRequestError("date_from cannot be after date_to")
+		return time.Time{}, time.Time{}, apperrors.NewBadRequestError("date_from cannot be after date_to")
 	}
 
 	return dateFrom, dateTo, nil

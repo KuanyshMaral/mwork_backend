@@ -26,9 +26,6 @@ func CreateUser(t *testing.T, db *gorm.DB, user *models.User) error {
 		}
 		user.PasswordHash = string(hashedPassword)
 
-		// Сохраняем сырой пароль в поле для последующего использования
-		// (это нужно только для тестов!)
-		user.ResetToken = rawPassword // Временно используем это поле
 	}
 
 	// ✅ По умолчанию - активный и верифицированный
@@ -63,7 +60,7 @@ func CreateAndLoginUser(t *testing.T, ts *TestServer, tx *gorm.DB, name, email, 
 		"password": password, // Используем сырой пароль
 	}
 
-	res, bodyStr := ts.SendRequest(t, http.MethodPost, "/api/v1/auth/login", "", loginBody)
+	res, bodyStr := ts.SendRequest(t, tx, http.MethodPost, "/api/v1/auth/login", "", loginBody)
 	assert.Equal(t, http.StatusOK, res.StatusCode, "Логин должен быть успешным. Ответ: "+bodyStr)
 
 	var loginResponse struct {

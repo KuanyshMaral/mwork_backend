@@ -12,14 +12,13 @@ import (
 )
 
 type CastingHandler struct {
-	*BaseHandler   // <-- 1. Embed BaseHandler
+	*BaseHandler
 	castingService services.CastingService
 }
 
-// 2. Update the constructor
 func NewCastingHandler(base *BaseHandler, castingService services.CastingService) *CastingHandler {
 	return &CastingHandler{
-		BaseHandler:    base, // <-- 3. Assign it
+		BaseHandler:    base,
 		castingService: castingService,
 	}
 }
@@ -68,23 +67,21 @@ func (h *CastingHandler) RegisterRoutes(r *gin.RouterGroup) {
 	}
 }
 
-// 4. --- Helper functions removed ---
-
 // --- Public handlers ---
 
 func (h *CastingHandler) SearchCastings(c *gin.Context) {
-	var criteria dto.CastingSearchCriteria
-	// 5. Use BindAndValidate_Query
+	// ▼▼▼ ИСПРАВЛЕНО ЗДЕСЬ ▼▼▼
+	var criteria dto.SearchCastingsRequest
+	// ▲▲▲ ИСПРАВЛЕНО ЗДЕСЬ ▲▲▲
+
 	if !h.BindAndValidate_Query(c, &criteria) {
 		return
 	}
 
-	// 6. Use ParsePagination
 	criteria.Page, criteria.PageSize = ParsePagination(c)
 
-	castings, total, err := h.castingService.SearchCastings(criteria)
+	castings, total, err := h.castingService.SearchCastings(h.GetDB(c), criteria)
 	if err != nil {
-		// 7. Use HandleServiceError
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -93,7 +90,12 @@ func (h *CastingHandler) SearchCastings(c *gin.Context) {
 		"castings": castings,
 		"total":    total,
 		"page":     criteria.Page,
-		"pages":    (total + int64(criteria.PageSize) - 1) / int64(criteria.PageSize),
+		"pages": func() int64 {
+			if criteria.PageSize == 0 {
+				return 0
+			}
+			return (total + int64(criteria.PageSize) - 1) / int64(criteria.PageSize)
+		}(),
 	})
 }
 
@@ -101,12 +103,11 @@ func (h *CastingHandler) GetCasting(c *gin.Context) {
 	castingID := c.Param("castingId")
 	userID := ""
 
-	// Public route, so auth is optional
 	if authUserID, exists := c.Get("userID"); exists {
 		userID = authUserID.(string)
 	}
 
-	casting, err := h.castingService.GetCasting(castingID, userID)
+	casting, err := h.castingService.GetCasting(h.GetDB(c), castingID, userID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -116,13 +117,12 @@ func (h *CastingHandler) GetCasting(c *gin.Context) {
 }
 
 func (h *CastingHandler) GetActiveCastings(c *gin.Context) {
-	// 8. Use ParseQueryInt
 	limit := ParseQueryInt(c, "limit", 10)
 	if limit <= 0 {
 		limit = 10
 	}
 
-	castings, err := h.castingService.GetActiveCastings(limit)
+	castings, err := h.castingService.GetActiveCastings(h.GetDB(c), limit)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -141,7 +141,7 @@ func (h *CastingHandler) GetCastingsByCity(c *gin.Context) {
 		limit = 10
 	}
 
-	castings, err := h.castingService.GetCastingsByCity(city, limit)
+	castings, err := h.castingService.GetCastingsByCity(h.GetDB(c), city, limit)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -156,7 +156,6 @@ func (h *CastingHandler) GetCastingsByCity(c *gin.Context) {
 // --- Employer handlers ---
 
 func (h *CastingHandler) CreateCasting(c *gin.Context) {
-	// 9. Use GetAndAuthorizeUserID
 	employerID, ok := h.GetAndAuthorizeUserID(c)
 	if !ok {
 		return
@@ -167,10 +166,9 @@ func (h *CastingHandler) CreateCasting(c *gin.Context) {
 		return
 	}
 
-	// Set employer ID from authenticated user
 	req.EmployerID = employerID
 
-	err := h.castingService.CreateCasting(&req)
+	err := h.castingService.CreateCasting(h.GetDB(c), &req)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -184,9 +182,9 @@ func (h *CastingHandler) GetMyCastings(c *gin.Context) {
 	if !ok {
 		return
 	}
-	requesterID := employerID // For employer, requester ID is the same as employer ID
+	requesterID := employerID
 
-	castings, err := h.castingService.GetEmployerCastings(employerID, requesterID)
+	castings, err := h.castingService.GetEmployerCastings(h.GetDB(c), employerID, requesterID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -210,7 +208,7 @@ func (h *CastingHandler) UpdateCasting(c *gin.Context) {
 		return
 	}
 
-	if err := h.castingService.UpdateCasting(castingID, employerID, &req); err != nil {
+	if err := h.castingService.UpdateCasting(h.GetDB(c), castingID, employerID, &req); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -225,7 +223,7 @@ func (h *CastingHandler) DeleteCasting(c *gin.Context) {
 	}
 	castingID := c.Param("castingId")
 
-	if err := h.castingService.DeleteCasting(castingID, employerID); err != nil {
+	if err := h.castingService.DeleteCasting(h.GetDB(c), castingID, employerID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -247,7 +245,7 @@ func (h *CastingHandler) UpdateCastingStatus(c *gin.Context) {
 		return
 	}
 
-	if err := h.castingService.UpdateCastingStatus(castingID, employerID, req.Status); err != nil {
+	if err := h.castingService.UpdateCastingStatus(h.GetDB(c), castingID, employerID, req.Status); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -262,7 +260,7 @@ func (h *CastingHandler) GetCastingStatsForCasting(c *gin.Context) {
 	}
 	castingID := c.Param("castingId")
 
-	stats, err := h.castingService.GetCastingStatsForCasting(castingID, employerID)
+	stats, err := h.castingService.GetCastingStatsForCasting(h.GetDB(c), castingID, employerID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -276,9 +274,9 @@ func (h *CastingHandler) GetMyStats(c *gin.Context) {
 	if !ok {
 		return
 	}
-	requesterID := employerID // For employer, requester ID is the same as employer ID
+	requesterID := employerID
 
-	stats, err := h.castingService.GetCastingStats(employerID, requesterID)
+	stats, err := h.castingService.GetCastingStats(h.GetDB(c), employerID, requesterID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -299,7 +297,7 @@ func (h *CastingHandler) GetMatchingCastings(c *gin.Context) {
 		limit = 10
 	}
 
-	castings, err := h.castingService.FindMatchingCastings(modelID, limit)
+	castings, err := h.castingService.FindMatchingCastings(h.GetDB(c), modelID, limit)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -318,7 +316,7 @@ func (h *CastingHandler) CloseExpiredCastings(c *gin.Context) {
 		return
 	}
 
-	if err := h.castingService.CloseExpiredCastings(); err != nil {
+	if err := h.castingService.CloseExpiredCastings(h.GetDB(c)); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -331,14 +329,13 @@ func (h *CastingHandler) GetPlatformStats(c *gin.Context) {
 		return
 	}
 
-	// 10. Use ParseQueryDateRange (30-day default)
 	dateFrom, dateTo, err := ParseQueryDateRange(c, 30)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
 
-	stats, err := h.castingService.GetPlatformCastingStats(dateFrom, dateTo)
+	stats, err := h.castingService.GetPlatformCastingStats(h.GetDB(c), dateFrom, dateTo)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -358,7 +355,7 @@ func (h *CastingHandler) GetMatchingStats(c *gin.Context) {
 		return
 	}
 
-	stats, err := h.castingService.GetMatchingStats(dateFrom, dateTo)
+	stats, err := h.castingService.GetMatchingStats(h.GetDB(c), dateFrom, dateTo)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -372,7 +369,7 @@ func (h *CastingHandler) GetCastingDistributionByCity(c *gin.Context) {
 		return
 	}
 
-	distribution, err := h.castingService.GetCastingDistributionByCity()
+	distribution, err := h.castingService.GetCastingDistributionByCity(h.GetDB(c))
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -386,7 +383,7 @@ func (h *CastingHandler) GetActiveCastingsCount(c *gin.Context) {
 		return
 	}
 
-	count, err := h.castingService.GetActiveCastingsCount()
+	count, err := h.castingService.GetActiveCastingsCount(h.GetDB(c))
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -405,7 +402,7 @@ func (h *CastingHandler) GetPopularCategories(c *gin.Context) {
 		limit = 10
 	}
 
-	categories, err := h.castingService.GetPopularCategories(limit)
+	categories, err := h.castingService.GetPopularCategories(h.GetDB(c), limit)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return

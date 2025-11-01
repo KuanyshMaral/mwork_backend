@@ -27,7 +27,8 @@ func TestReview_CreateFlow_And_CanCreate(t *testing.T) {
 	canCreateURL := fmt.Sprintf("/api/v1/reviews/can-create?model_id=%s&casting_id=%s", modelUser.ID, casting.ID)
 
 	// 2. Действие: Проверяем "CanCreate" (ДО отклика)
-	res, bodyStr := ts.SendRequest(t, "GET", canCreateURL, employerToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "GET", canCreateURL, employerToken, nil)
 
 	// 3. Проверка: (Должно быть false)
 	assert.Equal(t, http.StatusOK, res.StatusCode) // Ожидаем 200, но с can_create: false
@@ -38,7 +39,8 @@ func TestReview_CreateFlow_And_CanCreate(t *testing.T) {
 	_ = CreateTestResponse(t, tx, casting.ID, modelUser.ID, models.ResponseStatusAccepted) // ✅ Fixed: using Accepted instead of Approved
 
 	// 5. Действие: Проверяем "CanCreate" (ПОСЛЕ отклика)
-	res, bodyStr = ts.SendRequest(t, "GET", canCreateURL, employerToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", canCreateURL, employerToken, nil)
 
 	// 6. Проверка: (Должно быть true)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
@@ -52,7 +54,8 @@ func TestReview_CreateFlow_And_CanCreate(t *testing.T) {
 		"rating":      5,
 		"review_text": "Отличная работа!",
 	}
-	res, bodyStr = ts.SendRequest(t, "POST", "/api/v1/reviews", employerToken, reviewBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "POST", "/api/v1/reviews", employerToken, reviewBody)
 
 	// 8. Проверка:
 	assert.Equal(t, http.StatusCreated, res.StatusCode)
@@ -60,7 +63,8 @@ func TestReview_CreateFlow_And_CanCreate(t *testing.T) {
 	t.Logf("ОТЗЫВ (Create): Создание (201) - Успешно.")
 
 	// 9. Действие: Проверяем "CanCreate" (ПОСЛЕ создания отзыва)
-	res, bodyStr = ts.SendRequest(t, "GET", canCreateURL, employerToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", canCreateURL, employerToken, nil)
 
 	// 10. Проверка: (Должно быть false, т.к. уже оставил)
 	assert.Equal(t, http.StatusBadRequest, res.StatusCode) // Или 400
@@ -84,7 +88,8 @@ func TestReview_EmployerFlow_AndUpdate_Delete(t *testing.T) {
 	review := CreateTestReview(t, tx, employerUser.ID, modelUser.ID, nil, 5, "Initial review")
 
 	// 2. Действие: Получаем "мои" отзывы
-	res, bodyStr := ts.SendRequest(t, "GET", "/api/v1/reviews/my", employerToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "GET", "/api/v1/reviews/my", employerToken, nil)
 
 	// 3. Проверка:
 	assert.Equal(t, http.StatusOK, res.StatusCode)
@@ -97,17 +102,20 @@ func TestReview_EmployerFlow_AndUpdate_Delete(t *testing.T) {
 		"rating":      4,
 		"review_text": "Updated review text",
 	}
-	res, _ = ts.SendRequest(t, "PUT", "/api/v1/reviews/"+review.ID, employerToken, updateBody)
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, "PUT", "/api/v1/reviews/"+review.ID, employerToken, updateBody)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	t.Logf("ОТЗЫВ (Employer): PUT /:id - Успешно.")
 
 	// 5. Действие: Удаляем отзыв
-	res, _ = ts.SendRequest(t, "DELETE", "/api/v1/reviews/"+review.ID, employerToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, "DELETE", "/api/v1/reviews/"+review.ID, employerToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	t.Logf("ОТЗЫВ (Employer): DELETE /:id - Успешно.")
 
 	// 6. Действие: Проверяем, что отзывов не осталось
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/reviews/my", employerToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/reviews/my", employerToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, `"total":0`)
 	t.Logf("ОТЗЫВ (Employer): GET /my (пусто) - Успешно.")
@@ -127,14 +135,16 @@ func TestReview_PublicRead(t *testing.T) {
 	review := CreateTestReview(t, tx, employerUser.ID, modelUser.ID, nil, 5, "Public review text")
 
 	// 2. Действие: GET /:reviewId (анонимно)
-	res, bodyStr := ts.SendRequest(t, "GET", "/api/v1/reviews/"+review.ID, "", nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "GET", "/api/v1/reviews/"+review.ID, "", nil)
 	// 3. Проверка:
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, "Public review text")
 	t.Logf("ОТЗЫВ (Public): GET /:id - Успешно.")
 
 	// 2. Действие: GET /models/:modelId (анонимно)
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/reviews/models/"+modelUser.ID, "", nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/reviews/models/"+modelUser.ID, "", nil)
 	// 3. Проверка:
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, "Public review text")
@@ -142,7 +152,8 @@ func TestReview_PublicRead(t *testing.T) {
 	t.Logf("ОТЗЫВ (Public): GET /models/:id - Успешно.")
 
 	// 2. Действие: GET /models/:modelId/stats (анонимно)
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/reviews/models/"+modelUser.ID+"/stats", "", nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/reviews/models/"+modelUser.ID+"/stats", "", nil)
 	// 3. Проверка:
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
@@ -176,31 +187,36 @@ func TestReview_Security(t *testing.T) {
 	reviewAC := CreateTestReview(t, tx, userA.ID, userC.ID, nil, 5, "Review from A to C")
 
 	// 2. Действие: Модель (tokenC) пытается создать отзыв
-	res, _ := ts.SendRequest(t, "POST", "/api/v1/reviews", tokenC, map[string]interface{}{"rating": 1})
+	// ❗️ Добавлен 'tx'
+	res, _ := ts.SendRequest(t, tx, "POST", "/api/v1/reviews", tokenC, map[string]interface{}{"rating": 1})
 	// 3. Проверка: (403 Forbidden)
 	assert.Equal(t, http.StatusForbidden, res.StatusCode)
 	t.Logf("БЕЗОПАСНОСТЬ (Review): Модель не может создать отзыв (403) - Успешно.")
 
 	// 2. Действие: Аноним пытается создать отзыв
-	res, _ = ts.SendRequest(t, "POST", "/api/v1/reviews", "", map[string]interface{}{"rating": 1})
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, "POST", "/api/v1/reviews", "", map[string]interface{}{"rating": 1})
 	// 3. Проверка: (401 Unauthorized)
 	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	t.Logf("БЕЗОПАСНОСТЬ (Review): Аноним не может создать отзыв (401) - Успешно.")
 
 	// 2. Действие: Работодатель Б (tokenB) пытается удалить отзыв Работодателя А
-	res, _ = ts.SendRequest(t, "DELETE", "/api/v1/reviews/"+reviewAC.ID, tokenB, nil)
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, "DELETE", "/api/v1/reviews/"+reviewAC.ID, tokenB, nil)
 	// 3. Проверка: (404 Not Found или 403 Forbidden)
 	assert.Contains(t, []int{http.StatusNotFound, http.StatusForbidden}, res.StatusCode)
 	t.Logf("БЕЗОПАСНОСТЬ (Review): Работодатель Б не может удалить чужой отзыв (%d) - Успешно.", res.StatusCode)
 
 	// 2. Действие: Обычный юзер (tokenA) пытается получить доступ к роутам админа
-	res, _ = ts.SendRequest(t, "GET", "/admin/reviews/recent", tokenA, nil)
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, "GET", "/admin/reviews/recent", tokenA, nil)
 	// 3. Проверка: (403 Forbidden)
 	assert.Equal(t, http.StatusForbidden, res.StatusCode)
 	t.Logf("БЕЗОПАСНОСТЬ (Review): Обычный юзер не может читать /admin/reviews (403) - Успешно.")
 
 	// 2. Действие: Админ (adminToken) получает доступ к роутам админа
-	res, bodyStr := ts.SendRequest(t, "GET", "/admin/reviews/recent", adminToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "GET", "/admin/reviews/recent", adminToken, nil)
 	// 3. Проверка: (200 OK)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, "Review from A to C")
@@ -240,7 +256,8 @@ func TestReview_RatingValidation(t *testing.T) {
 			"review_text": "Test review",
 		}
 
-		res, bodyStr := ts.SendRequest(t, "POST", "/api/v1/reviews", employerToken, reviewBody)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, "POST", "/api/v1/reviews", employerToken, reviewBody)
 
 		if tc.shouldPass {
 			assert.Equal(t, http.StatusCreated, res.StatusCode, "Rating %d should be valid", tc.rating)
@@ -268,7 +285,8 @@ func TestReview_ModelStats(t *testing.T) {
 	CreateTestReview(t, tx, employerUser1.ID, modelUser.ID, nil, 3, "Average")
 
 	// Проверяем статистику
-	res, bodyStr := ts.SendRequest(t, "GET", "/api/v1/reviews/models/"+modelUser.ID+"/stats", "", nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "GET", "/api/v1/reviews/models/"+modelUser.ID+"/stats", "", nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	var stats struct {
@@ -306,7 +324,8 @@ func TestReview_UpdateOwnReview(t *testing.T) {
 		"rating":      1,
 		"review_text": "Hacked review",
 	}
-	res, _ := ts.SendRequest(t, "PUT", "/api/v1/reviews/"+review.ID, employerToken2, updateBody)
+	// ❗️ Добавлен 'tx'
+	res, _ := ts.SendRequest(t, tx, "PUT", "/api/v1/reviews/"+review.ID, employerToken2, updateBody)
 	assert.Contains(t, []int{http.StatusNotFound, http.StatusForbidden}, res.StatusCode, "Should not be able to update other's review")
 
 	// Проверяем, что отзыв не изменился

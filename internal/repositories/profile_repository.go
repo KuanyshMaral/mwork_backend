@@ -4,10 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mwork_backend/internal/models"
 	"strings"
 	"time"
-
-	"mwork_backend/internal/models"
 
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -21,37 +20,37 @@ var (
 // Добавляем интерфейс ProfileRepository
 type ProfileRepository interface {
 	// ModelProfile operations
-	CreateModelProfile(profile *models.ModelProfile) error
-	FindModelProfileByID(id string) (*models.ModelProfile, error)
-	FindModelProfileByUserID(userID string) (*models.ModelProfile, error)
-	UpdateModelProfile(profile *models.ModelProfile) error
-	UpdateModelProfileRating(modelID string, newRating float64) error
-	IncrementModelProfileViews(modelID string) error
-	DeleteModelProfile(id string) error
-	SearchModelProfiles(criteria ModelSearchCriteria) ([]models.ModelProfile, int64, error)
-	FindFeaturedModels(limit int) ([]models.ModelProfile, error)
-	FindModelsByCity(city string) ([]models.ModelProfile, error)
-	GetModelStats(modelID string) (*ModelStats, error)
+	CreateModelProfile(db *gorm.DB, profile *models.ModelProfile) error
+	FindModelProfileByID(db *gorm.DB, id string) (*models.ModelProfile, error)
+	FindModelProfileByUserID(db *gorm.DB, userID string) (*models.ModelProfile, error)
+	UpdateModelProfile(db *gorm.DB, profile *models.ModelProfile) error
+	UpdateModelProfileRating(db *gorm.DB, modelID string, newRating float64) error
+	IncrementModelProfileViews(db *gorm.DB, modelID string) error
+	DeleteModelProfile(db *gorm.DB, id string) error
+	SearchModelProfiles(db *gorm.DB, criteria ModelSearchCriteria) ([]models.ModelProfile, int64, error)
+	FindFeaturedModels(db *gorm.DB, limit int) ([]models.ModelProfile, error)
+	FindModelsByCity(db *gorm.DB, city string) ([]models.ModelProfile, error)
+	GetModelStats(db *gorm.DB, modelID string) (*ModelStats, error)
 
 	// EmployerProfile operations
-	CreateEmployerProfile(profile *models.EmployerProfile) error
-	FindEmployerProfileByID(id string) (*models.EmployerProfile, error)
-	FindEmployerProfileByUserID(userID string) (*models.EmployerProfile, error)
-	UpdateEmployerProfile(profile *models.EmployerProfile) error
-	VerifyEmployerProfile(employerID string) error
-	DeleteEmployerProfile(id string) error
-	SearchEmployerProfiles(criteria EmployerSearchCriteria) ([]models.EmployerProfile, int64, error)
-	FindEmployersWithActiveCastings(limit int) ([]models.EmployerProfile, error)
+	CreateEmployerProfile(db *gorm.DB, profile *models.EmployerProfile) error
+	FindEmployerProfileByID(db *gorm.DB, id string) (*models.EmployerProfile, error)
+	FindEmployerProfileByUserID(db *gorm.DB, userID string) (*models.EmployerProfile, error)
+	UpdateEmployerProfile(db *gorm.DB, profile *models.EmployerProfile) error
+	VerifyEmployerProfile(db *gorm.DB, employerID string) error
+	DeleteEmployerProfile(db *gorm.DB, id string) error
+	SearchEmployerProfiles(db *gorm.DB, criteria EmployerSearchCriteria) ([]models.EmployerProfile, int64, error)
+	FindEmployersWithActiveCastings(db *gorm.DB, limit int) ([]models.EmployerProfile, error)
 
 	// Дополнительные методы
-	FindModelsByExactCategory(category string) ([]models.ModelProfile, error)
-	FindModelsByMultipleLanguages(languages []string) ([]models.ModelProfile, error)
-	UpdateModelCategories(modelID string, categories []string) error
-	UpdateModelLanguages(modelID string, languages []string) error
+	FindModelsByExactCategory(db *gorm.DB, category string) ([]models.ModelProfile, error)
+	FindModelsByMultipleLanguages(db *gorm.DB, languages []string) ([]models.ModelProfile, error)
+	UpdateModelCategories(db *gorm.DB, modelID string, categories []string) error
+	UpdateModelLanguages(db *gorm.DB, modelID string, languages []string) error
 }
 
 type ProfileRepositoryImpl struct {
-	db *gorm.DB
+	// ✅ Пусто! db *gorm.DB больше не хранится здесь
 }
 
 // Исправленные search criteria с правильными типами
@@ -99,25 +98,28 @@ type ModelStats struct {
 	CompletedJobs   int64   `json:"completed_jobs"`
 }
 
-func NewProfileRepository(db *gorm.DB) ProfileRepository {
-	return &ProfileRepositoryImpl{db: db}
+// ✅ Конструктор не принимает db
+func NewProfileRepository() ProfileRepository {
+	return &ProfileRepositoryImpl{}
 }
 
 // ModelProfile operations
 
-func (r *ProfileRepositoryImpl) CreateModelProfile(profile *models.ModelProfile) error {
+func (r *ProfileRepositoryImpl) CreateModelProfile(db *gorm.DB, profile *models.ModelProfile) error {
 	// Check if profile already exists for this user
 	var existing models.ModelProfile
-	if err := r.db.Where("user_id = ?", profile.UserID).First(&existing).Error; err == nil {
+	// ✅ Используем 'db' из параметра
+	if err := db.Where("user_id = ?", profile.UserID).First(&existing).Error; err == nil {
 		return ErrProfileAlreadyExists
 	}
-
-	return r.db.Create(profile).Error
+	// ✅ Используем 'db' из параметра
+	return db.Create(profile).Error
 }
 
-func (r *ProfileRepositoryImpl) FindModelProfileByID(id string) (*models.ModelProfile, error) {
+func (r *ProfileRepositoryImpl) FindModelProfileByID(db *gorm.DB, id string) (*models.ModelProfile, error) {
 	var profile models.ModelProfile
-	err := r.db.Preload("PortfolioItems").Preload("PortfolioItems.Upload").
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("PortfolioItems").Preload("PortfolioItems.Upload").
 		First(&profile, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -128,9 +130,10 @@ func (r *ProfileRepositoryImpl) FindModelProfileByID(id string) (*models.ModelPr
 	return &profile, nil
 }
 
-func (r *ProfileRepositoryImpl) FindModelProfileByUserID(userID string) (*models.ModelProfile, error) {
+func (r *ProfileRepositoryImpl) FindModelProfileByUserID(db *gorm.DB, userID string) (*models.ModelProfile, error) {
 	var profile models.ModelProfile
-	err := r.db.Preload("PortfolioItems").Preload("PortfolioItems.Upload").
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("PortfolioItems").Preload("PortfolioItems.Upload").
 		Where("user_id = ?", userID).First(&profile).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -141,8 +144,9 @@ func (r *ProfileRepositoryImpl) FindModelProfileByUserID(userID string) (*models
 	return &profile, nil
 }
 
-func (r *ProfileRepositoryImpl) UpdateModelProfile(profile *models.ModelProfile) error {
-	result := r.db.Model(profile).Updates(map[string]interface{}{
+func (r *ProfileRepositoryImpl) UpdateModelProfile(db *gorm.DB, profile *models.ModelProfile) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(profile).Updates(map[string]interface{}{
 		"name":            profile.Name,
 		"age":             profile.Age,
 		"height":          profile.Height,
@@ -170,8 +174,9 @@ func (r *ProfileRepositoryImpl) UpdateModelProfile(profile *models.ModelProfile)
 	return nil
 }
 
-func (r *ProfileRepositoryImpl) UpdateModelProfileRating(modelID string, newRating float64) error {
-	result := r.db.Model(&models.ModelProfile{}).Where("id = ?", modelID).Update("rating", newRating)
+func (r *ProfileRepositoryImpl) UpdateModelProfileRating(db *gorm.DB, modelID string, newRating float64) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&models.ModelProfile{}).Where("id = ?", modelID).Update("rating", newRating)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -181,13 +186,15 @@ func (r *ProfileRepositoryImpl) UpdateModelProfileRating(modelID string, newRati
 	return nil
 }
 
-func (r *ProfileRepositoryImpl) IncrementModelProfileViews(modelID string) error {
-	return r.db.Model(&models.ModelProfile{}).Where("id = ?", modelID).
+func (r *ProfileRepositoryImpl) IncrementModelProfileViews(db *gorm.DB, modelID string) error {
+	// ✅ Используем 'db' из параметра
+	return db.Model(&models.ModelProfile{}).Where("id = ?", modelID).
 		Update("profile_views", gorm.Expr("profile_views + ?", 1)).Error
 }
 
-func (r *ProfileRepositoryImpl) DeleteModelProfile(id string) error {
-	result := r.db.Where("id = ?", id).Delete(&models.ModelProfile{})
+func (r *ProfileRepositoryImpl) DeleteModelProfile(db *gorm.DB, id string) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Where("id = ?", id).Delete(&models.ModelProfile{})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -198,9 +205,10 @@ func (r *ProfileRepositoryImpl) DeleteModelProfile(id string) error {
 }
 
 // 🎯 ИСПРАВЛЕННЫЙ метод поиска с PostgreSQL-специфичными операциями
-func (r *ProfileRepositoryImpl) SearchModelProfiles(criteria ModelSearchCriteria) ([]models.ModelProfile, int64, error) {
+func (r *ProfileRepositoryImpl) SearchModelProfiles(db *gorm.DB, criteria ModelSearchCriteria) ([]models.ModelProfile, int64, error) {
 	var profiles []models.ModelProfile
-	query := r.db.Model(&models.ModelProfile{})
+	// ✅ Используем 'db' из параметра
+	query := db.Model(&models.ModelProfile{})
 
 	// Apply privacy filter - только публичные профили для поиска
 	if criteria.IsPublic == nil || *criteria.IsPublic {
@@ -299,6 +307,7 @@ func (r *ProfileRepositoryImpl) SearchModelProfiles(criteria ModelSearchCriteria
 
 	// Get total count
 	var total int64
+	// ✅ Используем 'db' (query)
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -313,6 +322,7 @@ func (r *ProfileRepositoryImpl) SearchModelProfiles(criteria ModelSearchCriteria
 	offset := (criteria.Page - 1) * criteria.PageSize
 
 	// Preload limited portfolio items for performance
+	// ✅ Используем 'db' (query)
 	err := query.Preload("PortfolioItems", func(db *gorm.DB) *gorm.DB {
 		return db.Order("order_index ASC").Limit(3) // Load first 3 portfolio items
 	}).Preload("PortfolioItems.Upload").
@@ -324,11 +334,11 @@ func (r *ProfileRepositoryImpl) SearchModelProfiles(criteria ModelSearchCriteria
 // 🎯 Дополнительные методы для работы с JSONB
 
 // FindModelsByExactCategory - поиск по точному совпадению категории
-func (r *ProfileRepositoryImpl) FindModelsByExactCategory(category string) ([]models.ModelProfile, error) {
+func (r *ProfileRepositoryImpl) FindModelsByExactCategory(db *gorm.DB, category string) ([]models.ModelProfile, error) {
 	var profiles []models.ModelProfile
 	categoryJSON, _ := json.Marshal([]string{category})
-
-	err := r.db.Where("categories::jsonb @> ?", datatypes.JSON(categoryJSON)).
+	// ✅ Используем 'db' из параметра
+	err := db.Where("categories::jsonb @> ?", datatypes.JSON(categoryJSON)).
 		Where("is_public = ?", true).
 		Order("rating DESC").
 		Find(&profiles).Error
@@ -336,7 +346,7 @@ func (r *ProfileRepositoryImpl) FindModelsByExactCategory(category string) ([]mo
 }
 
 // FindModelsByMultipleLanguages - поиск по нескольким языкам
-func (r *ProfileRepositoryImpl) FindModelsByMultipleLanguages(languages []string) ([]models.ModelProfile, error) {
+func (r *ProfileRepositoryImpl) FindModelsByMultipleLanguages(db *gorm.DB, languages []string) ([]models.ModelProfile, error) {
 	var profiles []models.ModelProfile
 
 	conditions := []string{}
@@ -350,8 +360,8 @@ func (r *ProfileRepositoryImpl) FindModelsByMultipleLanguages(languages []string
 
 	query := strings.Join(conditions, " OR ")
 	args = append([]interface{}{query}, args...)
-
-	err := r.db.Where("is_public = ?", true).
+	// ✅ Используем 'db' из параметра
+	err := db.Where("is_public = ?", true).
 		Where(args[0], args[1:]...).
 		Order("rating DESC").
 		Find(&profiles).Error
@@ -360,13 +370,13 @@ func (r *ProfileRepositoryImpl) FindModelsByMultipleLanguages(languages []string
 }
 
 // UpdateModelCategories - обновление категорий модели
-func (r *ProfileRepositoryImpl) UpdateModelCategories(modelID string, categories []string) error {
+func (r *ProfileRepositoryImpl) UpdateModelCategories(db *gorm.DB, modelID string, categories []string) error {
 	categoriesJSON, err := json.Marshal(categories)
 	if err != nil {
 		return fmt.Errorf("failed to marshal categories: %w", err)
 	}
-
-	result := r.db.Model(&models.ModelProfile{}).Where("id = ?", modelID).
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&models.ModelProfile{}).Where("id = ?", modelID).
 		Update("categories", datatypes.JSON(categoriesJSON))
 
 	if result.Error != nil {
@@ -379,13 +389,13 @@ func (r *ProfileRepositoryImpl) UpdateModelCategories(modelID string, categories
 }
 
 // UpdateModelLanguages - обновление языков модели
-func (r *ProfileRepositoryImpl) UpdateModelLanguages(modelID string, languages []string) error {
+func (r *ProfileRepositoryImpl) UpdateModelLanguages(db *gorm.DB, modelID string, languages []string) error {
 	languagesJSON, err := json.Marshal(languages)
 	if err != nil {
 		return fmt.Errorf("failed to marshal languages: %w", err)
 	}
-
-	result := r.db.Model(&models.ModelProfile{}).Where("id = ?", modelID).
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&models.ModelProfile{}).Where("id = ?", modelID).
 		Update("languages", datatypes.JSON(languagesJSON))
 
 	if result.Error != nil {
@@ -398,9 +408,10 @@ func (r *ProfileRepositoryImpl) UpdateModelLanguages(modelID string, languages [
 }
 
 // Остальные методы остаются без изменений...
-func (r *ProfileRepositoryImpl) FindFeaturedModels(limit int) ([]models.ModelProfile, error) {
+func (r *ProfileRepositoryImpl) FindFeaturedModels(db *gorm.DB, limit int) ([]models.ModelProfile, error) {
 	var profiles []models.ModelProfile
-	err := r.db.Where("is_public = ? AND rating >= ?", true, 4.0).
+	// ✅ Используем 'db' из параметра
+	err := db.Where("is_public = ? AND rating >= ?", true, 4.0).
 		Order("rating DESC, profile_views DESC").
 		Limit(limit).
 		Preload("PortfolioItems", func(db *gorm.DB) *gorm.DB {
@@ -411,9 +422,10 @@ func (r *ProfileRepositoryImpl) FindFeaturedModels(limit int) ([]models.ModelPro
 	return profiles, err
 }
 
-func (r *ProfileRepositoryImpl) FindModelsByCity(city string) ([]models.ModelProfile, error) {
+func (r *ProfileRepositoryImpl) FindModelsByCity(db *gorm.DB, city string) ([]models.ModelProfile, error) {
 	var profiles []models.ModelProfile
-	err := r.db.Where("city = ? AND is_public = ?", city, true).
+	// ✅ Используем 'db' из параметра
+	err := db.Where("city = ? AND is_public = ?", city, true).
 		Order("rating DESC").
 		Preload("PortfolioItems", func(db *gorm.DB) *gorm.DB {
 			return db.Order("order_index ASC").Limit(2)
@@ -423,41 +435,47 @@ func (r *ProfileRepositoryImpl) FindModelsByCity(city string) ([]models.ModelPro
 	return profiles, err
 }
 
-func (r *ProfileRepositoryImpl) GetModelStats(modelID string) (*ModelStats, error) {
+func (r *ProfileRepositoryImpl) GetModelStats(db *gorm.DB, modelID string) (*ModelStats, error) {
 	var stats ModelStats
 
 	// Get profile views
-	if err := r.db.Model(&models.ModelProfile{}).Where("id = ?", modelID).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.ModelProfile{}).Where("id = ?", modelID).
 		Pluck("profile_views", &stats.TotalViews).Error; err != nil {
 		return nil, err
 	}
 
 	// Get rating
-	if err := r.db.Model(&models.ModelProfile{}).Where("id = ?", modelID).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.ModelProfile{}).Where("id = ?", modelID).
 		Pluck("rating", &stats.AverageRating).Error; err != nil {
 		return nil, err
 	}
 
 	// Get review count
-	if err := r.db.Model(&models.Review{}).Where("model_id = ?", modelID).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.Review{}).Where("model_id = ?", modelID).
 		Count(&stats.TotalReviews).Error; err != nil {
 		return nil, err
 	}
 
 	// Get portfolio items count
-	if err := r.db.Model(&models.PortfolioItem{}).Where("model_id = ?", modelID).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.PortfolioItem{}).Where("model_id = ?", modelID).
 		Count(&stats.PortfolioItems).Error; err != nil {
 		return nil, err
 	}
 
 	// Get active responses count (simplified)
-	if err := r.db.Model(&models.CastingResponse{}).Where("model_id = ? AND status = ?", modelID, "pending").
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.CastingResponse{}).Where("model_id = ? AND status = ?", modelID, "pending").
 		Count(&stats.ActiveResponses).Error; err != nil {
 		return nil, err
 	}
 
 	// Get completed jobs count (simplified)
-	if err := r.db.Model(&models.CastingResponse{}).Where("model_id = ? AND status = ?", modelID, "accepted").
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.CastingResponse{}).Where("model_id = ? AND status = ?", modelID, "accepted").
 		Count(&stats.CompletedJobs).Error; err != nil {
 		return nil, err
 	}
@@ -466,17 +484,20 @@ func (r *ProfileRepositoryImpl) GetModelStats(modelID string) (*ModelStats, erro
 }
 
 // EmployerProfile methods
-func (r *ProfileRepositoryImpl) CreateEmployerProfile(profile *models.EmployerProfile) error {
+func (r *ProfileRepositoryImpl) CreateEmployerProfile(db *gorm.DB, profile *models.EmployerProfile) error {
 	var existing models.EmployerProfile
-	if err := r.db.Where("user_id = ?", profile.UserID).First(&existing).Error; err == nil {
+	// ✅ Используем 'db' из параметра
+	if err := db.Where("user_id = ?", profile.UserID).First(&existing).Error; err == nil {
 		return ErrProfileAlreadyExists
 	}
-	return r.db.Create(profile).Error
+	// ✅ Используем 'db' из параметра
+	return db.Create(profile).Error
 }
 
-func (r *ProfileRepositoryImpl) FindEmployerProfileByID(id string) (*models.EmployerProfile, error) {
+func (r *ProfileRepositoryImpl) FindEmployerProfileByID(db *gorm.DB, id string) (*models.EmployerProfile, error) {
 	var profile models.EmployerProfile
-	err := r.db.First(&profile, "id = ?", id).Error
+	// ✅ Используем 'db' из параметра
+	err := db.First(&profile, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrProfileNotFound
@@ -486,9 +507,10 @@ func (r *ProfileRepositoryImpl) FindEmployerProfileByID(id string) (*models.Empl
 	return &profile, nil
 }
 
-func (r *ProfileRepositoryImpl) FindEmployerProfileByUserID(userID string) (*models.EmployerProfile, error) {
+func (r *ProfileRepositoryImpl) FindEmployerProfileByUserID(db *gorm.DB, userID string) (*models.EmployerProfile, error) {
 	var profile models.EmployerProfile
-	err := r.db.Where("user_id = ?", userID).First(&profile).Error
+	// ✅ Используем 'db' из параметра
+	err := db.Where("user_id = ?", userID).First(&profile).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrProfileNotFound
@@ -498,8 +520,9 @@ func (r *ProfileRepositoryImpl) FindEmployerProfileByUserID(userID string) (*mod
 	return &profile, nil
 }
 
-func (r *ProfileRepositoryImpl) UpdateEmployerProfile(profile *models.EmployerProfile) error {
-	result := r.db.Model(profile).Updates(map[string]interface{}{
+func (r *ProfileRepositoryImpl) UpdateEmployerProfile(db *gorm.DB, profile *models.EmployerProfile) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(profile).Updates(map[string]interface{}{
 		"company_name":   profile.CompanyName,
 		"contact_person": profile.ContactPerson,
 		"phone":          profile.Phone,
@@ -520,8 +543,9 @@ func (r *ProfileRepositoryImpl) UpdateEmployerProfile(profile *models.EmployerPr
 	return nil
 }
 
-func (r *ProfileRepositoryImpl) VerifyEmployerProfile(employerID string) error {
-	result := r.db.Model(&models.EmployerProfile{}).Where("id = ?", employerID).Updates(map[string]interface{}{
+func (r *ProfileRepositoryImpl) VerifyEmployerProfile(db *gorm.DB, employerID string) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&models.EmployerProfile{}).Where("id = ?", employerID).Updates(map[string]interface{}{
 		"is_verified": true,
 		"updated_at":  time.Now(),
 	})
@@ -535,8 +559,9 @@ func (r *ProfileRepositoryImpl) VerifyEmployerProfile(employerID string) error {
 	return nil
 }
 
-func (r *ProfileRepositoryImpl) DeleteEmployerProfile(id string) error {
-	result := r.db.Where("id = ?", id).Delete(&models.EmployerProfile{})
+func (r *ProfileRepositoryImpl) DeleteEmployerProfile(db *gorm.DB, id string) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Where("id = ?", id).Delete(&models.EmployerProfile{})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -546,9 +571,10 @@ func (r *ProfileRepositoryImpl) DeleteEmployerProfile(id string) error {
 	return nil
 }
 
-func (r *ProfileRepositoryImpl) SearchEmployerProfiles(criteria EmployerSearchCriteria) ([]models.EmployerProfile, int64, error) {
+func (r *ProfileRepositoryImpl) SearchEmployerProfiles(db *gorm.DB, criteria EmployerSearchCriteria) ([]models.EmployerProfile, int64, error) {
 	var profiles []models.EmployerProfile
-	query := r.db.Model(&models.EmployerProfile{})
+	// ✅ Используем 'db' из параметра
+	query := db.Model(&models.EmployerProfile{})
 
 	if criteria.Query != "" {
 		search := "%" + criteria.Query + "%"
@@ -569,6 +595,7 @@ func (r *ProfileRepositoryImpl) SearchEmployerProfiles(criteria EmployerSearchCr
 
 	// Get total count
 	var total int64
+	// ✅ Используем 'db' (query)
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -576,21 +603,22 @@ func (r *ProfileRepositoryImpl) SearchEmployerProfiles(criteria EmployerSearchCr
 	// Apply pagination
 	limit := criteria.PageSize
 	offset := (criteria.Page - 1) * criteria.PageSize
-
+	// ✅ Используем 'db' (query)
 	err := query.Order("is_verified DESC, company_name ASC").
 		Limit(limit).Offset(offset).Find(&profiles).Error
 
 	return profiles, total, err
 }
 
-func (r *ProfileRepositoryImpl) FindEmployersWithActiveCastings(limit int) ([]models.EmployerProfile, error) {
+func (r *ProfileRepositoryImpl) FindEmployersWithActiveCastings(db *gorm.DB, limit int) ([]models.EmployerProfile, error) {
 	var profiles []models.EmployerProfile
 
 	// Subquery to find employers with active castings
-	subquery := r.db.Model(&models.Casting{}).Where("status = ?", models.CastingStatusActive).
+	// ✅ Используем 'db' из параметра
+	subquery := db.Model(&models.Casting{}).Where("status = ?", models.CastingStatusActive).
 		Select("DISTINCT employer_id")
-
-	err := r.db.Where("id IN (?)", subquery).Order("is_verified DESC").
+	// ✅ Используем 'db' из параметра
+	err := db.Where("id IN (?)", subquery).Order("is_verified DESC").
 		Limit(limit).Find(&profiles).Error
 
 	return profiles, err

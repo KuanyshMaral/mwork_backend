@@ -61,7 +61,8 @@ func (h *ResponseHandler) CreateResponse(c *gin.Context) {
 		return
 	}
 
-	response, err := h.responseService.CreateResponse(modelID, castingID, &req)
+	// ✅ DB: Используем h.GetDB(c)
+	response, err := h.responseService.CreateResponse(h.GetDB(c), modelID, castingID, &req)
 	if err != nil {
 		// 6. Use HandleServiceError
 		h.HandleServiceError(c, err)
@@ -77,7 +78,8 @@ func (h *ResponseHandler) GetMyResponses(c *gin.Context) {
 		return
 	}
 
-	responses, err := h.responseService.GetModelResponses(modelID)
+	// ✅ DB: Используем h.GetDB(c)
+	responses, err := h.responseService.GetModelResponses(h.GetDB(c), modelID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -96,7 +98,8 @@ func (h *ResponseHandler) DeleteResponse(c *gin.Context) {
 	}
 	responseID := c.Param("responseId")
 
-	if err := h.responseService.DeleteResponse(modelID, responseID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.responseService.DeleteResponse(h.GetDB(c), modelID, responseID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -113,7 +116,8 @@ func (h *ResponseHandler) GetCastingResponses(c *gin.Context) {
 	}
 	castingID := c.Param("castingId")
 
-	responses, err := h.responseService.GetCastingResponses(castingID, employerID)
+	// ✅ DB: Используем h.GetDB(c)
+	responses, err := h.responseService.GetCastingResponses(h.GetDB(c), castingID, employerID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -140,7 +144,8 @@ func (h *ResponseHandler) UpdateResponseStatus(c *gin.Context) {
 		return
 	}
 
-	if err := h.responseService.UpdateResponseStatus(employerID, responseID, req.Status); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.responseService.UpdateResponseStatus(h.GetDB(c), employerID, responseID, req.Status); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -155,7 +160,8 @@ func (h *ResponseHandler) MarkResponseAsViewed(c *gin.Context) {
 	}
 	responseID := c.Param("responseId")
 
-	if err := h.responseService.MarkResponseAsViewed(employerID, responseID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.responseService.MarkResponseAsViewed(h.GetDB(c), employerID, responseID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -170,7 +176,8 @@ func (h *ResponseHandler) GetResponseStats(c *gin.Context) {
 	}
 	castingID := c.Param("castingId")
 
-	stats, err := h.responseService.GetResponseStats(castingID)
+	// ✅ DB: Используем h.GetDB(c)
+	stats, err := h.responseService.GetResponseStats(h.GetDB(c), castingID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -188,7 +195,8 @@ func (h *ResponseHandler) GetResponse(c *gin.Context) {
 	}
 	responseID := c.Param("responseId")
 
-	response, err := h.responseService.GetResponse(responseID, userID)
+	// ✅ DB: Используем h.GetDB(c)
+	response, err := h.responseService.GetResponse(h.GetDB(c), responseID, userID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return

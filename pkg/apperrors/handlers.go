@@ -1,9 +1,7 @@
 package apperrors
 
 import (
-	"encoding/json"
 	"log"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 )

@@ -75,7 +75,8 @@ func (h *NotificationHandler) CreateNotification(c *gin.Context) {
 		return
 	}
 
-	notification, err := h.notificationService.CreateNotification(userID, &req)
+	// ✅ DB: Используем h.GetDB(c)
+	notification, err := h.notificationService.CreateNotification(h.GetDB(c), userID, &req)
 	if err != nil {
 		// 6. Use HandleServiceError
 		h.HandleServiceError(c, err)
@@ -92,7 +93,8 @@ func (h *NotificationHandler) GetNotification(c *gin.Context) {
 	}
 	notificationID := c.Param("notificationId")
 
-	notification, err := h.notificationService.GetNotification(notificationID)
+	// ✅ DB: Используем h.GetDB(c)
+	notification, err := h.notificationService.GetNotification(h.GetDB(c), notificationID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -113,9 +115,15 @@ func (h *NotificationHandler) GetUserNotifications(c *gin.Context) {
 	criteria := dto.NotificationCriteria{
 		Page:     page,
 		PageSize: pageSize,
+		// TODO: Добавить парсинг фильтров из c.Query()
+		Filters: make(map[string]interface{}),
+	}
+	if c.Query("unread_only") == "true" {
+		criteria.Filters["unread_only"] = true
 	}
 
-	response, err := h.notificationService.GetUserNotifications(userID, criteria)
+	// ✅ DB: Используем h.GetDB(c)
+	response, err := h.notificationService.GetUserNotifications(h.GetDB(c), userID, criteria)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -131,7 +139,8 @@ func (h *NotificationHandler) MarkAsRead(c *gin.Context) {
 	}
 	notificationID := c.Param("notificationId")
 
-	if err := h.notificationService.MarkAsRead(userID, notificationID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.notificationService.MarkAsRead(h.GetDB(c), userID, notificationID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -145,7 +154,8 @@ func (h *NotificationHandler) MarkAllAsRead(c *gin.Context) {
 		return
 	}
 
-	if err := h.notificationService.MarkAllAsRead(userID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.notificationService.MarkAllAsRead(h.GetDB(c), userID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -167,7 +177,8 @@ func (h *NotificationHandler) MarkMultipleAsRead(c *gin.Context) {
 		return
 	}
 
-	if err := h.notificationService.MarkMultipleAsRead(userID, req.NotificationIDs); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.notificationService.MarkMultipleAsRead(h.GetDB(c), userID, req.NotificationIDs); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -182,7 +193,8 @@ func (h *NotificationHandler) DeleteNotification(c *gin.Context) {
 	}
 	notificationID := c.Param("notificationId")
 
-	if err := h.notificationService.DeleteNotification(userID, notificationID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.notificationService.DeleteNotification(h.GetDB(c), userID, notificationID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -196,7 +208,8 @@ func (h *NotificationHandler) DeleteUserNotifications(c *gin.Context) {
 		return
 	}
 
-	if err := h.notificationService.DeleteUserNotifications(userID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.notificationService.DeleteUserNotifications(h.GetDB(c), userID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -210,7 +223,8 @@ func (h *NotificationHandler) GetUserNotificationStats(c *gin.Context) {
 		return
 	}
 
-	stats, err := h.notificationService.GetUserNotificationStats(userID)
+	// ✅ DB: Используем h.GetDB(c)
+	stats, err := h.notificationService.GetUserNotificationStats(h.GetDB(c), userID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -225,7 +239,8 @@ func (h *NotificationHandler) GetUnreadCount(c *gin.Context) {
 		return
 	}
 
-	count, err := h.notificationService.GetUnreadCount(userID)
+	// ✅ DB: Используем h.GetDB(c)
+	count, err := h.notificationService.GetUnreadCount(h.GetDB(c), userID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -247,7 +262,8 @@ func (h *NotificationHandler) CreateTemplate(c *gin.Context) {
 		return
 	}
 
-	if err := h.notificationService.CreateTemplate(adminID, &req); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.notificationService.CreateTemplate(h.GetDB(c), adminID, &req); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -261,7 +277,8 @@ func (h *NotificationHandler) GetTemplate(c *gin.Context) {
 	}
 	templateID := c.Param("templateId")
 
-	template, err := h.notificationService.GetTemplate(templateID)
+	// ✅ DB: Используем h.GetDB(c)
+	template, err := h.notificationService.GetTemplate(h.GetDB(c), templateID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -276,7 +293,8 @@ func (h *NotificationHandler) GetTemplateByType(c *gin.Context) {
 	}
 	notificationType := c.Param("type")
 
-	template, err := h.notificationService.GetTemplateByType(notificationType)
+	// ✅ DB: Используем h.GetDB(c)
+	template, err := h.notificationService.GetTemplateByType(h.GetDB(c), notificationType)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -297,7 +315,8 @@ func (h *NotificationHandler) UpdateTemplate(c *gin.Context) {
 		return
 	}
 
-	if err := h.notificationService.UpdateTemplate(adminID, templateID, &req); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.notificationService.UpdateTemplate(h.GetDB(c), adminID, templateID, &req); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -312,7 +331,8 @@ func (h *NotificationHandler) DeleteTemplate(c *gin.Context) {
 	}
 	templateID := c.Param("templateId")
 
-	if err := h.notificationService.DeleteTemplate(adminID, templateID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.notificationService.DeleteTemplate(h.GetDB(c), adminID, templateID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -325,7 +345,8 @@ func (h *NotificationHandler) GetAllTemplates(c *gin.Context) {
 		return
 	}
 
-	templates, err := h.notificationService.GetAllTemplates()
+	// ✅ DB: Используем h.GetDB(c)
+	templates, err := h.notificationService.GetAllTemplates(h.GetDB(c))
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -349,9 +370,15 @@ func (h *NotificationHandler) GetAllNotifications(c *gin.Context) {
 	criteria := dto.AdminNotificationCriteria{
 		Page:     page,
 		PageSize: pageSize,
+		// TODO: Добавить парсинг фильтров из c.Query()
+		Filters: make(map[string]interface{}),
+	}
+	if c.Query("user_id") != "" {
+		criteria.Filters["user_id"] = c.Query("user_id")
 	}
 
-	response, err := h.notificationService.GetAllNotifications(criteria)
+	// ✅ DB: Используем h.GetDB(c)
+	response, err := h.notificationService.GetAllNotifications(h.GetDB(c), criteria)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -365,7 +392,8 @@ func (h *NotificationHandler) GetPlatformNotificationStats(c *gin.Context) {
 		return
 	}
 
-	stats, err := h.notificationService.GetPlatformNotificationStats()
+	// ✅ DB: Используем h.GetDB(c)
+	stats, err := h.notificationService.GetPlatformNotificationStats(h.GetDB(c))
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -385,7 +413,8 @@ func (h *NotificationHandler) SendBulkNotification(c *gin.Context) {
 		return
 	}
 
-	if err := h.notificationService.SendBulkNotification(adminID, &req); err != nil {
+	// ✅ DB: Использу... h.GetDB(c)
+	if err := h.notificationService.SendBulkNotification(h.GetDB(c), adminID, &req); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -404,7 +433,8 @@ func (h *NotificationHandler) CleanOldNotifications(c *gin.Context) {
 		days = 30
 	}
 
-	if err := h.notificationService.CleanOldNotifications(days); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.notificationService.CleanOldNotifications(h.GetDB(c), days); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}

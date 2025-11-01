@@ -9,14 +9,15 @@ import (
 // =======================
 // Auth DTOs
 // =======================
+//
+// !!!!!!!!!!!!!
+// СТРУКТУРА LoginResponse БЫЛА УДАЛЕНА.
+// Вместо нее используется AuthResponse из dto/auth.go
+// !!!!!!!!!!!!!
+//
 
-type LoginResponse struct {
-	AccessToken  string        `json:"access_token"`
-	RefreshToken string        `json:"refresh_token"`
-	User         *UserResponse `json:"user"`
-}
-
-// UserResponse содержит данные о пользователе
+// UserResponse содержит ПОЛНЫЕ данные о пользователе (в отличие от UserDTO)
+// Используется для эндпоинтов типа /users/me
 type UserResponse struct {
 	ID         string            `json:"id"`
 	Email      string            `json:"email"`
@@ -45,28 +46,9 @@ type AdminUserFilter struct {
 // =======================
 // Profile DTOs
 // =======================
-
-// UpdateProfileRequest используется для обновления профиля пользователя
-type UpdateProfileRequestUser struct {
-	// Model fields
-	Name           *string  `json:"name,omitempty" validate:"omitempty,min=2"`
-	City           *string  `json:"city,omitempty"`
-	Age            *int     `json:"age,omitempty" validate:"omitempty,min=16,max=70"`
-	Height         *float64 `json:"height,omitempty" validate:"omitempty,min=100,max=250"`
-	Weight         *float64 `json:"weight,omitempty" validate:"omitempty,min=30,max=200"`
-	Gender         *string  `json:"gender,omitempty" validate:"omitempty,is-gender"` // Custom rule
-	Experience     *string  `json:"experience,omitempty"`
-	HourlyRate     *float64 `json:"hourly_rate,omitempty" validate:"omitempty,min=0"`
-	Description    *string  `json:"description,omitempty" validate:"omitempty,max=2000"`
-	ClothingSize   *string  `json:"clothing_size,omitempty"`
-	ShoeSize       *string  `json:"shoe_size,omitempty"`
-	BarterAccepted *bool    `json:"barter_accepted,omitempty"`
-	IsPublic       *bool    `json:"is_public,omitempty"`
-
-	// Employer fields
-	CompanyName   *string `json:"company_name,omitempty" validate:"omitempty,min=2"`
-	ContactPerson *string `json:"contact_person,omitempty"`
-	Phone         *string `json:"phone,omitempty" validate:"omitempty,e164"` // e.g., +1234567890
-	Website       *string `json:"website,omitempty" validate:"omitempty,url"`
-	CompanyType   *string `json:"company_type,omitempty"`
-}
+//
+// !!!!!!!!!!!!!
+// СТРУКТУРА UpdateProfileRequestUser БЫЛА УДАЛЕНА.
+// Вместо нее используется UpdateProfileRequest из dto/profile.go
+// !!!!!!!!!!!!!
+//

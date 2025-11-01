@@ -3,11 +3,11 @@ package handlers
 import (
 	"net/http"
 
-	"mwork_backend/internal/appErrors"
 	"mwork_backend/internal/middleware" // <-- Все еще нужен для RegisterRoutes
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/services"
 	"mwork_backend/internal/services/dto"
+	"mwork_backend/pkg/apperrors"
 
 	"github.com/gin-gonic/gin"
 )
@@ -80,17 +80,26 @@ func (h *PortfolioHandler) CreatePortfolioItem(c *gin.Context) {
 
 	var req dto.CreatePortfolioRequest
 	// 5. BindAndValidate_JSON также работает с multipart-form полями
-	if !h.BindAndValidate_JSON(c, &req) {
+	// ПРИМЕЧАНИЕ: Для multipart-form используйте c.ShouldBind() вместо c.ShouldBindJSON()
+	// BaseHandler's BindAndValidate_JSON использует c.ShouldBind(), так что все в порядке.
+	if err := c.ShouldBind(&req); err != nil {
+		h.HandleServiceError(c, apperrors.NewBadRequestError(err.Error()))
+		return
+	}
+	// Валидация вручную, т.к. BindAndValidate_JSON не вызовется для multipart
+	if err := h.validator.Validate(req); err != nil {
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	file, err := c.FormFile("file")
 	if err != nil {
-		appErrors.HandleError(c, appErrors.NewBadRequestError("File is required"))
+		apperrors.HandleError(c, apperrors.NewBadRequestError("File is required"))
 		return
 	}
 
-	response, err := h.portfolioService.CreatePortfolioItem(userID, &req, file)
+	// ✅ DB: Используем h.GetDB(c)
+	response, err := h.portfolioService.CreatePortfolioItem(h.GetDB(c), userID, &req, file)
 	if err != nil {
 		// 6. Используем HandleServiceError
 		h.HandleServiceError(c, err)
@@ -103,7 +112,8 @@ func (h *PortfolioHandler) CreatePortfolioItem(c *gin.Context) {
 func (h *PortfolioHandler) GetPortfolioItem(c *gin.Context) {
 	itemID := c.Param("itemId")
 
-	response, err := h.portfolioService.GetPortfolioItem(itemID)
+	// ✅ DB: Используем h.GetDB(c)
+	response, err := h.portfolioService.GetPortfolioItem(h.GetDB(c), itemID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -115,7 +125,8 @@ func (h *PortfolioHandler) GetPortfolioItem(c *gin.Context) {
 func (h *PortfolioHandler) GetModelPortfolio(c *gin.Context) {
 	modelID := c.Param("modelId")
 
-	responses, err := h.portfolioService.GetModelPortfolio(modelID)
+	// ✅ DB: Используем h.GetDB(c)
+	responses, err := h.portfolioService.GetModelPortfolio(h.GetDB(c), modelID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -139,7 +150,8 @@ func (h *PortfolioHandler) UpdatePortfolioItem(c *gin.Context) {
 		return
 	}
 
-	if err := h.portfolioService.UpdatePortfolioItem(userID, itemID, &req); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.portfolioService.UpdatePortfolioItem(h.GetDB(c), userID, itemID, &req); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -158,7 +170,8 @@ func (h *PortfolioHandler) UpdatePortfolioOrder(c *gin.Context) {
 		return
 	}
 
-	if err := h.portfolioService.UpdatePortfolioOrder(userID, &req); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.portfolioService.UpdatePortfolioOrder(h.GetDB(c), userID, &req); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -173,7 +186,8 @@ func (h *PortfolioHandler) DeletePortfolioItem(c *gin.Context) {
 	}
 	itemID := c.Param("itemId")
 
-	if err := h.portfolioService.DeletePortfolioItem(userID, itemID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.portfolioService.DeletePortfolioItem(h.GetDB(c), userID, itemID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -188,7 +202,8 @@ func (h *PortfolioHandler) GetPortfolioStats(c *gin.Context) {
 	}
 	modelID := c.Param("modelId")
 
-	stats, err := h.portfolioService.GetPortfolioStats(modelID)
+	// ✅ DB: Используем h.GetDB(c)
+	stats, err := h.portfolioService.GetPortfolioStats(h.GetDB(c), modelID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -209,7 +224,8 @@ func (h *PortfolioHandler) TogglePortfolioVisibility(c *gin.Context) {
 		return
 	}
 
-	if err := h.portfolioService.TogglePortfolioVisibility(userID, itemID, &req); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.portfolioService.TogglePortfolioVisibility(h.GetDB(c), userID, itemID, &req); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -224,7 +240,8 @@ func (h *PortfolioHandler) GetFeaturedPortfolio(c *gin.Context) {
 		limit = 10
 	}
 
-	response, err := h.portfolioService.GetFeaturedPortfolio(limit)
+	// ✅ DB: Используем h.GetDB(c)
+	response, err := h.portfolioService.GetFeaturedPortfolio(h.GetDB(c), limit)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -239,7 +256,8 @@ func (h *PortfolioHandler) GetRecentPortfolio(c *gin.Context) {
 		limit = 10
 	}
 
-	response, err := h.portfolioService.GetRecentPortfolio(limit)
+	// ✅ DB: Используем h.GetDB(c)
+	response, err := h.portfolioService.GetRecentPortfolio(h.GetDB(c), limit)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -257,17 +275,25 @@ func (h *PortfolioHandler) UploadFile(c *gin.Context) {
 	}
 
 	var req dto.UploadRequest
-	if !h.BindAndValidate_JSON(c, &req) {
+	// ПРИМЕЧАНИЕ: Для multipart-form используйте c.ShouldBind()
+	if err := c.ShouldBind(&req); err != nil {
+		h.HandleServiceError(c, apperrors.NewBadRequestError(err.Error()))
+		return
+	}
+	// Валидация вручную
+	if err := h.validator.Validate(req); err != nil {
+		h.HandleServiceError(c, err)
 		return
 	}
 
 	file, err := c.FormFile("file")
 	if err != nil {
-		appErrors.HandleError(c, appErrors.NewBadRequestError("File is required"))
+		apperrors.HandleError(c, apperrors.NewBadRequestError("File is required"))
 		return
 	}
 
-	response, err := h.portfolioService.UploadFile(userID, &req, file)
+	// ✅ DB: Используем h.GetDB(c)
+	response, err := h.portfolioService.UploadFile(h.GetDB(c), userID, &req, file)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -283,7 +309,8 @@ func (h *PortfolioHandler) GetUpload(c *gin.Context) {
 	}
 	uploadID := c.Param("uploadId")
 
-	upload, err := h.portfolioService.GetUpload(uploadID)
+	// ✅ DB: Используем h.GetDB(c)
+	upload, err := h.portfolioService.GetUpload(h.GetDB(c), uploadID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -298,7 +325,8 @@ func (h *PortfolioHandler) GetMyUploads(c *gin.Context) {
 		return
 	}
 
-	uploads, err := h.portfolioService.GetUserUploads(userID)
+	// ✅ DB: Используем h.GetDB(c)
+	uploads, err := h.portfolioService.GetUserUploads(h.GetDB(c), userID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -317,7 +345,8 @@ func (h *PortfolioHandler) GetEntityUploads(c *gin.Context) {
 	entityType := c.Param("entityType")
 	entityID := c.Param("entityId")
 
-	uploads, err := h.portfolioService.GetEntityUploads(entityType, entityID)
+	// ✅ DB: Используем h.GetDB(c)
+	uploads, err := h.portfolioService.GetEntityUploads(h.GetDB(c), entityType, entityID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -336,7 +365,8 @@ func (h *PortfolioHandler) DeleteUpload(c *gin.Context) {
 	}
 	uploadID := c.Param("uploadId")
 
-	if err := h.portfolioService.DeleteUpload(userID, uploadID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.portfolioService.DeleteUpload(h.GetDB(c), userID, uploadID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -350,7 +380,8 @@ func (h *PortfolioHandler) GetStorageUsage(c *gin.Context) {
 		return
 	}
 
-	usage, err := h.portfolioService.GetUserStorageUsage(userID)
+	// ✅ DB: Используем h.GetDB(c)
+	usage, err := h.portfolioService.GetUserStorageUsage(h.GetDB(c), userID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -366,7 +397,8 @@ func (h *PortfolioHandler) CleanOrphanedUploads(c *gin.Context) {
 		return
 	}
 
-	if err := h.portfolioService.CleanOrphanedUploads(); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.portfolioService.CleanOrphanedUploads(h.GetDB(c)); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -379,7 +411,8 @@ func (h *PortfolioHandler) GetPlatformUploadStats(c *gin.Context) {
 		return
 	}
 
-	stats, err := h.portfolioService.GetPlatformUploadStats()
+	// ✅ DB: Используем h.GetDB(c)
+	stats, err := h.portfolioService.GetPlatformUploadStats(h.GetDB(c))
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return

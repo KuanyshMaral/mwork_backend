@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"strconv" // <-- Kept for ParseFloat
 
-	"mwork_backend/internal/appErrors" // <-- Added import
 	"mwork_backend/internal/middleware"
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/services"
 	"mwork_backend/internal/services/dto"
+	"mwork_backend/pkg/apperrors" // <-- Added import
 
 	"github.com/gin-gonic/gin"
 )
@@ -76,7 +76,8 @@ func (h *MatchingHandler) FindMatchingModels(c *gin.Context) {
 		}
 	}
 
-	matches, err := h.matchingService.FindMatchingModels(castingID, limit, minScore)
+	// ✅ DB: Используем h.GetDB(c)
+	matches, err := h.matchingService.FindMatchingModels(h.GetDB(c), castingID, limit, minScore)
 	if err != nil {
 		// 6. Use HandleServiceError
 		h.HandleServiceError(c, err)
@@ -107,7 +108,8 @@ func (h *MatchingHandler) FindModelsByCriteria(c *gin.Context) {
 		criteria.MinScore = 50.0
 	}
 
-	matches, err := h.matchingService.FindModelsByCriteria(&criteria)
+	// ✅ DB: Используем h.GetDB(c)
+	matches, err := h.matchingService.FindModelsByCriteria(h.GetDB(c), &criteria)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -128,11 +130,12 @@ func (h *MatchingHandler) GetModelCompatibility(c *gin.Context) {
 
 	if modelID == "" || castingID == "" {
 		// 8. Use appErrors
-		appErrors.HandleError(c, appErrors.NewBadRequestError("model_id and casting_id are required"))
+		apperrors.HandleError(c, apperrors.NewBadRequestError("model_id and casting_id are required"))
 		return
 	}
 
-	compatibility, err := h.matchingService.GetModelCompatibility(modelID, castingID)
+	// ✅ DB: Используем h.GetDB(c)
+	compatibility, err := h.matchingService.GetModelCompatibility(h.GetDB(c), modelID, castingID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -152,7 +155,8 @@ func (h *MatchingHandler) FindSimilarModels(c *gin.Context) {
 		limit = 10
 	}
 
-	similarModels, err := h.matchingService.FindSimilarModels(modelID, limit)
+	// ✅ DB: Используем h.GetDB(c)
+	similarModels, err := h.matchingService.FindSimilarModels(h.GetDB(c), modelID, limit)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -169,6 +173,7 @@ func (h *MatchingHandler) GetMatchingWeights(c *gin.Context) {
 		return
 	}
 
+	// ✅ DB: Веса глобальные, h.GetDB(c) не нужен
 	weights, err := h.matchingService.GetMatchingWeights()
 	if err != nil {
 		h.HandleServiceError(c, err)
@@ -184,7 +189,8 @@ func (h *MatchingHandler) GetMatchingStats(c *gin.Context) {
 	}
 	castingID := c.Param("castingId")
 
-	stats, err := h.matchingService.GetMatchingStats(castingID)
+	// ✅ DB: Используем h.GetDB(c)
+	stats, err := h.matchingService.GetMatchingStats(h.GetDB(c), castingID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -199,7 +205,8 @@ func (h *MatchingHandler) GetModelMatchingStats(c *gin.Context) {
 	}
 	modelID := c.Param("modelId")
 
-	stats, err := h.matchingService.GetModelMatchingStats(modelID)
+	// ✅ DB: Используем h.GetDB(c)
+	stats, err := h.matchingService.GetModelMatchingStats(h.GetDB(c), modelID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -221,7 +228,8 @@ func (h *MatchingHandler) UpdateMatchingWeights(c *gin.Context) {
 		return
 	}
 
-	if err := h.matchingService.UpdateMatchingWeights(adminID, &weights); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.matchingService.UpdateMatchingWeights(h.GetDB(c), adminID, &weights); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -234,7 +242,8 @@ func (h *MatchingHandler) GetPlatformMatchingStats(c *gin.Context) {
 		return
 	}
 
-	stats, err := h.matchingService.GetPlatformMatchingStats()
+	// ✅ DB: Используем h.GetDB(c)
+	stats, err := h.matchingService.GetPlatformMatchingStats(h.GetDB(c))
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -249,7 +258,8 @@ func (h *MatchingHandler) RecalculateAllMatches(c *gin.Context) {
 		return
 	}
 
-	if err := h.matchingService.RecalculateAllMatches(adminID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.matchingService.RecalculateAllMatches(h.GetDB(c), adminID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -270,15 +280,19 @@ func (h *MatchingHandler) GetMatchingLogs(c *gin.Context) {
 		PageSize: pageSize,
 	}
 
-	logs, total, err := h.matchingService.GetMatchingLogs(criteria)
+	// ✅ DB: Используем h.GetDB(c)
+	logs, total, err := h.matchingService.GetMatchingLogs(h.GetDB(c), criteria)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
 
-	totalPages := int(total) / pageSize
-	if int(total)%pageSize != 0 {
-		totalPages++
+	totalPages := 0
+	if pageSize > 0 {
+		totalPages = int(total) / pageSize
+		if int(total)%pageSize != 0 {
+			totalPages++
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -303,7 +317,8 @@ func (h *MatchingHandler) BatchMatchModels(c *gin.Context) {
 		return
 	}
 
-	results, err := h.matchingService.BatchMatchModels(req.CastingIDs)
+	// ✅ DB: Используем h.GetDB(c)
+	results, err := h.matchingService.BatchMatchModels(h.GetDB(c), req.CastingIDs)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return

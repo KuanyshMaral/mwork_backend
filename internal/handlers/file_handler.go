@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"mwork_backend/internal/appErrors"
 	"mwork_backend/internal/middleware"
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/repositories"
 	"mwork_backend/internal/storage"
+	"mwork_backend/pkg/apperrors"
 
 	"github.com/gin-gonic/gin"
 )
@@ -50,9 +50,11 @@ func (h *FileHandler) ServeFile(c *gin.Context) {
 	uploadID := c.Param("uploadId")
 
 	// Get upload metadata from database
-	upload, err := h.portfolioRepo.FindUploadByID(uploadID)
+	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
+	upload, err := h.portfolioRepo.FindUploadByID(h.GetDB(c), uploadID)
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	if err != nil {
-		appErrors.HandleError(c, appErrors.NewNotFoundError("File not found"))
+		apperrors.HandleError(c, apperrors.NewNotFoundError("File not found"))
 		return
 	}
 
@@ -63,7 +65,7 @@ func (h *FileHandler) ServeFile(c *gin.Context) {
 			// Check if user is admin
 			userRole, roleExists := c.Get("userRole")
 			if !roleExists || userRole.(string) != string(models.UserRoleAdmin) {
-				appErrors.HandleError(c, appErrors.NewForbiddenError("Access denied"))
+				apperrors.HandleError(c, apperrors.NewForbiddenError("Access denied"))
 				return
 			}
 		}
@@ -72,7 +74,7 @@ func (h *FileHandler) ServeFile(c *gin.Context) {
 	// Get file from storage
 	reader, err := h.storage.Get(c.Request.Context(), upload.Path)
 	if err != nil {
-		appErrors.HandleError(c, appErrors.NewNotFoundError("File not found in storage"))
+		apperrors.HandleError(c, apperrors.NewNotFoundError("File not found in storage"))
 		return
 	}
 	defer reader.Close()
@@ -112,20 +114,22 @@ func (h *FileHandler) ServeResizedImage(c *gin.Context) {
 	}
 
 	if !validSizes[size] {
-		appErrors.HandleError(c, appErrors.NewBadRequestError("Invalid size parameter"))
+		apperrors.HandleError(c, apperrors.NewBadRequestError("Invalid size parameter"))
 		return
 	}
 
 	// Get upload metadata
-	upload, err := h.portfolioRepo.FindUploadByID(uploadID)
+	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
+	upload, err := h.portfolioRepo.FindUploadByID(h.GetDB(c), uploadID)
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	if err != nil {
-		appErrors.HandleError(c, appErrors.NewNotFoundError("File not found"))
+		apperrors.HandleError(c, apperrors.NewNotFoundError("File not found"))
 		return
 	}
 
 	// Check if it's an image
 	if !strings.HasPrefix(upload.MimeType, "image/") {
-		appErrors.HandleError(c, appErrors.NewBadRequestError("File is not an image"))
+		apperrors.HandleError(c, apperrors.NewBadRequestError("File is not an image"))
 		return
 	}
 
@@ -135,7 +139,7 @@ func (h *FileHandler) ServeResizedImage(c *gin.Context) {
 		if !exists || userID.(string) != upload.UserID {
 			userRole, roleExists := c.Get("userRole")
 			if !roleExists || userRole.(string) != string(models.UserRoleAdmin) {
-				appErrors.HandleError(c, appErrors.NewForbiddenError("Access denied"))
+				apperrors.HandleError(c, apperrors.NewForbiddenError("Access denied"))
 				return
 			}
 		}
@@ -150,14 +154,14 @@ func (h *FileHandler) ServeResizedImage(c *gin.Context) {
 		// Serve existing resized version
 		reader, err = h.storage.Get(c.Request.Context(), resizedPath)
 		if err != nil {
-			appErrors.HandleError(c, appErrors.NewInternalServerError("Failed to retrieve resized image"))
+			apperrors.HandleError(c, apperrors.NewInternalServerError("Failed to retrieve resized image"))
 			return
 		}
 	} else {
 		// Serve original (resizing on-the-fly can be added later)
 		reader, err = h.storage.Get(c.Request.Context(), upload.Path)
 		if err != nil {
-			appErrors.HandleError(c, appErrors.NewNotFoundError("File not found in storage"))
+			apperrors.HandleError(c, apperrors.NewNotFoundError("File not found in storage"))
 			return
 		}
 	}
@@ -185,9 +189,11 @@ func (h *FileHandler) GetSignedURL(c *gin.Context) {
 	uploadID := c.Param("uploadId")
 
 	// Get upload metadata
-	upload, err := h.portfolioRepo.FindUploadByID(uploadID)
+	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
+	upload, err := h.portfolioRepo.FindUploadByID(h.GetDB(c), uploadID)
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	if err != nil {
-		appErrors.HandleError(c, appErrors.NewNotFoundError("File not found"))
+		apperrors.HandleError(c, apperrors.NewNotFoundError("File not found"))
 		return
 	}
 
@@ -195,7 +201,7 @@ func (h *FileHandler) GetSignedURL(c *gin.Context) {
 	if upload.UserID != userID {
 		userRole, roleExists := c.Get("userRole")
 		if !roleExists || userRole.(string) != string(models.UserRoleAdmin) {
-			appErrors.HandleError(c, appErrors.NewForbiddenError("Access denied"))
+			apperrors.HandleError(c, apperrors.NewForbiddenError("Access denied"))
 			return
 		}
 	}
@@ -210,7 +216,7 @@ func (h *FileHandler) GetSignedURL(c *gin.Context) {
 	// Generate signed URL
 	signedURL, err := h.storage.GetSignedURL(c.Request.Context(), upload.Path, expiry)
 	if err != nil {
-		appErrors.HandleError(c, appErrors.NewInternalServerError("Failed to generate signed URL"))
+		apperrors.HandleError(c, apperrors.NewInternalServerError("Failed to generate signed URL"))
 		return
 	}
 
@@ -225,7 +231,9 @@ func (h *FileHandler) CheckFileExists(c *gin.Context) {
 	uploadID := c.Param("uploadId")
 
 	// Get upload metadata
-	upload, err := h.portfolioRepo.FindUploadByID(uploadID)
+	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
+	upload, err := h.portfolioRepo.FindUploadByID(h.GetDB(c), uploadID)
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	if err != nil {
 		c.Status(http.StatusNotFound)
 		return

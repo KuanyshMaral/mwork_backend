@@ -70,6 +70,9 @@ func (c *Client) writePump() {
 }
 
 func (c *Client) handleMessage(msg IncomingWSMessage) {
+	// Получаем DB сессию из менеджера, используя контекст этого клиента
+	db := c.Manager.getDB(c.Ctx)
+
 	switch msg.Action {
 	case "send_message":
 		var input struct {
@@ -84,7 +87,6 @@ func (c *Client) handleMessage(msg IncomingWSMessage) {
 			return
 		}
 
-		// Используем ChatService из Manager
 		req := &dto.SendMessageRequest{
 			DialogID:  input.DialogID,
 			Type:      input.Type,
@@ -92,15 +94,31 @@ func (c *Client) handleMessage(msg IncomingWSMessage) {
 			ReplyToID: input.ReplyToID,
 		}
 
-		createdMsg, err := c.Manager.chatService.SendMessage(c.ID, req)
+		// Управляем транзакцией вручную
+		tx := db.Begin()
+		if tx.Error != nil {
+			log.Println("Failed to start transaction:", tx.Error)
+			c.Send <- map[string]string{"error": "internal_error"}
+			return
+		}
+
+		// Передаем транзакцию (tx) в сервис
+		createdMsg, err := c.Manager.chatService.SendMessage(tx, c.ID, req)
 		if err != nil {
+			tx.Rollback() // <-- Откат
 			log.Println("Failed to send message:", err)
 			c.Send <- map[string]string{"error": "failed_to_send"}
 			return
 		}
 
-		// Отправляем сообщение всем участникам диалога
-		c.Manager.BroadcastToDialog(input.DialogID, map[string]interface{}{
+		if err := tx.Commit().Error; err != nil { // <-- Коммит
+			log.Println("Failed to commit transaction:", err)
+			c.Send <- map[string]string{"error": "internal_error"}
+			return
+		}
+
+		// Передаем context для широковещания
+		c.Manager.BroadcastToDialog(c.Ctx, input.DialogID, map[string]interface{}{
 			"action": "new_message",
 			"data":   createdMsg,
 		})
@@ -114,13 +132,14 @@ func (c *Client) handleMessage(msg IncomingWSMessage) {
 			return
 		}
 
-		if err := c.Manager.chatService.SetTyping(c.ID, input.DialogID, true); err != nil {
+		// Передаем 'db' (транзакция не обязательна для typing)
+		if err := c.Manager.chatService.SetTyping(db, c.ID, input.DialogID, true); err != nil {
 			log.Println("Failed to set typing:", err)
 			return
 		}
 
-		// Уведомляем других участников
-		c.Manager.BroadcastToDialog(input.DialogID, map[string]interface{}{
+		// Передаем context
+		c.Manager.BroadcastToDialog(c.Ctx, input.DialogID, map[string]interface{}{
 			"action": "user_typing",
 			"data": map[string]interface{}{
 				"user_id":   c.ID,
@@ -138,7 +157,8 @@ func (c *Client) handleMessage(msg IncomingWSMessage) {
 			return
 		}
 
-		if err := c.Manager.chatService.SetTyping(c.ID, input.DialogID, false); err != nil {
+		// Передаем 'db'
+		if err := c.Manager.chatService.SetTyping(db, c.ID, input.DialogID, false); err != nil {
 			log.Println("Failed to stop typing:", err)
 			return
 		}
@@ -152,9 +172,22 @@ func (c *Client) handleMessage(msg IncomingWSMessage) {
 			return
 		}
 
-		if err := c.Manager.chatService.MarkMessagesAsRead(c.ID, input.DialogID); err != nil {
+		// Используем транзакцию, так как обновляем много сообщений
+		tx := db.Begin()
+		if tx.Error != nil {
+			log.Println("Failed to start transaction:", tx.Error)
+			return
+		}
+
+		// Передаем 'tx'
+		if err := c.Manager.chatService.MarkMessagesAsRead(tx, c.ID, input.DialogID); err != nil {
+			tx.Rollback()
 			log.Println("Failed to mark as read:", err)
 			return
+		}
+
+		if err := tx.Commit().Error; err != nil {
+			log.Println("Failed to commit transaction:", err)
 		}
 
 	default:

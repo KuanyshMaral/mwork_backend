@@ -16,6 +16,7 @@ import (
 type MatchResult struct {
 	ModelID       string                  `json:"model_id"`
 	ModelName     string                  `json:"model_name"`
+	City          string                  `json:"city,omitempty"`
 	Score         float64                 `json:"score"`
 	Reasons       []string                `json:"reasons"`
 	Compatibility *CompatibilityBreakdown `json:"compatibility,omitempty"`

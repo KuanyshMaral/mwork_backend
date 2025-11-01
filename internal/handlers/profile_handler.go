@@ -4,12 +4,12 @@ import (
 	// "fmt" // <-- No longer needed
 	"net/http"
 
-	"mwork_backend/internal/appErrors"
 	"mwork_backend/internal/middleware" // <-- Still needed for RegisterRoutes
 	"mwork_backend/internal/models"
-	"mwork_backend/internal/repositories"
+	// "mwork_backend/internal/repositories" // <-- Больше не нужен здесь
 	"mwork_backend/internal/services"
 	"mwork_backend/internal/services/dto"
+	"mwork_backend/pkg/apperrors"
 
 	"github.com/gin-gonic/gin"
 )
@@ -65,7 +65,8 @@ func (h *ProfileHandler) CreateModelProfile(c *gin.Context) {
 	}
 	req.UserID = userID
 
-	if err := h.profileService.CreateModelProfile(&req); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.profileService.CreateModelProfile(h.GetDB(c), &req); err != nil {
 		// 6. Use HandleServiceError
 		h.HandleServiceError(c, err)
 		return
@@ -86,7 +87,8 @@ func (h *ProfileHandler) CreateEmployerProfile(c *gin.Context) {
 	}
 	req.UserID = userID
 
-	if err := h.profileService.CreateEmployerProfile(&req); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.profileService.CreateEmployerProfile(h.GetDB(c), &req); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -106,7 +108,8 @@ func (h *ProfileHandler) GetProfile(c *gin.Context) {
 		requesterID, _ = authUserID.(string)
 	}
 
-	profile, err := h.profileService.GetProfile(userID, requesterID)
+	// ✅ DB: Используем h.GetDB(c)
+	profile, err := h.profileService.GetProfile(h.GetDB(c), userID, requesterID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -128,7 +131,8 @@ func (h *ProfileHandler) UpdateMyProfile(c *gin.Context) {
 		return
 	}
 
-	if err := h.profileService.UpdateProfile(userID, &req); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.profileService.UpdateProfile(h.GetDB(c), userID, &req); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -149,7 +153,8 @@ func (h *ProfileHandler) ToggleVisibility(c *gin.Context) {
 		return
 	}
 
-	if err := h.profileService.ToggleProfileVisibility(userID, req.IsPublic); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.profileService.ToggleProfileVisibility(h.GetDB(c), userID, req.IsPublic); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -160,7 +165,8 @@ func (h *ProfileHandler) ToggleVisibility(c *gin.Context) {
 // --- Search handlers ---
 
 func (h *ProfileHandler) SearchModels(c *gin.Context) {
-	var criteria dto.ProfileSearchCriteria
+	// ⭐ ИСПРАВЛЕНИЕ: Тип изменен на dto.SearchModelsRequest
+	var criteria dto.SearchModelsRequest
 	// 7. Use BindAndValidate_Query
 	if !h.BindAndValidate_Query(c, &criteria) {
 		return
@@ -169,39 +175,46 @@ func (h *ProfileHandler) SearchModels(c *gin.Context) {
 	// 8. Use ParsePagination
 	criteria.Page, criteria.PageSize = ParsePagination(c)
 
-	profiles, total, err := h.profileService.SearchModels(criteria)
+	// ✅ DB: Используем h.GetDB(c)
+	// ⭐ ИСПРАВЛЕНИЕ: передаем &criteria
+	paginatedResponse, err := h.profileService.SearchModels(h.GetDB(c), &criteria)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
 
+	// ⭐ ИСПРАВЛЕНИЕ: Ответ адаптирован под dto.PaginatedResponse
 	c.JSON(http.StatusOK, gin.H{
-		"profiles": profiles,
-		"total":    total,
-		"page":     criteria.Page,
-		"pages":    (total + int64(criteria.PageSize) - 1) / int64(criteria.PageSize),
+		"profiles": paginatedResponse.Data,
+		"total":    paginatedResponse.Total,
+		"page":     paginatedResponse.Page,
+		"pages":    paginatedResponse.TotalPages,
 	})
 }
 
 func (h *ProfileHandler) SearchEmployers(c *gin.Context) {
-	var criteria repositories.EmployerSearchCriteria
+	// ⭐ ИСПРАВЛЕНИЕ: Тип изменен на dto.SearchEmployersRequest
+	var criteria dto.SearchEmployersRequest
 	if !h.BindAndValidate_Query(c, &criteria) {
 		return
 	}
 
 	criteria.Page, criteria.PageSize = ParsePagination(c)
 
-	profiles, total, err := h.profileService.SearchEmployers(criteria)
+	// ✅ DB: Используем h.GetDB(c)
+	// ⭐ ИСПРАВЛЕНИЕ: передаем &criteria
+	paginatedResponse, err := h.profileService.SearchEmployers(h.GetDB(c), &criteria)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
 
+	// ⭐ ИСПРАВЛЕНИЕ: Ответ адаптирован под dto.PaginatedResponse
 	c.JSON(http.StatusOK, gin.H{
-		"profiles": profiles,
-		"total":    total,
-		"page":     criteria.Page,
-		"pages":    (total + int64(criteria.PageSize) - 1) / int64(criteria.PageSize),
+		"profiles": paginatedResponse.Data,
+		"total":    paginatedResponse.Total,
+		"page":     paginatedResponse.Page,
+		"pages":    paginatedResponse.TotalPages,
 	})
 }
 
@@ -214,7 +227,8 @@ func (h *ProfileHandler) GetMyStats(c *gin.Context) {
 	}
 
 	// Get user to determine role
-	user, err := h.profileService.GetProfile(userID, userID)
+	// ✅ DB: Используем h.GetDB(c)
+	user, err := h.profileService.GetProfile(h.GetDB(c), userID, userID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -223,7 +237,8 @@ func (h *ProfileHandler) GetMyStats(c *gin.Context) {
 	if user.Type == "model" {
 		// Extract model ID from profile data
 		if modelProfile, ok := user.Data.(*models.ModelProfile); ok {
-			stats, err := h.profileService.GetModelStats(modelProfile.ID)
+			// ✅ DB: Используем h.GetDB(c)
+			stats, err := h.profileService.GetModelStats(h.GetDB(c), modelProfile.ID)
 			if err != nil {
 				h.HandleServiceError(c, err)
 				return
@@ -234,5 +249,5 @@ func (h *ProfileHandler) GetMyStats(c *gin.Context) {
 	}
 
 	// Use HandleServiceError for the final error case
-	h.HandleServiceError(c, appErrors.NewBadRequestError("Stats not available for this profile type"))
+	h.HandleServiceError(c, apperrors.NewBadRequestError("Stats not available for this profile type"))
 }

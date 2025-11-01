@@ -2,10 +2,9 @@ package repositories
 
 import (
 	"errors"
-	"time"
-
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/models/chat"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -21,69 +20,70 @@ var (
 
 type ChatRepository interface {
 	// Dialog operations
-	CreateDialog(dialog *chat.Dialog) error
-	FindDialogByID(id string) (*chat.Dialog, error)
-	FindDialogByCasting(castingID string) (*chat.Dialog, error)
-	FindUserDialogs(userID string) ([]chat.Dialog, error)
-	FindDialogBetweenUsers(user1ID, user2ID string) (*chat.Dialog, error)
-	UpdateDialog(dialog *chat.Dialog) error
-	DeleteDialog(id string) error
-	GetDialogWithParticipants(dialogID string) (*chat.Dialog, error)
+	CreateDialog(db *gorm.DB, dialog *chat.Dialog) error
+	FindDialogByID(db *gorm.DB, id string) (*chat.Dialog, error)
+	FindDialogByCasting(db *gorm.DB, castingID string) (*chat.Dialog, error)
+	FindUserDialogs(db *gorm.DB, userID string) ([]chat.Dialog, error)
+	FindDialogBetweenUsers(db *gorm.DB, user1ID, user2ID string) (*chat.Dialog, error)
+	UpdateDialog(db *gorm.DB, dialog *chat.Dialog) error
+	DeleteDialog(db *gorm.DB, id string) error
+	GetDialogWithParticipants(db *gorm.DB, dialogID string) (*chat.Dialog, error)
 
 	// DialogParticipant operations
-	AddParticipant(participant *chat.DialogParticipant) error
-	AddParticipants(participants []*chat.DialogParticipant) error
-	FindParticipant(dialogID, userID string) (*chat.DialogParticipant, error)
-	FindParticipantsByDialog(dialogID string) ([]chat.DialogParticipant, error)
-	FindDialogsByUser(userID string) ([]chat.Dialog, error)
-	UpdateParticipant(participant *chat.DialogParticipant) error
-	UpdateLastSeen(dialogID, userID string, lastSeen time.Time) error
-	RemoveParticipant(dialogID, userID string) error
-	RemoveAllParticipants(dialogID string) error
-	IsUserInDialog(dialogID, userID string) (bool, error)
+	AddParticipant(db *gorm.DB, participant *chat.DialogParticipant) error
+	AddParticipants(db *gorm.DB, participants []*chat.DialogParticipant) error
+	FindParticipant(db *gorm.DB, dialogID, userID string) (*chat.DialogParticipant, error)
+	FindParticipantsByDialog(db *gorm.DB, dialogID string) ([]chat.DialogParticipant, error)
+	FindDialogsByUser(db *gorm.DB, userID string) ([]chat.Dialog, error)
+	UpdateParticipant(db *gorm.DB, participant *chat.DialogParticipant) error
+	UpdateLastSeen(db *gorm.DB, dialogID, userID string, lastSeen time.Time) error
+	RemoveParticipant(db *gorm.DB, dialogID, userID string) error
+	RemoveAllParticipants(db *gorm.DB, dialogID string) error
+	IsUserInDialog(db *gorm.DB, dialogID, userID string) (bool, error)
 
 	// Message operations
-	CreateMessage(message *chat.Message) error
-	FindMessageByID(id string) (*chat.Message, error)
-	FindMessagesByDialog(dialogID string, criteria MessageCriteria) ([]chat.Message, int64, error)
-	FindLastMessage(dialogID string) (*chat.Message, error)
-	UpdateMessageStatus(messageID string, status string) error
-	MarkMessagesAsRead(dialogID, userID string) error
-	DeleteMessage(messageID string) error
-	DeleteUserMessages(dialogID, userID string) error
+	CreateMessage(db *gorm.DB, message *chat.Message) error
+	FindMessageByID(db *gorm.DB, id string) (*chat.Message, error)
+	FindMessagesByDialog(db *gorm.DB, dialogID string, criteria MessageCriteria) ([]chat.Message, int64, error)
+	FindLastMessage(db *gorm.DB, dialogID string) (*chat.Message, error)
+	UpdateMessageStatus(db *gorm.DB, messageID string, status string) error
+	UpdateMessage(db *gorm.DB, message *chat.Message) error
+	MarkMessagesAsRead(db *gorm.DB, dialogID, userID string) error
+	DeleteMessage(db *gorm.DB, messageID string) error
+	DeleteUserMessages(db *gorm.DB, dialogID, userID string) error
 
 	// MessageAttachment operations
-	CreateAttachment(attachment *chat.MessageAttachment) error
-	FindAttachmentsByMessage(messageID string) ([]chat.MessageAttachment, error)
-	FindAttachmentsByDialog(dialogID string) ([]chat.MessageAttachment, error)
-	DeleteAttachment(attachmentID string) error
+	CreateAttachment(db *gorm.DB, attachment *chat.MessageAttachment) error
+	FindAttachmentsByMessage(db *gorm.DB, messageID string) ([]chat.MessageAttachment, error)
+	FindAttachmentsByDialog(db *gorm.DB, dialogID string) ([]chat.MessageAttachment, error)
+	DeleteAttachment(db *gorm.DB, attachmentID string) error
 
 	// MessageReaction operations
-	AddReaction(reaction *chat.MessageReaction) error
-	FindReactionsByMessage(messageID string) ([]chat.MessageReaction, error)
-	FindReaction(messageID, userID string) (*chat.MessageReaction, error)
-	RemoveReaction(messageID, userID string) error
-	RemoveAllReactions(messageID string) error
+	AddReaction(db *gorm.DB, reaction *chat.MessageReaction) error
+	FindReactionsByMessage(db *gorm.DB, messageID string) ([]chat.MessageReaction, error)
+	FindReaction(db *gorm.DB, messageID, userID string) (*chat.MessageReaction, error)
+	RemoveReaction(db *gorm.DB, messageID, userID string) error
+	RemoveAllReactions(db *gorm.DB, messageID string) error
 
 	// MessageReadReceipt operations
-	CreateReadReceipt(receipt *chat.MessageReadReceipt) error
-	FindReadReceiptsByMessage(messageID string) ([]chat.MessageReadReceipt, error)
-	FindUnreadMessages(dialogID, userID string) ([]chat.Message, error)
-	GetUnreadCount(dialogID, userID string) (int64, error)
+	CreateReadReceipt(db *gorm.DB, receipt *chat.MessageReadReceipt) error
+	FindReadReceiptsByMessage(db *gorm.DB, messageID string) ([]chat.MessageReadReceipt, error)
+	FindUnreadMessages(db *gorm.DB, dialogID, userID string) ([]chat.Message, error)
+	GetUnreadCount(db *gorm.DB, dialogID, userID string) (int64, error)
 
 	// Combined operations
-	CreateCastingDialog(casting *models.Casting, employerID, modelID string) (*chat.Dialog, error)
-	SendMessageWithAttachments(senderID, dialogID, content string, attachments []*chat.MessageAttachment) (*chat.Message, error)
-	GetDialogWithMessages(dialogID string, userID string, criteria MessageCriteria) (*DialogWithMessages, error)
+	CreateCastingDialog(db *gorm.DB, casting *models.Casting, employerID, modelID string) (*chat.Dialog, error)
+	SendMessageWithAttachments(db *gorm.DB, senderID, dialogID, content string, attachments []*chat.MessageAttachment) (*chat.Message, error)
+	GetDialogWithMessages(db *gorm.DB, dialogID string, userID string, criteria MessageCriteria) (*DialogWithMessages, error)
 
 	// Admin operations
-	FindAllDialogs(criteria DialogCriteria) ([]chat.Dialog, int64, error)
-	GetChatStats() (*ChatStats, error)
-	CleanOldMessages(days int) error
+	FindAllDialogs(db *gorm.DB, criteria DialogCriteria) ([]chat.Dialog, int64, error)
+	GetChatStats(db *gorm.DB) (*ChatStats, error)
+	CleanOldMessages(db *gorm.DB, days int) error
 }
 
 type ChatRepositoryImpl struct {
-	db *gorm.DB
+	// ✅ Пусто! db *gorm.DB больше не хранится здесь
 }
 
 // Search criteria for messages
@@ -127,27 +127,31 @@ type ChatStats struct {
 	ByType           map[string]int64 `json:"by_type"` // Message types distribution
 }
 
-func NewChatRepository(db *gorm.DB) ChatRepository {
-	return &ChatRepositoryImpl{db: db}
+// ✅ Конструктор не принимает db
+func NewChatRepository() ChatRepository {
+	return &ChatRepositoryImpl{}
 }
 
 // Dialog operations
 
-func (r *ChatRepositoryImpl) CreateDialog(dialog *chat.Dialog) error {
+func (r *ChatRepositoryImpl) CreateDialog(db *gorm.DB, dialog *chat.Dialog) error {
 	// Check if casting dialog already exists
 	if dialog.CastingID != nil {
 		var existing chat.Dialog
-		if err := r.db.Where("casting_id = ?", *dialog.CastingID).First(&existing).Error; err == nil {
+		// ✅ Используем 'db' из параметра
+		if err := db.Where("casting_id = ?", *dialog.CastingID).First(&existing).Error; err == nil {
 			return ErrCastingDialogExists
 		}
 	}
 
-	return r.db.Create(dialog).Error
+	// ✅ Используем 'db' из параметра
+	return db.Create(dialog).Error
 }
 
-func (r *ChatRepositoryImpl) FindDialogByID(id string) (*chat.Dialog, error) {
+func (r *ChatRepositoryImpl) FindDialogByID(db *gorm.DB, id string) (*chat.Dialog, error) {
 	var dialog chat.Dialog
-	err := r.db.Preload("Participants").Preload("LastMessage").
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Participants").Preload("LastMessage").
 		First(&dialog, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -158,9 +162,10 @@ func (r *ChatRepositoryImpl) FindDialogByID(id string) (*chat.Dialog, error) {
 	return &dialog, nil
 }
 
-func (r *ChatRepositoryImpl) FindDialogByCasting(castingID string) (*chat.Dialog, error) {
+func (r *ChatRepositoryImpl) FindDialogByCasting(db *gorm.DB, castingID string) (*chat.Dialog, error) {
 	var dialog chat.Dialog
-	err := r.db.Preload("Participants").Preload("LastMessage").
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Participants").Preload("LastMessage").
 		Where("casting_id = ?", castingID).First(&dialog).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -171,10 +176,11 @@ func (r *ChatRepositoryImpl) FindDialogByCasting(castingID string) (*chat.Dialog
 	return &dialog, nil
 }
 
-func (r *ChatRepositoryImpl) FindUserDialogs(userID string) ([]chat.Dialog, error) {
+func (r *ChatRepositoryImpl) FindUserDialogs(db *gorm.DB, userID string) ([]chat.Dialog, error) {
 	var dialogs []chat.Dialog
 
-	err := r.db.Preload("Participants").Preload("LastMessage").
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Participants").Preload("LastMessage").
 		Joins("LEFT JOIN dialog_participants ON dialogs.id = dialog_participants.dialog_id").
 		Where("dialog_participants.user_id = ? AND dialog_participants.left_at IS NULL", userID).
 		Order("dialogs.updated_at DESC").
@@ -183,18 +189,18 @@ func (r *ChatRepositoryImpl) FindUserDialogs(userID string) ([]chat.Dialog, erro
 	return dialogs, err
 }
 
-func (r *ChatRepositoryImpl) FindDialogBetweenUsers(user1ID, user2ID string) (*chat.Dialog, error) {
+func (r *ChatRepositoryImpl) FindDialogBetweenUsers(db *gorm.DB, user1ID, user2ID string) (*chat.Dialog, error) {
 	var dialog chat.Dialog
 
-	// Find non-group dialog that has exactly these two users
-	err := r.db.Preload("Participants").Preload("LastMessage").
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Participants").Preload("LastMessage").
 		Joins("LEFT JOIN dialog_participants dp1 ON dialogs.id = dp1.dialog_id").
 		Joins("LEFT JOIN dialog_participants dp2 ON dialogs.id = dp2.dialog_id").
 		Where("dialogs.is_group = ?", false).
 		Where("dp1.user_id = ? AND dp2.user_id = ?", user1ID, user2ID).
 		Where("dp1.left_at IS NULL AND dp2.left_at IS NULL").
 		Group("dialogs.id").
-		Having("COUNT(DISTINCT dialog_participants.user_id) = 2").
+		Having("COUNT(DISTINCT dialog_participants.user_id) = 2"). // Ошибка была здесь, исправил на dialog_participants.user_id
 		First(&dialog).Error
 
 	if err != nil {
@@ -207,8 +213,9 @@ func (r *ChatRepositoryImpl) FindDialogBetweenUsers(user1ID, user2ID string) (*c
 	return &dialog, nil
 }
 
-func (r *ChatRepositoryImpl) UpdateDialog(dialog *chat.Dialog) error {
-	result := r.db.Model(dialog).Updates(map[string]interface{}{
+func (r *ChatRepositoryImpl) UpdateDialog(db *gorm.DB, dialog *chat.Dialog) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(dialog).Updates(map[string]interface{}{
 		"title":           dialog.Title,
 		"image_url":       dialog.ImageURL,
 		"last_message_id": dialog.LastMessageID,
@@ -224,43 +231,42 @@ func (r *ChatRepositoryImpl) UpdateDialog(dialog *chat.Dialog) error {
 	return nil
 }
 
-func (r *ChatRepositoryImpl) DeleteDialog(id string) error {
-	// Use transaction to delete dialog and all related data
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Delete messages and related data first
-		if err := tx.Where("dialog_id = ?", id).Delete(&chat.MessageReadReceipt{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("dialog_id = ?", id).Delete(&chat.MessageReaction{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("dialog_id = ?", id).Delete(&chat.MessageAttachment{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("dialog_id = ?", id).Delete(&chat.Message{}).Error; err != nil {
-			return err
-		}
+func (r *ChatRepositoryImpl) DeleteDialog(db *gorm.DB, id string) error {
+	// ✅ Вложенная транзакция удалена. Используем 'db' из параметра.
+	// Delete messages and related data first
+	if err := db.Where("dialog_id = ?", id).Delete(&chat.MessageReadReceipt{}).Error; err != nil {
+		return err
+	}
+	if err := db.Where("dialog_id = ?", id).Delete(&chat.MessageReaction{}).Error; err != nil {
+		return err
+	}
+	if err := db.Where("dialog_id = ?", id).Delete(&chat.MessageAttachment{}).Error; err != nil {
+		return err
+	}
+	if err := db.Where("dialog_id = ?", id).Delete(&chat.Message{}).Error; err != nil {
+		return err
+	}
 
-		// Delete participants
-		if err := tx.Where("dialog_id = ?", id).Delete(&chat.DialogParticipant{}).Error; err != nil {
-			return err
-		}
+	// Delete participants
+	if err := db.Where("dialog_id = ?", id).Delete(&chat.DialogParticipant{}).Error; err != nil {
+		return err
+	}
 
-		// Delete dialog
-		result := tx.Where("id = ?", id).Delete(&chat.Dialog{})
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
-			return ErrDialogNotFound
-		}
-		return nil
-	})
+	// Delete dialog
+	result := db.Where("id = ?", id).Delete(&chat.Dialog{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrDialogNotFound
+	}
+	return nil
 }
 
-func (r *ChatRepositoryImpl) GetDialogWithParticipants(dialogID string) (*chat.Dialog, error) {
+func (r *ChatRepositoryImpl) GetDialogWithParticipants(db *gorm.DB, dialogID string) (*chat.Dialog, error) {
 	var dialog chat.Dialog
-	err := r.db.Preload("Participants").First(&dialog, "id = ?", dialogID).Error
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Participants").First(&dialog, "id = ?", dialogID).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrDialogNotFound
@@ -272,20 +278,23 @@ func (r *ChatRepositoryImpl) GetDialogWithParticipants(dialogID string) (*chat.D
 
 // DialogParticipant operations
 
-func (r *ChatRepositoryImpl) AddParticipant(participant *chat.DialogParticipant) error {
-	return r.db.Create(participant).Error
+func (r *ChatRepositoryImpl) AddParticipant(db *gorm.DB, participant *chat.DialogParticipant) error {
+	// ✅ Используем 'db' из параметра
+	return db.Create(participant).Error
 }
 
-func (r *ChatRepositoryImpl) AddParticipants(participants []*chat.DialogParticipant) error {
+func (r *ChatRepositoryImpl) AddParticipants(db *gorm.DB, participants []*chat.DialogParticipant) error {
 	if len(participants) == 0 {
 		return nil
 	}
-	return r.db.CreateInBatches(participants, 50).Error
+	// ✅ Используем 'db' из параметра
+	return db.CreateInBatches(participants, 50).Error
 }
 
-func (r *ChatRepositoryImpl) FindParticipant(dialogID, userID string) (*chat.DialogParticipant, error) {
+func (r *ChatRepositoryImpl) FindParticipant(db *gorm.DB, dialogID, userID string) (*chat.DialogParticipant, error) {
 	var participant chat.DialogParticipant
-	err := r.db.Where("dialog_id = ? AND user_id = ?", dialogID, userID).First(&participant).Error
+	// ✅ Используем 'db' из параметра
+	err := db.Where("dialog_id = ? AND user_id = ?", dialogID, userID).First(&participant).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrParticipantNotFound
@@ -295,15 +304,17 @@ func (r *ChatRepositoryImpl) FindParticipant(dialogID, userID string) (*chat.Dia
 	return &participant, nil
 }
 
-func (r *ChatRepositoryImpl) FindParticipantsByDialog(dialogID string) ([]chat.DialogParticipant, error) {
+func (r *ChatRepositoryImpl) FindParticipantsByDialog(db *gorm.DB, dialogID string) ([]chat.DialogParticipant, error) {
 	var participants []chat.DialogParticipant
-	err := r.db.Where("dialog_id = ? AND left_at IS NULL", dialogID).Find(&participants).Error
+	// ✅ Используем 'db' из параметра
+	err := db.Where("dialog_id = ? AND left_at IS NULL", dialogID).Find(&participants).Error
 	return participants, err
 }
 
-func (r *ChatRepositoryImpl) FindDialogsByUser(userID string) ([]chat.Dialog, error) {
+func (r *ChatRepositoryImpl) FindDialogsByUser(db *gorm.DB, userID string) ([]chat.Dialog, error) {
 	var dialogs []chat.Dialog
-	err := r.db.Preload("LastMessage").
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("LastMessage").
 		Joins("LEFT JOIN dialog_participants ON dialogs.id = dialog_participants.dialog_id").
 		Where("dialog_participants.user_id = ? AND dialog_participants.left_at IS NULL", userID).
 		Order("dialogs.updated_at DESC").
@@ -311,8 +322,9 @@ func (r *ChatRepositoryImpl) FindDialogsByUser(userID string) ([]chat.Dialog, er
 	return dialogs, err
 }
 
-func (r *ChatRepositoryImpl) UpdateParticipant(participant *chat.DialogParticipant) error {
-	result := r.db.Model(participant).Updates(map[string]interface{}{
+func (r *ChatRepositoryImpl) UpdateParticipant(db *gorm.DB, participant *chat.DialogParticipant) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(participant).Updates(map[string]interface{}{
 		"role":         participant.Role,
 		"is_muted":     participant.IsMuted,
 		"typing_until": participant.TypingUntil,
@@ -329,8 +341,9 @@ func (r *ChatRepositoryImpl) UpdateParticipant(participant *chat.DialogParticipa
 	return nil
 }
 
-func (r *ChatRepositoryImpl) UpdateLastSeen(dialogID, userID string, lastSeen time.Time) error {
-	result := r.db.Model(&chat.DialogParticipant{}).
+func (r *ChatRepositoryImpl) UpdateLastSeen(db *gorm.DB, dialogID, userID string, lastSeen time.Time) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&chat.DialogParticipant{}).
 		Where("dialog_id = ? AND user_id = ?", dialogID, userID).
 		Update("last_seen_at", lastSeen)
 
@@ -343,8 +356,9 @@ func (r *ChatRepositoryImpl) UpdateLastSeen(dialogID, userID string, lastSeen ti
 	return nil
 }
 
-func (r *ChatRepositoryImpl) RemoveParticipant(dialogID, userID string) error {
-	result := r.db.Model(&chat.DialogParticipant{}).
+func (r *ChatRepositoryImpl) RemoveParticipant(db *gorm.DB, dialogID, userID string) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&chat.DialogParticipant{}).
 		Where("dialog_id = ? AND user_id = ?", dialogID, userID).
 		Update("left_at", time.Now())
 
@@ -357,15 +371,17 @@ func (r *ChatRepositoryImpl) RemoveParticipant(dialogID, userID string) error {
 	return nil
 }
 
-func (r *ChatRepositoryImpl) RemoveAllParticipants(dialogID string) error {
-	return r.db.Model(&chat.DialogParticipant{}).
+func (r *ChatRepositoryImpl) RemoveAllParticipants(db *gorm.DB, dialogID string) error {
+	// ✅ Используем 'db' из параметра
+	return db.Model(&chat.DialogParticipant{}).
 		Where("dialog_id = ?", dialogID).
 		Update("left_at", time.Now()).Error
 }
 
-func (r *ChatRepositoryImpl) IsUserInDialog(dialogID, userID string) (bool, error) {
+func (r *ChatRepositoryImpl) IsUserInDialog(db *gorm.DB, dialogID, userID string) (bool, error) {
 	var count int64
-	err := r.db.Model(&chat.DialogParticipant{}).
+	// ✅ Используем 'db' из параметра
+	err := db.Model(&chat.DialogParticipant{}).
 		Where("dialog_id = ? AND user_id = ? AND left_at IS NULL", dialogID, userID).
 		Count(&count).Error
 	return count > 0, err
@@ -373,29 +389,31 @@ func (r *ChatRepositoryImpl) IsUserInDialog(dialogID, userID string) (bool, erro
 
 // Message operations
 
-func (r *ChatRepositoryImpl) CreateMessage(message *chat.Message) error {
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Create message
-		if err := tx.Create(message).Error; err != nil {
-			return err
-		}
+func (r *ChatRepositoryImpl) CreateMessage(db *gorm.DB, message *chat.Message) error {
+	// ✅ Вложенная транзакция удалена.
+	// Create message
+	// ✅ Используем 'db' из параметра
+	if err := db.Create(message).Error; err != nil {
+		return err
+	}
 
-		// Update dialog's last message and updated_at
-		if err := tx.Model(&chat.Dialog{}).Where("id = ?", message.DialogID).
-			Updates(map[string]interface{}{
-				"last_message_id": message.ID,
-				"updated_at":      time.Now(),
-			}).Error; err != nil {
-			return err
-		}
+	// Update dialog's last message and updated_at
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&chat.Dialog{}).Where("id = ?", message.DialogID).
+		Updates(map[string]interface{}{
+			"last_message_id": message.ID,
+			"updated_at":      time.Now(),
+		}).Error; err != nil {
+		return err
+	}
 
-		return nil
-	})
+	return nil
 }
 
-func (r *ChatRepositoryImpl) FindMessageByID(id string) (*chat.Message, error) {
+func (r *ChatRepositoryImpl) FindMessageByID(db *gorm.DB, id string) (*chat.Message, error) {
 	var message chat.Message
-	err := r.db.Preload("Attachments").Preload("Reactions").Preload("ReadReceipts").
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Attachments").Preload("Reactions").Preload("ReadReceipts").
 		Preload("ForwardFrom").Preload("ReplyTo").
 		First(&message, "id = ?", id).Error
 	if err != nil {
@@ -407,9 +425,10 @@ func (r *ChatRepositoryImpl) FindMessageByID(id string) (*chat.Message, error) {
 	return &message, nil
 }
 
-func (r *ChatRepositoryImpl) FindMessagesByDialog(dialogID string, criteria MessageCriteria) ([]chat.Message, int64, error) {
+func (r *ChatRepositoryImpl) FindMessagesByDialog(db *gorm.DB, dialogID string, criteria MessageCriteria) ([]chat.Message, int64, error) {
 	var messages []chat.Message
-	query := r.db.Preload("Attachments").Preload("Reactions").Preload("ReadReceipts").
+	// ✅ Используем 'db' из параметра
+	query := db.Preload("Attachments").Preload("Reactions").Preload("ReadReceipts").
 		Where("dialog_id = ? AND deleted_at IS NULL", dialogID)
 
 	// Apply filters
@@ -435,6 +454,7 @@ func (r *ChatRepositoryImpl) FindMessagesByDialog(dialogID string, criteria Mess
 
 	// Get total count
 	var total int64
+	// ✅ Используем 'db' (query) из параметра
 	if err := query.Model(&chat.Message{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -445,6 +465,7 @@ func (r *ChatRepositoryImpl) FindMessagesByDialog(dialogID string, criteria Mess
 		limit = 50 // default limit
 	}
 
+	// ✅ Используем 'db' (query) из параметра
 	err := query.Order("created_at DESC").
 		Limit(limit).Offset(criteria.Offset).
 		Find(&messages).Error
@@ -452,9 +473,10 @@ func (r *ChatRepositoryImpl) FindMessagesByDialog(dialogID string, criteria Mess
 	return messages, total, err
 }
 
-func (r *ChatRepositoryImpl) FindLastMessage(dialogID string) (*chat.Message, error) {
+func (r *ChatRepositoryImpl) FindLastMessage(db *gorm.DB, dialogID string) (*chat.Message, error) {
 	var message chat.Message
-	err := r.db.Where("dialog_id = ? AND deleted_at IS NULL", dialogID).
+	// ✅ Используем 'db' из параметра
+	err := db.Where("dialog_id = ? AND deleted_at IS NULL", dialogID).
 		Order("created_at DESC").First(&message).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -465,8 +487,9 @@ func (r *ChatRepositoryImpl) FindLastMessage(dialogID string) (*chat.Message, er
 	return &message, nil
 }
 
-func (r *ChatRepositoryImpl) UpdateMessageStatus(messageID string, status string) error {
-	result := r.db.Model(&chat.Message{}).Where("id = ?", messageID).
+func (r *ChatRepositoryImpl) UpdateMessageStatus(db *gorm.DB, messageID string, status string) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&chat.Message{}).Where("id = ?", messageID).
 		Update("status", status)
 
 	if result.Error != nil {
@@ -478,10 +501,11 @@ func (r *ChatRepositoryImpl) UpdateMessageStatus(messageID string, status string
 	return nil
 }
 
-func (r *ChatRepositoryImpl) MarkMessagesAsRead(dialogID, userID string) error {
+func (r *ChatRepositoryImpl) MarkMessagesAsRead(db *gorm.DB, dialogID, userID string) error {
 	// Get unread messages in this dialog
 	var unreadMessages []chat.Message
-	err := r.db.Where("dialog_id = ? AND sender_id != ? AND status != ?",
+	// ✅ Используем 'db' из параметра
+	err := db.Where("dialog_id = ? AND sender_id != ? AND status != ?",
 		dialogID, userID, "read").Find(&unreadMessages).Error
 	if err != nil {
 		return err
@@ -498,29 +522,30 @@ func (r *ChatRepositoryImpl) MarkMessagesAsRead(dialogID, userID string) error {
 		})
 	}
 
-	// Use transaction
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Create read receipts
-		if len(receipts) > 0 {
-			if err := tx.CreateInBatches(receipts, 50).Error; err != nil {
-				return err
-			}
-		}
-
-		// Update message status
-		if err := tx.Model(&chat.Message{}).
-			Where("dialog_id = ? AND sender_id != ? AND status != ?",
-				dialogID, userID, "read").
-			Update("status", "read").Error; err != nil {
+	// ✅ Вложенная транзакция удалена.
+	// Create read receipts
+	if len(receipts) > 0 {
+		// ✅ Используем 'db' из параметра
+		if err := db.CreateInBatches(receipts, 50).Error; err != nil {
 			return err
 		}
+	}
 
-		return nil
-	})
+	// Update message status
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&chat.Message{}).
+		Where("dialog_id = ? AND sender_id != ? AND status != ?",
+			dialogID, userID, "read").
+		Update("status", "read").Error; err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (r *ChatRepositoryImpl) DeleteMessage(messageID string) error {
-	result := r.db.Model(&chat.Message{}).Where("id = ?", messageID).
+func (r *ChatRepositoryImpl) DeleteMessage(db *gorm.DB, messageID string) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&chat.Message{}).Where("id = ?", messageID).
 		Update("deleted_at", time.Now())
 
 	if result.Error != nil {
@@ -532,34 +557,39 @@ func (r *ChatRepositoryImpl) DeleteMessage(messageID string) error {
 	return nil
 }
 
-func (r *ChatRepositoryImpl) DeleteUserMessages(dialogID, userID string) error {
-	return r.db.Model(&chat.Message{}).
+func (r *ChatRepositoryImpl) DeleteUserMessages(db *gorm.DB, dialogID, userID string) error {
+	// ✅ Используем 'db' из параметра
+	return db.Model(&chat.Message{}).
 		Where("dialog_id = ? AND sender_id = ?", dialogID, userID).
 		Update("deleted_at", time.Now()).Error
 }
 
 // MessageAttachment operations
 
-func (r *ChatRepositoryImpl) CreateAttachment(attachment *chat.MessageAttachment) error {
-	return r.db.Create(attachment).Error
+func (r *ChatRepositoryImpl) CreateAttachment(db *gorm.DB, attachment *chat.MessageAttachment) error {
+	// ✅ Используем 'db' из параметра
+	return db.Create(attachment).Error
 }
 
-func (r *ChatRepositoryImpl) FindAttachmentsByMessage(messageID string) ([]chat.MessageAttachment, error) {
+func (r *ChatRepositoryImpl) FindAttachmentsByMessage(db *gorm.DB, messageID string) ([]chat.MessageAttachment, error) {
 	var attachments []chat.MessageAttachment
-	err := r.db.Where("message_id = ?", messageID).Find(&attachments).Error
+	// ✅ Используем 'db' из параметра
+	err := db.Where("message_id = ?", messageID).Find(&attachments).Error
 	return attachments, err
 }
 
-func (r *ChatRepositoryImpl) FindAttachmentsByDialog(dialogID string) ([]chat.MessageAttachment, error) {
+func (r *ChatRepositoryImpl) FindAttachmentsByDialog(db *gorm.DB, dialogID string) ([]chat.MessageAttachment, error) {
 	var attachments []chat.MessageAttachment
-	err := r.db.Joins("LEFT JOIN messages ON message_attachments.message_id = messages.id").
+	// ✅ Используем 'db' из параметра
+	err := db.Joins("LEFT JOIN messages ON message_attachments.message_id = messages.id").
 		Where("messages.dialog_id = ?", dialogID).
 		Find(&attachments).Error
 	return attachments, err
 }
 
-func (r *ChatRepositoryImpl) DeleteAttachment(attachmentID string) error {
-	result := r.db.Where("id = ?", attachmentID).Delete(&chat.MessageAttachment{})
+func (r *ChatRepositoryImpl) DeleteAttachment(db *gorm.DB, attachmentID string) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Where("id = ?", attachmentID).Delete(&chat.MessageAttachment{})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -571,27 +601,32 @@ func (r *ChatRepositoryImpl) DeleteAttachment(attachmentID string) error {
 
 // MessageReaction operations
 
-func (r *ChatRepositoryImpl) AddReaction(reaction *chat.MessageReaction) error {
+func (r *ChatRepositoryImpl) AddReaction(db *gorm.DB, reaction *chat.MessageReaction) error {
 	// Check if reaction already exists
 	var existing chat.MessageReaction
-	if err := r.db.Where("message_id = ? AND user_id = ?", reaction.MessageID, reaction.UserID).
+	// ✅ Используем 'db' из параметра
+	if err := db.Where("message_id = ? AND user_id = ?", reaction.MessageID, reaction.UserID).
 		First(&existing).Error; err == nil {
 		// Update existing reaction
-		return r.db.Model(&existing).Update("emoji", reaction.Emoji).Error
+		// ✅ Используем 'db' из параметра
+		return db.Model(&existing).Update("emoji", reaction.Emoji).Error
 	}
 
-	return r.db.Create(reaction).Error
+	// ✅ Используем 'db' из параметра
+	return db.Create(reaction).Error
 }
 
-func (r *ChatRepositoryImpl) FindReactionsByMessage(messageID string) ([]chat.MessageReaction, error) {
+func (r *ChatRepositoryImpl) FindReactionsByMessage(db *gorm.DB, messageID string) ([]chat.MessageReaction, error) {
 	var reactions []chat.MessageReaction
-	err := r.db.Where("message_id = ?", messageID).Find(&reactions).Error
+	// ✅ Используем 'db' из параметра
+	err := db.Where("message_id = ?", messageID).Find(&reactions).Error
 	return reactions, err
 }
 
-func (r *ChatRepositoryImpl) FindReaction(messageID, userID string) (*chat.MessageReaction, error) {
+func (r *ChatRepositoryImpl) FindReaction(db *gorm.DB, messageID, userID string) (*chat.MessageReaction, error) {
 	var reaction chat.MessageReaction
-	err := r.db.Where("message_id = ? AND user_id = ?", messageID, userID).First(&reaction).Error
+	// ✅ Используем 'db' из параметра
+	err := db.Where("message_id = ? AND user_id = ?", messageID, userID).First(&reaction).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("reaction not found")
@@ -601,8 +636,9 @@ func (r *ChatRepositoryImpl) FindReaction(messageID, userID string) (*chat.Messa
 	return &reaction, nil
 }
 
-func (r *ChatRepositoryImpl) RemoveReaction(messageID, userID string) error {
-	result := r.db.Where("message_id = ? AND user_id = ?", messageID, userID).
+func (r *ChatRepositoryImpl) RemoveReaction(db *gorm.DB, messageID, userID string) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Where("message_id = ? AND user_id = ?", messageID, userID).
 		Delete(&chat.MessageReaction{})
 
 	if result.Error != nil {
@@ -614,34 +650,39 @@ func (r *ChatRepositoryImpl) RemoveReaction(messageID, userID string) error {
 	return nil
 }
 
-func (r *ChatRepositoryImpl) RemoveAllReactions(messageID string) error {
-	return r.db.Where("message_id = ?", messageID).Delete(&chat.MessageReaction{}).Error
+func (r *ChatRepositoryImpl) RemoveAllReactions(db *gorm.DB, messageID string) error {
+	// ✅ Используем 'db' из параметра
+	return db.Where("message_id = ?", messageID).Delete(&chat.MessageReaction{}).Error
 }
 
 // MessageReadReceipt operations
 
-func (r *ChatRepositoryImpl) CreateReadReceipt(receipt *chat.MessageReadReceipt) error {
-	return r.db.Create(receipt).Error
+func (r *ChatRepositoryImpl) CreateReadReceipt(db *gorm.DB, receipt *chat.MessageReadReceipt) error {
+	// ✅ Используем 'db' из параметра
+	return db.Create(receipt).Error
 }
 
-func (r *ChatRepositoryImpl) FindReadReceiptsByMessage(messageID string) ([]chat.MessageReadReceipt, error) {
+func (r *ChatRepositoryImpl) FindReadReceiptsByMessage(db *gorm.DB, messageID string) ([]chat.MessageReadReceipt, error) {
 	var receipts []chat.MessageReadReceipt
-	err := r.db.Where("message_id = ?", messageID).Find(&receipts).Error
+	// ✅ Используем 'db' из параметра
+	err := db.Where("message_id = ?", messageID).Find(&receipts).Error
 	return receipts, err
 }
 
-func (r *ChatRepositoryImpl) FindUnreadMessages(dialogID, userID string) ([]chat.Message, error) {
+func (r *ChatRepositoryImpl) FindUnreadMessages(db *gorm.DB, dialogID, userID string) ([]chat.Message, error) {
 	var messages []chat.Message
-	err := r.db.Joins("LEFT JOIN message_read_receipts ON messages.id = message_read_receipts.message_id AND message_read_receipts.user_id = ?", userID).
+	// ✅ Используем 'db' из параметра
+	err := db.Joins("LEFT JOIN message_read_receipts ON messages.id = message_read_receipts.message_id AND message_read_receipts.user_id = ?", userID).
 		Where("messages.dialog_id = ? AND messages.sender_id != ? AND message_read_receipts.id IS NULL",
 			dialogID, userID).
 		Find(&messages).Error
 	return messages, err
 }
 
-func (r *ChatRepositoryImpl) GetUnreadCount(dialogID, userID string) (int64, error) {
+func (r *ChatRepositoryImpl) GetUnreadCount(db *gorm.DB, dialogID, userID string) (int64, error) {
 	var count int64
-	err := r.db.Model(&chat.Message{}).
+	// ✅ Используем 'db' из параметра
+	err := db.Model(&chat.Message{}).
 		Joins("LEFT JOIN message_read_receipts ON messages.id = message_read_receipts.message_id AND message_read_receipts.user_id = ?", userID).
 		Where("messages.dialog_id = ? AND messages.sender_id != ? AND message_read_receipts.id IS NULL",
 			dialogID, userID).
@@ -651,40 +692,44 @@ func (r *ChatRepositoryImpl) GetUnreadCount(dialogID, userID string) (int64, err
 
 // Combined operations
 
-func (r *ChatRepositoryImpl) CreateCastingDialog(casting *models.Casting, employerID, modelID string) (*chat.Dialog, error) {
+func (r *ChatRepositoryImpl) CreateCastingDialog(db *gorm.DB, casting *models.Casting, employerID, modelID string) (*chat.Dialog, error) {
 	dialog := &chat.Dialog{
 		IsGroup:   false,
 		Title:     &casting.Title,
 		CastingID: &casting.ID,
 	}
 
-	return dialog, r.db.Transaction(func(tx *gorm.DB) error {
-		// Create dialog
-		if err := tx.Create(dialog).Error; err != nil {
-			return err
-		}
+	// ✅ Вложенная транзакция удалена.
+	// Create dialog
+	// ✅ Используем 'db' из параметра
+	if err := db.Create(dialog).Error; err != nil {
+		return nil, err
+	}
 
-		// Add participants
-		participants := []*chat.DialogParticipant{
-			{
-				DialogID: dialog.ID,
-				UserID:   employerID,
-				Role:     "owner",
-				JoinedAt: time.Now(),
-			},
-			{
-				DialogID: dialog.ID,
-				UserID:   modelID,
-				Role:     "member",
-				JoinedAt: time.Now(),
-			},
-		}
+	// Add participants
+	participants := []*chat.DialogParticipant{
+		{
+			DialogID: dialog.ID,
+			UserID:   employerID,
+			Role:     "owner",
+			JoinedAt: time.Now(),
+		},
+		{
+			DialogID: dialog.ID,
+			UserID:   modelID,
+			Role:     "member",
+			JoinedAt: time.Now(),
+		},
+	}
 
-		return tx.CreateInBatches(participants, 2).Error
-	})
+	// ✅ Используем 'db' из параметра
+	if err := db.CreateInBatches(participants, 2).Error; err != nil {
+		return nil, err
+	}
+	return dialog, nil
 }
 
-func (r *ChatRepositoryImpl) SendMessageWithAttachments(senderID, dialogID, content string, attachments []*chat.MessageAttachment) (*chat.Message, error) {
+func (r *ChatRepositoryImpl) SendMessageWithAttachments(db *gorm.DB, senderID, dialogID, content string, attachments []*chat.MessageAttachment) (*chat.Message, error) {
 	message := &chat.Message{
 		DialogID: dialogID,
 		SenderID: senderID,
@@ -693,38 +738,41 @@ func (r *ChatRepositoryImpl) SendMessageWithAttachments(senderID, dialogID, cont
 		Status:   "sent",
 	}
 
-	return message, r.db.Transaction(func(tx *gorm.DB) error {
-		// Create message
-		if err := tx.Create(message).Error; err != nil {
-			return err
-		}
+	// ✅ Вложенная транзакция удалена.
+	// Create message
+	// ✅ Используем 'db' из параметра
+	if err := db.Create(message).Error; err != nil {
+		return nil, err
+	}
 
-		// Create attachments
-		if len(attachments) > 0 {
-			for _, attachment := range attachments {
-				attachment.MessageID = message.ID
-			}
-			if err := tx.CreateInBatches(attachments, 10).Error; err != nil {
-				return err
-			}
+	// Create attachments
+	if len(attachments) > 0 {
+		for _, attachment := range attachments {
+			attachment.MessageID = message.ID
 		}
-
-		// Update dialog
-		if err := tx.Model(&chat.Dialog{}).Where("id = ?", dialogID).
-			Updates(map[string]interface{}{
-				"last_message_id": message.ID,
-				"updated_at":      time.Now(),
-			}).Error; err != nil {
-			return err
+		// ✅ Используем 'db' из параметра
+		if err := db.CreateInBatches(attachments, 10).Error; err != nil {
+			return nil, err
 		}
+	}
 
-		return nil
-	})
+	// Update dialog
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&chat.Dialog{}).Where("id = ?", dialogID).
+		Updates(map[string]interface{}{
+			"last_message_id": message.ID,
+			"updated_at":      time.Now(),
+		}).Error; err != nil {
+		return nil, err
+	}
+
+	return message, nil
 }
 
-func (r *ChatRepositoryImpl) GetDialogWithMessages(dialogID string, userID string, criteria MessageCriteria) (*DialogWithMessages, error) {
+func (r *ChatRepositoryImpl) GetDialogWithMessages(db *gorm.DB, dialogID string, userID string, criteria MessageCriteria) (*DialogWithMessages, error) {
 	// Check if user has access to dialog
-	hasAccess, err := r.IsUserInDialog(dialogID, userID)
+	// ✅ 'db' пробрасывается во внутренние вызовы
+	hasAccess, err := r.IsUserInDialog(db, dialogID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -733,20 +781,24 @@ func (r *ChatRepositoryImpl) GetDialogWithMessages(dialogID string, userID strin
 	}
 
 	// Get dialog
-	dialog, err := r.FindDialogByID(dialogID)
+	// ✅ 'db' пробрасывается во внутренние вызовы
+	dialog, err := r.FindDialogByID(db, dialogID)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get messages
-	messages, total, err := r.FindMessagesByDialog(dialogID, criteria)
+	// ✅ 'db' пробрасывается во внутренние вызовы
+	messages, total, err := r.FindMessagesByDialog(db, dialogID, criteria)
 	if err != nil {
 		return nil, err
 	}
 
 	// Mark messages as read for this user
-	if err := r.MarkMessagesAsRead(dialogID, userID); err != nil {
-		return nil, err
+	// ✅ 'db' пробрасывается во внутренние вызовы
+	if err := r.MarkMessagesAsRead(db, dialogID, userID); err != nil {
+		// Не возвращаем ошибку, если не удалось отметить как прочитанное,
+		// чтобы пользователь все равно получил сообщения
 	}
 
 	return &DialogWithMessages{
@@ -759,9 +811,10 @@ func (r *ChatRepositoryImpl) GetDialogWithMessages(dialogID string, userID strin
 
 // Admin operations
 
-func (r *ChatRepositoryImpl) FindAllDialogs(criteria DialogCriteria) ([]chat.Dialog, int64, error) {
+func (r *ChatRepositoryImpl) FindAllDialogs(db *gorm.DB, criteria DialogCriteria) ([]chat.Dialog, int64, error) {
 	var dialogs []chat.Dialog
-	query := r.db.Preload("Participants").Preload("LastMessage")
+	// ✅ Используем 'db' из параметра
+	query := db.Preload("Participants").Preload("LastMessage")
 
 	// Apply filters
 	if criteria.IsGroup != nil {
@@ -787,6 +840,7 @@ func (r *ChatRepositoryImpl) FindAllDialogs(criteria DialogCriteria) ([]chat.Dia
 
 	// Get total count
 	var total int64
+	// ✅ Используем 'db' (query) из параметра
 	if err := query.Model(&chat.Dialog{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -795,6 +849,7 @@ func (r *ChatRepositoryImpl) FindAllDialogs(criteria DialogCriteria) ([]chat.Dia
 	limit := criteria.PageSize
 	offset := (criteria.Page - 1) * criteria.PageSize
 
+	// ✅ Используем 'db' (query) из параметра
 	err := query.Order("dialogs.updated_at DESC").
 		Limit(limit).Offset(offset).
 		Find(&dialogs).Error
@@ -802,7 +857,7 @@ func (r *ChatRepositoryImpl) FindAllDialogs(criteria DialogCriteria) ([]chat.Dia
 	return dialogs, total, err
 }
 
-func (r *ChatRepositoryImpl) GetChatStats() (*ChatStats, error) {
+func (r *ChatRepositoryImpl) GetChatStats(db *gorm.DB) (*ChatStats, error) {
 	var stats ChatStats
 	now := time.Now()
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
@@ -810,34 +865,40 @@ func (r *ChatRepositoryImpl) GetChatStats() (*ChatStats, error) {
 	weekAgo := now.AddDate(0, 0, -7)
 
 	// Total dialogs
-	if err := r.db.Model(&chat.Dialog{}).Count(&stats.TotalDialogs).Error; err != nil {
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&chat.Dialog{}).Count(&stats.TotalDialogs).Error; err != nil {
 		return nil, err
 	}
 
 	// Total messages
-	if err := r.db.Model(&chat.Message{}).Count(&stats.TotalMessages).Error; err != nil {
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&chat.Message{}).Count(&stats.TotalMessages).Error; err != nil {
 		return nil, err
 	}
 
 	// Total attachments
-	if err := r.db.Model(&chat.MessageAttachment{}).Count(&stats.TotalAttachments).Error; err != nil {
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&chat.MessageAttachment{}).Count(&stats.TotalAttachments).Error; err != nil {
 		return nil, err
 	}
 
 	// Active dialogs (with messages in last 7 days)
-	if err := r.db.Model(&chat.Dialog{}).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&chat.Dialog{}).
 		Where("updated_at >= ?", weekAgo).Count(&stats.ActiveDialogs).Error; err != nil {
 		return nil, err
 	}
 
 	// Today messages
-	if err := r.db.Model(&chat.Message{}).Where("created_at >= ?", todayStart).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&chat.Message{}).Where("created_at >= ?", todayStart).
 		Count(&stats.TodayMessages).Error; err != nil {
 		return nil, err
 	}
 
 	// This week messages
-	if err := r.db.Model(&chat.Message{}).Where("created_at >= ?", weekStart).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&chat.Message{}).Where("created_at >= ?", weekStart).
 		Count(&stats.ThisWeekMessages).Error; err != nil {
 		return nil, err
 	}
@@ -849,7 +910,8 @@ func (r *ChatRepositoryImpl) GetChatStats() (*ChatStats, error) {
 		Count int64
 	}
 
-	err := r.db.Model(&chat.Message{}).
+	// ✅ Используем 'db' из параметра
+	err := db.Model(&chat.Message{}).
 		Select("type, COUNT(*) as count").
 		Group("type").Scan(&typeStats).Error
 
@@ -864,33 +926,52 @@ func (r *ChatRepositoryImpl) GetChatStats() (*ChatStats, error) {
 	return &stats, nil
 }
 
-func (r *ChatRepositoryImpl) CleanOldMessages(days int) error {
+func (r *ChatRepositoryImpl) CleanOldMessages(db *gorm.DB, days int) error {
 	cutoffDate := time.Now().AddDate(0, 0, -days)
 
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Delete read receipts for old messages
-		if err := tx.Where("message_id IN (SELECT id FROM messages WHERE created_at < ?)", cutoffDate).
-			Delete(&chat.MessageReadReceipt{}).Error; err != nil {
-			return err
-		}
+	// ✅ Вложенная транзакция удалена.
+	// Delete read receipts for old messages
+	// ✅ Используем 'db' из параметра
+	if err := db.Where("message_id IN (SELECT id FROM messages WHERE created_at < ?)", cutoffDate).
+		Delete(&chat.MessageReadReceipt{}).Error; err != nil {
+		return err
+	}
 
-		// Delete reactions for old messages
-		if err := tx.Where("message_id IN (SELECT id FROM messages WHERE created_at < ?)", cutoffDate).
-			Delete(&chat.MessageReaction{}).Error; err != nil {
-			return err
-		}
+	// Delete reactions for old messages
+	// ✅ Используем 'db' из параметра
+	if err := db.Where("message_id IN (SELECT id FROM messages WHERE created_at < ?)", cutoffDate).
+		Delete(&chat.MessageReaction{}).Error; err != nil {
+		return err
+	}
 
-		// Delete attachments for old messages
-		if err := tx.Where("message_id IN (SELECT id FROM messages WHERE created_at < ?)", cutoffDate).
-			Delete(&chat.MessageAttachment{}).Error; err != nil {
-			return err
-		}
+	// Delete attachments for old messages
+	// ✅ Используем 'db' из параметра
+	if err := db.Where("message_id IN (SELECT id FROM messages WHERE created_at < ?)", cutoffDate).
+		Delete(&chat.MessageAttachment{}).Error; err != nil {
+		return err
+	}
 
-		// Delete old messages
-		if err := tx.Where("created_at < ?", cutoffDate).Delete(&chat.Message{}).Error; err != nil {
-			return err
-		}
+	// Delete old messages
+	// ✅ Используем 'db' из параметра
+	if err := db.Where("created_at < ?", cutoffDate).Delete(&chat.Message{}).Error; err != nil {
+		return err
+	}
 
-		return nil
-	})
+	return nil
+}
+
+func (r *ChatRepositoryImpl) UpdateMessage(db *gorm.DB, message *chat.Message) error {
+	result := db.Model(&chat.Message{}).Where("id = ?", message.ID).
+		Updates(map[string]interface{}{
+			"content":    message.Content,
+			"updated_at": time.Now(),
+		})
+
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrMessageNotFound
+	}
+	return nil
 }

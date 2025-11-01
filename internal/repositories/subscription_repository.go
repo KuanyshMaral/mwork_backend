@@ -4,9 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
-
 	"mwork_backend/internal/models"
+	"time"
 
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -21,52 +20,51 @@ var (
 
 type SubscriptionRepository interface {
 	// SubscriptionPlan operations
-	CreatePlan(plan *models.SubscriptionPlan) error
-	FindPlanByID(id string) (*models.SubscriptionPlan, error)
-	FindPlanByName(name string) (*models.SubscriptionPlan, error)
-	FindActivePlans() ([]models.SubscriptionPlan, error)
-	FindPlansByRole(role models.UserRole) ([]models.SubscriptionPlan, error)
-	UpdatePlan(plan *models.SubscriptionPlan) error
-	DeletePlan(id string) error
+	CreatePlan(db *gorm.DB, plan *models.SubscriptionPlan) error
+	FindPlanByID(db *gorm.DB, id string) (*models.SubscriptionPlan, error)
+	FindPlanByName(db *gorm.DB, name string) (*models.SubscriptionPlan, error)
+	FindActivePlans(db *gorm.DB) ([]models.SubscriptionPlan, error)
+	FindPlansByRole(db *gorm.DB, role models.UserRole) ([]models.SubscriptionPlan, error)
+	UpdatePlan(db *gorm.DB, plan *models.SubscriptionPlan) error
+	DeletePlan(db *gorm.DB, id string) error
 
 	// UserSubscription operations
-	CreateUserSubscription(subscription *models.UserSubscription) error
-	FindUserSubscription(userID string) (*models.UserSubscription, error)
-	FindUserSubscriptionByInvID(invID string) (*models.UserSubscription, error)
-	UpdateUserSubscription(subscription *models.UserSubscription) error
-	UpdateSubscriptionStatus(userID string, status models.SubscriptionStatus) error
-	CancelUserSubscription(userID string) error
-	RenewUserSubscription(userID string, newPlanID string, newEndDate time.Time) error
-	IncrementSubscriptionUsage(userID string, feature string) error
-	DecrementSubscriptionUsage(userID string, feature string) error
-	ResetSubscriptionUsage(userID string) error
-	FindExpiringSubscriptions(days int) ([]models.UserSubscription, error)
-	FindExpiredSubscriptions() ([]models.UserSubscription, error)
+	CreateUserSubscription(db *gorm.DB, subscription *models.UserSubscription) error
+	FindUserSubscription(db *gorm.DB, userID string) (*models.UserSubscription, error)
+	FindUserSubscriptionByInvID(db *gorm.DB, invID string) (*models.UserSubscription, error)
+	UpdateUserSubscription(db *gorm.DB, subscription *models.UserSubscription) error
+	UpdateSubscriptionStatus(db *gorm.DB, userID string, status models.SubscriptionStatus) error
+	CancelUserSubscription(db *gorm.DB, userID string) error
+	RenewUserSubscription(db *gorm.DB, userID string, newPlanID string, newEndDate time.Time) error
+	IncrementSubscriptionUsage(db *gorm.DB, userID string, feature string) error
+	DecrementSubscriptionUsage(db *gorm.DB, userID string, feature string) error
+	ResetSubscriptionUsage(db *gorm.DB, userID string) error
+	FindExpiringSubscriptions(db *gorm.DB, days int) ([]models.UserSubscription, error)
+	FindExpiredSubscriptions(db *gorm.DB) ([]models.UserSubscription, error)
 
 	// PaymentTransaction operations
-	CreatePaymentTransaction(payment *models.PaymentTransaction) error
-	FindPaymentByID(id string) (*models.PaymentTransaction, error)
-	FindPaymentByInvID(invID string) (*models.PaymentTransaction, error)
-	FindPaymentsByUser(userID string) ([]models.PaymentTransaction, error)
-	UpdatePaymentStatus(invID string, status models.PaymentStatus, paidAt *time.Time) error
-	DeletePayment(id string) error
+	CreatePaymentTransaction(db *gorm.DB, payment *models.PaymentTransaction) error
+	FindPaymentByID(db *gorm.DB, id string) (*models.PaymentTransaction, error)
+	FindPaymentByInvID(db *gorm.DB, invID string) (*models.PaymentTransaction, error)
+	FindPaymentsByUser(db *gorm.DB, userID string) ([]models.PaymentTransaction, error)
+	UpdatePaymentStatus(db *gorm.DB, invID string, status models.PaymentStatus, paidAt *time.Time) error
+	DeletePayment(db *gorm.DB, id string) error
 
 	// Usage and limits operations
-	GetUserUsage(userID string) (map[string]int, error)
-	GetUserLimits(userID string) (map[string]int, error)
-	CanUserPublish(userID string) (bool, error)
-	CanUserRespond(userID string) (bool, error)
-	GetUserSubscriptionStats(userID string) (*UserSubscriptionStats, error)
+	GetUserUsage(db *gorm.DB, userID string) (map[string]int, error)
+	GetUserLimits(db *gorm.DB, userID string) (map[string]int, error)
+	CanUserPublish(db *gorm.DB, userID string) (bool, error)
+	CanUserRespond(db *gorm.DB, userID string) (bool, error)
+	GetUserSubscriptionStats(db *gorm.DB, userID string) (*UserSubscriptionStats, error)
 
 	// Admin operations
-	GetPlatformSubscriptionStats() (*PlatformSubscriptionStats, error)
-	GetRevenueStats(days int) (*RevenueStats, error)
-
-	GetSubscriptionMetrics(dateFrom, dateTo time.Time) (*SubscriptionMetrics, error)
+	GetPlatformSubscriptionStats(db *gorm.DB) (*PlatformSubscriptionStats, error)
+	GetRevenueStats(db *gorm.DB, days int) (*RevenueStats, error)
+	GetSubscriptionMetrics(db *gorm.DB, dateFrom, dateTo time.Time) (*SubscriptionMetrics, error)
 }
 
 type SubscriptionRepositoryImpl struct {
-	db *gorm.DB
+	// ✅ Пусто! db *gorm.DB больше не хранится здесь
 }
 
 // Usage and limits structures
@@ -124,19 +122,22 @@ type RevenueStats struct {
 	ByPlan           map[string]float64 `json:"by_plan"`
 }
 
-func NewSubscriptionRepository(db *gorm.DB) SubscriptionRepository {
-	return &SubscriptionRepositoryImpl{db: db}
+// ✅ Конструктор не принимает db
+func NewSubscriptionRepository() SubscriptionRepository {
+	return &SubscriptionRepositoryImpl{}
 }
 
 // SubscriptionPlan operations
 
-func (r *SubscriptionRepositoryImpl) CreatePlan(plan *models.SubscriptionPlan) error {
-	return r.db.Create(plan).Error
+func (r *SubscriptionRepositoryImpl) CreatePlan(db *gorm.DB, plan *models.SubscriptionPlan) error {
+	// ✅ Используем 'db' из параметра
+	return db.Create(plan).Error
 }
 
-func (r *SubscriptionRepositoryImpl) FindPlanByID(id string) (*models.SubscriptionPlan, error) {
+func (r *SubscriptionRepositoryImpl) FindPlanByID(db *gorm.DB, id string) (*models.SubscriptionPlan, error) {
 	var plan models.SubscriptionPlan
-	err := r.db.First(&plan, "id = ?", id).Error
+	// ✅ Используем 'db' из параметра
+	err := db.First(&plan, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrSubscriptionPlanNotFound
@@ -146,9 +147,10 @@ func (r *SubscriptionRepositoryImpl) FindPlanByID(id string) (*models.Subscripti
 	return &plan, nil
 }
 
-func (r *SubscriptionRepositoryImpl) FindPlanByName(name string) (*models.SubscriptionPlan, error) {
+func (r *SubscriptionRepositoryImpl) FindPlanByName(db *gorm.DB, name string) (*models.SubscriptionPlan, error) {
 	var plan models.SubscriptionPlan
-	err := r.db.Where("name = ?", name).First(&plan).Error
+	// ✅ Используем 'db' из параметра
+	err := db.Where("name = ?", name).First(&plan).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrSubscriptionPlanNotFound
@@ -158,25 +160,28 @@ func (r *SubscriptionRepositoryImpl) FindPlanByName(name string) (*models.Subscr
 	return &plan, nil
 }
 
-func (r *SubscriptionRepositoryImpl) FindActivePlans() ([]models.SubscriptionPlan, error) {
+func (r *SubscriptionRepositoryImpl) FindActivePlans(db *gorm.DB) ([]models.SubscriptionPlan, error) {
 	var plans []models.SubscriptionPlan
-	err := r.db.Where("is_active = ?", true).Order("price ASC").Find(&plans).Error
+	// ✅ Используем 'db' из параметра
+	err := db.Where("is_active = ?", true).Order("price ASC").Find(&plans).Error
 	return plans, err
 }
 
-func (r *SubscriptionRepositoryImpl) FindPlansByRole(role models.UserRole) ([]models.SubscriptionPlan, error) {
+func (r *SubscriptionRepositoryImpl) FindPlansByRole(db *gorm.DB, role models.UserRole) ([]models.SubscriptionPlan, error) {
 	var plans []models.SubscriptionPlan
 
 	// Определяем префикс плана по роли
 	rolePrefix := getPlanPrefixByRole(role)
 
-	err := r.db.Where("is_active = ? AND name LIKE ?", true, rolePrefix+"%").
+	// ✅ Используем 'db' из параметра
+	err := db.Where("is_active = ? AND name LIKE ?", true, rolePrefix+"%").
 		Order("price ASC").Find(&plans).Error
 	return plans, err
 }
 
-func (r *SubscriptionRepositoryImpl) UpdatePlan(plan *models.SubscriptionPlan) error {
-	result := r.db.Model(plan).Updates(map[string]interface{}{
+func (r *SubscriptionRepositoryImpl) UpdatePlan(db *gorm.DB, plan *models.SubscriptionPlan) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(plan).Updates(map[string]interface{}{
 		"name":       plan.Name,
 		"price":      plan.Price,
 		"currency":   plan.Currency,
@@ -196,8 +201,9 @@ func (r *SubscriptionRepositoryImpl) UpdatePlan(plan *models.SubscriptionPlan) e
 	return nil
 }
 
-func (r *SubscriptionRepositoryImpl) DeletePlan(id string) error {
-	result := r.db.Where("id = ?", id).Delete(&models.SubscriptionPlan{})
+func (r *SubscriptionRepositoryImpl) DeletePlan(db *gorm.DB, id string) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Where("id = ?", id).Delete(&models.SubscriptionPlan{})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -209,13 +215,15 @@ func (r *SubscriptionRepositoryImpl) DeletePlan(id string) error {
 
 // UserSubscription operations
 
-func (r *SubscriptionRepositoryImpl) CreateUserSubscription(subscription *models.UserSubscription) error {
-	return r.db.Create(subscription).Error
+func (r *SubscriptionRepositoryImpl) CreateUserSubscription(db *gorm.DB, subscription *models.UserSubscription) error {
+	// ✅ Используем 'db' из параметра
+	return db.Create(subscription).Error
 }
 
-func (r *SubscriptionRepositoryImpl) FindUserSubscription(userID string) (*models.UserSubscription, error) {
+func (r *SubscriptionRepositoryImpl) FindUserSubscription(db *gorm.DB, userID string) (*models.UserSubscription, error) {
 	var subscription models.UserSubscription
-	err := r.db.Preload("Plan").Where("user_id = ?", userID).First(&subscription).Error
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Plan").Where("user_id = ?", userID).First(&subscription).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrSubscriptionNotFound
@@ -225,9 +233,10 @@ func (r *SubscriptionRepositoryImpl) FindUserSubscription(userID string) (*model
 	return &subscription, nil
 }
 
-func (r *SubscriptionRepositoryImpl) FindUserSubscriptionByInvID(invID string) (*models.UserSubscription, error) {
+func (r *SubscriptionRepositoryImpl) FindUserSubscriptionByInvID(db *gorm.DB, invID string) (*models.UserSubscription, error) {
 	var subscription models.UserSubscription
-	err := r.db.Preload("Plan").Where("inv_id = ?", invID).First(&subscription).Error
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Plan").Where("inv_id = ?", invID).First(&subscription).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrSubscriptionNotFound
@@ -237,8 +246,9 @@ func (r *SubscriptionRepositoryImpl) FindUserSubscriptionByInvID(invID string) (
 	return &subscription, nil
 }
 
-func (r *SubscriptionRepositoryImpl) UpdateUserSubscription(subscription *models.UserSubscription) error {
-	result := r.db.Model(subscription).Updates(map[string]interface{}{
+func (r *SubscriptionRepositoryImpl) UpdateUserSubscription(db *gorm.DB, subscription *models.UserSubscription) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(subscription).Updates(map[string]interface{}{
 		"plan_id":       subscription.PlanID,
 		"status":        subscription.Status,
 		"current_usage": subscription.CurrentUsage,
@@ -258,8 +268,9 @@ func (r *SubscriptionRepositoryImpl) UpdateUserSubscription(subscription *models
 	return nil
 }
 
-func (r *SubscriptionRepositoryImpl) UpdateSubscriptionStatus(userID string, status models.SubscriptionStatus) error {
-	result := r.db.Model(&models.UserSubscription{}).Where("user_id = ?", userID).Updates(map[string]interface{}{
+func (r *SubscriptionRepositoryImpl) UpdateSubscriptionStatus(db *gorm.DB, userID string, status models.SubscriptionStatus) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&models.UserSubscription{}).Where("user_id = ?", userID).Updates(map[string]interface{}{
 		"status":     status,
 		"updated_at": time.Now(),
 	})
@@ -273,8 +284,9 @@ func (r *SubscriptionRepositoryImpl) UpdateSubscriptionStatus(userID string, sta
 	return nil
 }
 
-func (r *SubscriptionRepositoryImpl) CancelUserSubscription(userID string) error {
-	result := r.db.Model(&models.UserSubscription{}).Where("user_id = ?", userID).Updates(map[string]interface{}{
+func (r *SubscriptionRepositoryImpl) CancelUserSubscription(db *gorm.DB, userID string) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&models.UserSubscription{}).Where("user_id = ?", userID).Updates(map[string]interface{}{
 		"status":       models.SubscriptionStatusCancelled,
 		"cancelled_at": time.Now(),
 		"updated_at":   time.Now(),
@@ -289,95 +301,98 @@ func (r *SubscriptionRepositoryImpl) CancelUserSubscription(userID string) error
 	return nil
 }
 
-func (r *SubscriptionRepositoryImpl) RenewUserSubscription(userID string, newPlanID string, newEndDate time.Time) error {
-	// Используем транзакцию для обновления подписки
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		var subscription models.UserSubscription
-		if err := tx.Where("user_id = ?", userID).First(&subscription).Error; err != nil {
-			return ErrSubscriptionNotFound
-		}
+func (r *SubscriptionRepositoryImpl) RenewUserSubscription(db *gorm.DB, userID string, newPlanID string, newEndDate time.Time) error {
+	// ✅ Вложенная транзакция удалена. Используем 'db' из параметра.
+	var subscription models.UserSubscription
+	// ✅ Используем 'db' из параметра
+	if err := db.Where("user_id = ?", userID).First(&subscription).Error; err != nil {
+		return ErrSubscriptionNotFound
+	}
 
-		// Обновляем подписку
-		updates := map[string]interface{}{
-			"plan_id":       newPlanID,
-			"status":        models.SubscriptionStatusActive,
-			"current_usage": datatypes.JSON(`{"publications": 0, "responses": 0, "messages": 0, "promotions": 0}`),
-			"start_date":    time.Now(),
-			"end_date":      newEndDate,
-			"cancelled_at":  nil,
-			"updated_at":    time.Now(),
-		}
+	// Обновляем подписку
+	updates := map[string]interface{}{
+		"plan_id":       newPlanID,
+		"status":        models.SubscriptionStatusActive,
+		"current_usage": datatypes.JSON(`{"publications": 0, "responses": 0, "messages": 0, "promotions": 0}`),
+		"start_date":    time.Now(),
+		"end_date":      newEndDate,
+		"cancelled_at":  nil,
+		"updated_at":    time.Now(),
+	}
 
-		if err := tx.Model(&subscription).Updates(updates).Error; err != nil {
-			return err
-		}
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&subscription).Updates(updates).Error; err != nil {
+		return err
+	}
 
-		return nil
-	})
+	return nil
 }
 
-func (r *SubscriptionRepositoryImpl) IncrementSubscriptionUsage(userID string, feature string) error {
-	// Используем транзакцию для атомарного обновления
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		var subscription models.UserSubscription
-		if err := tx.Where("user_id = ?", userID).First(&subscription).Error; err != nil {
-			return ErrSubscriptionNotFound
-		}
+func (r *SubscriptionRepositoryImpl) IncrementSubscriptionUsage(db *gorm.DB, userID string, feature string) error {
+	// ✅ Вложенная транзакция удалена. Используем 'db' из параметра.
+	var subscription models.UserSubscription
+	// ✅ Используем 'db' из параметра
+	// ❗️ Мы должны использовать Preload("Plan"), чтобы canUseFeature работал
+	if err := db.Preload("Plan").Where("user_id = ?", userID).First(&subscription).Error; err != nil {
+		return ErrSubscriptionNotFound
+	}
 
-		// Проверяем лимиты
-		if !r.canUseFeature(&subscription, feature) {
-			return ErrSubscriptionLimit
-		}
+	// Проверяем лимиты
+	// ✅ canUseFeature теперь безопасно вызывать
+	if !r.canUseFeature(&subscription, feature) {
+		return ErrSubscriptionLimit
+	}
 
-		// Обновляем usage - ИСПРАВЛЕННЫЙ КОД
-		var usage map[string]int
-		if err := json.Unmarshal(subscription.CurrentUsage, &usage); err != nil {
-			return fmt.Errorf("failed to unmarshal usage: %w", err)
-		}
+	// Обновляем usage
+	var usage map[string]int
+	if err := json.Unmarshal(subscription.CurrentUsage, &usage); err != nil {
+		return fmt.Errorf("failed to unmarshal usage: %w", err)
+	}
 
-		usage[feature]++
+	usage[feature]++
 
-		newUsage, err := json.Marshal(usage)
-		if err != nil {
-			return fmt.Errorf("failed to marshal usage: %w", err)
-		}
+	newUsage, err := json.Marshal(usage)
+	if err != nil {
+		return fmt.Errorf("failed to marshal usage: %w", err)
+	}
 
-		subscription.CurrentUsage = datatypes.JSON(newUsage)
-		return tx.Save(&subscription).Error
-	})
+	subscription.CurrentUsage = datatypes.JSON(newUsage)
+	// ✅ Используем 'db' из параметра
+	return db.Save(&subscription).Error
 }
 
-func (r *SubscriptionRepositoryImpl) DecrementSubscriptionUsage(userID string, feature string) error {
-	// Используем транзакцию для атомарного обновления
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		var subscription models.UserSubscription
-		if err := tx.Where("user_id = ?", userID).First(&subscription).Error; err != nil {
-			return ErrSubscriptionNotFound
-		}
+func (r *SubscriptionRepositoryImpl) DecrementSubscriptionUsage(db *gorm.DB, userID string, feature string) error {
+	// ✅ Вложенная транзакция удалена. Используем 'db' из параметра.
+	var subscription models.UserSubscription
+	// ✅ Используем 'db' из параметра
+	if err := db.Where("user_id = ?", userID).First(&subscription).Error; err != nil {
+		return ErrSubscriptionNotFound
+	}
 
-		// Обновляем usage
-		var usage map[string]int
-		if err := json.Unmarshal(subscription.CurrentUsage, &usage); err != nil {
-			return fmt.Errorf("failed to unmarshal usage: %w", err)
-		}
+	// Обновляем usage
+	var usage map[string]int
+	if err := json.Unmarshal(subscription.CurrentUsage, &usage); err != nil {
+		return fmt.Errorf("failed to unmarshal usage: %w", err)
+	}
 
-		// Декрементируем, но не ниже 0
-		if usage[feature] > 0 {
-			usage[feature]--
-		}
+	// Декрементируем, но не ниже 0
+	if usage[feature] > 0 {
+		usage[feature]--
+	}
 
-		newUsage, err := json.Marshal(usage)
-		if err != nil {
-			return fmt.Errorf("failed to marshal usage: %w", err)
-		}
+	newUsage, err := json.Marshal(usage)
+	if err != nil {
+		return fmt.Errorf("failed to marshal usage: %w", err)
+	}
 
-		subscription.CurrentUsage = datatypes.JSON(newUsage)
-		return tx.Save(&subscription).Error
-	})
+	subscription.CurrentUsage = datatypes.JSON(newUsage)
+	// ✅ Используем 'db' из параметра
+	return db.Save(&subscription).Error
 }
 
-func (r *SubscriptionRepositoryImpl) ResetSubscriptionUsage(userID string) error {
-	result := r.db.Model(&models.UserSubscription{}).Where("user_id = ?", userID).Update("current_usage",
+func (r *SubscriptionRepositoryImpl) ResetSubscriptionUsage(db *gorm.DB, userID string) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&models.UserSubscription{}).Where("user_id = ?", userID).Update("current_usage",
 		datatypes.JSON(`{"publications": 0, "responses": 0, "messages": 0, "promotions": 0}`))
 
 	if result.Error != nil {
@@ -389,21 +404,23 @@ func (r *SubscriptionRepositoryImpl) ResetSubscriptionUsage(userID string) error
 	return nil
 }
 
-func (r *SubscriptionRepositoryImpl) FindExpiringSubscriptions(days int) ([]models.UserSubscription, error) {
+func (r *SubscriptionRepositoryImpl) FindExpiringSubscriptions(db *gorm.DB, days int) ([]models.UserSubscription, error) {
 	var subscriptions []models.UserSubscription
 	expiryDate := time.Now().AddDate(0, 0, days)
 
-	err := r.db.Preload("Plan").Where("status = ? AND end_date <= ? AND end_date > ?",
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Plan").Where("status = ? AND end_date <= ? AND end_date > ?",
 		models.SubscriptionStatusActive, expiryDate, time.Now()).
 		Order("end_date ASC").
 		Find(&subscriptions).Error
 	return subscriptions, err
 }
 
-func (r *SubscriptionRepositoryImpl) FindExpiredSubscriptions() ([]models.UserSubscription, error) {
+func (r *SubscriptionRepositoryImpl) FindExpiredSubscriptions(db *gorm.DB) ([]models.UserSubscription, error) {
 	var subscriptions []models.UserSubscription
 
-	err := r.db.Preload("Plan").Where("status = ? AND end_date < ?",
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Plan").Where("status = ? AND end_date < ?",
 		models.SubscriptionStatusActive, time.Now()).
 		Order("end_date ASC").
 		Find(&subscriptions).Error
@@ -412,13 +429,15 @@ func (r *SubscriptionRepositoryImpl) FindExpiredSubscriptions() ([]models.UserSu
 
 // PaymentTransaction operations
 
-func (r *SubscriptionRepositoryImpl) CreatePaymentTransaction(payment *models.PaymentTransaction) error {
-	return r.db.Create(payment).Error
+func (r *SubscriptionRepositoryImpl) CreatePaymentTransaction(db *gorm.DB, payment *models.PaymentTransaction) error {
+	// ✅ Используем 'db' из параметра
+	return db.Create(payment).Error
 }
 
-func (r *SubscriptionRepositoryImpl) FindPaymentByID(id string) (*models.PaymentTransaction, error) {
+func (r *SubscriptionRepositoryImpl) FindPaymentByID(db *gorm.DB, id string) (*models.PaymentTransaction, error) {
 	var payment models.PaymentTransaction
-	err := r.db.Preload("Subscription").Preload("Subscription.Plan").
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Subscription").Preload("Subscription.Plan").
 		First(&payment, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -429,9 +448,10 @@ func (r *SubscriptionRepositoryImpl) FindPaymentByID(id string) (*models.Payment
 	return &payment, nil
 }
 
-func (r *SubscriptionRepositoryImpl) FindPaymentByInvID(invID string) (*models.PaymentTransaction, error) {
+func (r *SubscriptionRepositoryImpl) FindPaymentByInvID(db *gorm.DB, invID string) (*models.PaymentTransaction, error) {
 	var payment models.PaymentTransaction
-	err := r.db.Preload("Subscription").Preload("Subscription.Plan").
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Subscription").Preload("Subscription.Plan").
 		Where("inv_id = ?", invID).First(&payment).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -442,16 +462,17 @@ func (r *SubscriptionRepositoryImpl) FindPaymentByInvID(invID string) (*models.P
 	return &payment, nil
 }
 
-func (r *SubscriptionRepositoryImpl) FindPaymentsByUser(userID string) ([]models.PaymentTransaction, error) {
+func (r *SubscriptionRepositoryImpl) FindPaymentsByUser(db *gorm.DB, userID string) ([]models.PaymentTransaction, error) {
 	var payments []models.PaymentTransaction
-	err := r.db.Preload("Subscription").Preload("Subscription.Plan").
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Subscription").Preload("Subscription.Plan").
 		Where("user_id = ?", userID).
 		Order("created_at DESC").
 		Find(&payments).Error
 	return payments, err
 }
 
-func (r *SubscriptionRepositoryImpl) UpdatePaymentStatus(invID string, status models.PaymentStatus, paidAt *time.Time) error {
+func (r *SubscriptionRepositoryImpl) UpdatePaymentStatus(db *gorm.DB, invID string, status models.PaymentStatus, paidAt *time.Time) error {
 	updates := map[string]interface{}{
 		"status":     status,
 		"updated_at": time.Now(),
@@ -461,7 +482,8 @@ func (r *SubscriptionRepositoryImpl) UpdatePaymentStatus(invID string, status mo
 		updates["paid_at"] = paidAt
 	}
 
-	result := r.db.Model(&models.PaymentTransaction{}).Where("inv_id = ?", invID).Updates(updates)
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&models.PaymentTransaction{}).Where("inv_id = ?", invID).Updates(updates)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -471,8 +493,9 @@ func (r *SubscriptionRepositoryImpl) UpdatePaymentStatus(invID string, status mo
 	return nil
 }
 
-func (r *SubscriptionRepositoryImpl) DeletePayment(id string) error {
-	result := r.db.Where("id = ?", id).Delete(&models.PaymentTransaction{})
+func (r *SubscriptionRepositoryImpl) DeletePayment(db *gorm.DB, id string) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Where("id = ?", id).Delete(&models.PaymentTransaction{})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -484,9 +507,10 @@ func (r *SubscriptionRepositoryImpl) DeletePayment(id string) error {
 
 // Usage and limits operations
 
-func (r *SubscriptionRepositoryImpl) GetUserUsage(userID string) (map[string]int, error) {
+func (r *SubscriptionRepositoryImpl) GetUserUsage(db *gorm.DB, userID string) (map[string]int, error) {
 	var subscription models.UserSubscription
-	err := r.db.Where("user_id = ?", userID).First(&subscription).Error
+	// ✅ Используем 'db' из параметра
+	err := db.Where("user_id = ?", userID).First(&subscription).Error
 	if err != nil {
 		return nil, ErrSubscriptionNotFound
 	}
@@ -499,11 +523,17 @@ func (r *SubscriptionRepositoryImpl) GetUserUsage(userID string) (map[string]int
 	return usage, nil
 }
 
-func (r *SubscriptionRepositoryImpl) GetUserLimits(userID string) (map[string]int, error) {
+func (r *SubscriptionRepositoryImpl) GetUserLimits(db *gorm.DB, userID string) (map[string]int, error) {
 	var subscription models.UserSubscription
-	err := r.db.Preload("Plan").Where("user_id = ?", userID).First(&subscription).Error
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Plan").Where("user_id = ?", userID).First(&subscription).Error
 	if err != nil {
 		return nil, ErrSubscriptionNotFound
+	}
+
+	// ❗️ ИСПРАВЛЕНИЕ: Добавляем проверку, что Plan был загружен
+	if subscription.Plan.ID == "" {
+		return nil, ErrSubscriptionPlanNotFound
 	}
 
 	var limits map[string]int
@@ -514,28 +544,37 @@ func (r *SubscriptionRepositoryImpl) GetUserLimits(userID string) (map[string]in
 	return limits, nil
 }
 
-func (r *SubscriptionRepositoryImpl) CanUserPublish(userID string) (bool, error) {
-	return r.canUseFeatureByUserID(userID, "publications")
+func (r *SubscriptionRepositoryImpl) CanUserPublish(db *gorm.DB, userID string) (bool, error) {
+	// ✅ 'db' пробрасывается в хелпер
+	return r.canUseFeatureByUserID(db, userID, "publications")
 }
 
-func (r *SubscriptionRepositoryImpl) CanUserRespond(userID string) (bool, error) {
-	return r.canUseFeatureByUserID(userID, "responses")
+func (r *SubscriptionRepositoryImpl) CanUserRespond(db *gorm.DB, userID string) (bool, error) {
+	// ✅ 'db' пробрасывается в хелпер
+	return r.canUseFeatureByUserID(db, userID, "responses")
 }
 
-func (r *SubscriptionRepositoryImpl) GetUserSubscriptionStats(userID string) (*UserSubscriptionStats, error) {
+func (r *SubscriptionRepositoryImpl) GetUserSubscriptionStats(db *gorm.DB, userID string) (*UserSubscriptionStats, error) {
 	var subscription models.UserSubscription
-	err := r.db.Preload("Plan").Where("user_id = ?", userID).First(&subscription).Error
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Plan").Where("user_id = ?", userID).First(&subscription).Error
 	if err != nil {
 		return nil, ErrSubscriptionNotFound
 	}
 
-	// Получаем usage - ИСПРАВЛЕННЫЙ КОД
+	// ❗️ ИСПРАВЛЕНИЕ: Добавляем проверку, что Plan был загружен
+	// Если план не загружен (например, PlanID = NULL), мы не можем продолжить
+	if subscription.Plan.ID == "" {
+		return nil, ErrSubscriptionPlanNotFound
+	}
+
+	// Получаем usage
 	var usage Usage
 	if err := json.Unmarshal(subscription.CurrentUsage, &usage); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal usage: %w", err)
 	}
 
-	// Получаем limits - ИСПРАВЛЕННЫЙ КОД
+	// Получаем limits
 	var limits Limits
 	if err := json.Unmarshal(subscription.Plan.Limits, &limits); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal limits: %w", err)
@@ -565,41 +604,47 @@ func (r *SubscriptionRepositoryImpl) GetUserSubscriptionStats(userID string) (*U
 
 // Admin operations
 
-func (r *SubscriptionRepositoryImpl) GetPlatformSubscriptionStats() (*PlatformSubscriptionStats, error) {
+func (r *SubscriptionRepositoryImpl) GetPlatformSubscriptionStats(db *gorm.DB) (*PlatformSubscriptionStats, error) {
 	var stats PlatformSubscriptionStats
 
 	// Total subscriptions
-	if err := r.db.Model(&models.UserSubscription{}).Count(&stats.TotalSubscriptions).Error; err != nil {
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.UserSubscription{}).Count(&stats.TotalSubscriptions).Error; err != nil {
 		return nil, err
 	}
 
 	// Active subscriptions
-	if err := r.db.Model(&models.UserSubscription{}).Where("status = ?", models.SubscriptionStatusActive).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.UserSubscription{}).Where("status = ?", models.SubscriptionStatusActive).
 		Count(&stats.ActiveSubscriptions).Error; err != nil {
 		return nil, err
 	}
 
 	// Expired subscriptions
-	if err := r.db.Model(&models.UserSubscription{}).Where("status = ?", models.SubscriptionStatusExpired).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.UserSubscription{}).Where("status = ?", models.SubscriptionStatusExpired).
 		Count(&stats.ExpiredSubscriptions).Error; err != nil {
 		return nil, err
 	}
 
 	// Canceled subscriptions
-	if err := r.db.Model(&models.UserSubscription{}).Where("status = ?", models.SubscriptionStatusCancelled).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.UserSubscription{}).Where("status = ?", models.SubscriptionStatusCancelled).
 		Count(&stats.CanceledSubscriptions).Error; err != nil {
 		return nil, err
 	}
 
 	// Total revenue
-	if err := r.db.Model(&models.PaymentTransaction{}).Where("status = ?", models.PaymentStatusPaid).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.PaymentTransaction{}).Where("status = ?", models.PaymentStatusPaid).
 		Select("COALESCE(SUM(amount), 0)").Scan(&stats.TotalRevenue).Error; err != nil {
 		return nil, err
 	}
 
 	// Monthly recurring revenue (last 30 days)
 	monthAgo := time.Now().AddDate(0, -1, 0)
-	if err := r.db.Model(&models.PaymentTransaction{}).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.PaymentTransaction{}).
 		Where("status = ? AND paid_at >= ?", models.PaymentStatusPaid, monthAgo).
 		Select("COALESCE(SUM(amount), 0)").Scan(&stats.MonthlyRecurringRevenue).Error; err != nil {
 		return nil, err
@@ -612,7 +657,8 @@ func (r *SubscriptionRepositoryImpl) GetPlatformSubscriptionStats() (*PlatformSu
 		Count    int64
 	}
 
-	err := r.db.Model(&models.UserSubscription{}).
+	// ✅ Используем 'db' из параметра
+	err := db.Model(&models.UserSubscription{}).
 		Select("p.name as plan_name, COUNT(*) as count").
 		Joins("LEFT JOIN subscription_plans p ON user_subscriptions.plan_id = p.id").
 		Group("p.name").Scan(&planStats).Error
@@ -628,19 +674,21 @@ func (r *SubscriptionRepositoryImpl) GetPlatformSubscriptionStats() (*PlatformSu
 	return &stats, nil
 }
 
-func (r *SubscriptionRepositoryImpl) GetRevenueStats(days int) (*RevenueStats, error) {
+func (r *SubscriptionRepositoryImpl) GetRevenueStats(db *gorm.DB, days int) (*RevenueStats, error) {
 	var stats RevenueStats
 	now := time.Now()
 
 	// Total revenue
-	if err := r.db.Model(&models.PaymentTransaction{}).Where("status = ?", models.PaymentStatusPaid).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.PaymentTransaction{}).Where("status = ?", models.PaymentStatusPaid).
 		Select("COALESCE(SUM(amount), 0)").Scan(&stats.TotalRevenue).Error; err != nil {
 		return nil, err
 	}
 
 	// Today revenue
 	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	if err := r.db.Model(&models.PaymentTransaction{}).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.PaymentTransaction{}).
 		Where("status = ? AND paid_at >= ?", models.PaymentStatusPaid, todayStart).
 		Select("COALESCE(SUM(amount), 0)").Scan(&stats.TodayRevenue).Error; err != nil {
 		return nil, err
@@ -648,7 +696,8 @@ func (r *SubscriptionRepositoryImpl) GetRevenueStats(days int) (*RevenueStats, e
 
 	// This week revenue
 	weekStart := todayStart.AddDate(0, 0, -int(todayStart.Weekday()))
-	if err := r.db.Model(&models.PaymentTransaction{}).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.PaymentTransaction{}).
 		Where("status = ? AND paid_at >= ?", models.PaymentStatusPaid, weekStart).
 		Select("COALESCE(SUM(amount), 0)").Scan(&stats.ThisWeekRevenue).Error; err != nil {
 		return nil, err
@@ -656,7 +705,8 @@ func (r *SubscriptionRepositoryImpl) GetRevenueStats(days int) (*RevenueStats, e
 
 	// This month revenue
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-	if err := r.db.Model(&models.PaymentTransaction{}).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.PaymentTransaction{}).
 		Where("status = ? AND paid_at >= ?", models.PaymentStatusPaid, monthStart).
 		Select("COALESCE(SUM(amount), 0)").Scan(&stats.ThisMonthRevenue).Error; err != nil {
 		return nil, err
@@ -669,7 +719,8 @@ func (r *SubscriptionRepositoryImpl) GetRevenueStats(days int) (*RevenueStats, e
 		Revenue  float64
 	}
 
-	err := r.db.Model(&models.PaymentTransaction{}).
+	// ✅ Используем 'db' из параметра
+	err := db.Model(&models.PaymentTransaction{}).
 		Select("p.name as plan_name, COALESCE(SUM(pt.amount), 0) as revenue").
 		Joins("LEFT JOIN user_subscriptions us ON pt.subscription_id = us.id").
 		Joins("LEFT JOIN subscription_plans p ON us.plan_id = p.id").
@@ -690,6 +741,7 @@ func (r *SubscriptionRepositoryImpl) GetRevenueStats(days int) (*RevenueStats, e
 // Helper methods
 
 func (r *SubscriptionRepositoryImpl) canUseFeature(subscription *models.UserSubscription, feature string) bool {
+	// ✅ Этот хелпер не использует db, он безопасен
 	if subscription.Status != models.SubscriptionStatusActive {
 		return false
 	}
@@ -697,9 +749,13 @@ func (r *SubscriptionRepositoryImpl) canUseFeature(subscription *models.UserSubs
 	var usage map[string]int
 	var limits map[string]int
 
-	// ИСПРАВЛЕННЫЙ КОД - используем json.Unmarshal вместо .Unmarshal()
 	if err := json.Unmarshal(subscription.CurrentUsage, &usage); err != nil {
 		return false
+	}
+
+	// ❗️ ИСПРАВЛЕНИЕ: Проверяем, что Plan был загружен, по ID (т.к. Plan - это struct)
+	if subscription.Plan.ID == "" {
+		return false // План не был загружен, безопасный выход
 	}
 	if err := json.Unmarshal(subscription.Plan.Limits, &limits); err != nil {
 		return false
@@ -708,12 +764,16 @@ func (r *SubscriptionRepositoryImpl) canUseFeature(subscription *models.UserSubs
 	return usage[feature] < limits[feature]
 }
 
-func (r *SubscriptionRepositoryImpl) canUseFeatureByUserID(userID string, feature string) (bool, error) {
-	subscription, err := r.FindUserSubscription(userID)
+// ✅ Хелпер теперь принимает 'db'
+func (r *SubscriptionRepositoryImpl) canUseFeatureByUserID(db *gorm.DB, userID string, feature string) (bool, error) {
+	// ✅ 'db' пробрасывается
+	// ❗️ Мы должны использовать Preload("Plan"), чтобы canUseFeature работал
+	subscription, err := r.FindUserSubscription(db, userID)
 	if err != nil {
 		return false, err
 	}
 
+	// ✅ canUseFeature теперь безопасен
 	return r.canUseFeature(subscription, feature), nil
 }
 
@@ -728,19 +788,21 @@ func getPlanPrefixByRole(role models.UserRole) string {
 	}
 }
 
-func (r *SubscriptionRepositoryImpl) GetSubscriptionMetrics(dateFrom, dateTo time.Time) (*SubscriptionMetrics, error) {
+func (r *SubscriptionRepositoryImpl) GetSubscriptionMetrics(db *gorm.DB, dateFrom, dateTo time.Time) (*SubscriptionMetrics, error) {
 	var metrics SubscriptionMetrics
 
 	// Total active subscribers
-	if err := r.db.Model(&models.UserSubscription{}).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.UserSubscription{}).
 		Where("status = ? AND created_at BETWEEN ? AND ?",
 			models.SubscriptionStatusActive, dateFrom, dateTo).
 		Count(&metrics.TotalSubscribers).Error; err != nil {
 		return nil, err
 	}
 
-	// Calculate total revenue (сумма всех успешных платежей)
-	if err := r.db.Model(&models.PaymentTransaction{}).
+	// Calculate total revenue
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.PaymentTransaction{}).
 		Where("status = ? AND created_at BETWEEN ? AND ?",
 			models.PaymentStatusPaid, dateFrom, dateTo).
 		Select("COALESCE(SUM(amount), 0)").
@@ -748,21 +810,21 @@ func (r *SubscriptionRepositoryImpl) GetSubscriptionMetrics(dateFrom, dateTo tim
 		return nil, err
 	}
 
-	// Calculate MRR (Monthly Recurring Revenue)
-	// Упрощенный расчет - среднемесячный доход
+	// Calculate MRR
 	days := dateTo.Sub(dateFrom).Hours() / 24
 	if days > 0 {
 		metrics.MRR = metrics.TotalRevenue / (days / 30.0)
 	}
 
-	// Calculate ARPU (Average Revenue Per User)
+	// Calculate ARPU
 	if metrics.TotalSubscribers > 0 {
 		metrics.ARPU = metrics.TotalRevenue / float64(metrics.TotalSubscribers)
 	}
 
-	// Calculate churn rate (упрощенный расчет)
+	// Calculate churn rate
 	var cancelledSubs int64
-	if err := r.db.Model(&models.UserSubscription{}).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.UserSubscription{}).
 		Where("status = ? AND created_at BETWEEN ? AND ?",
 			models.SubscriptionStatusCancelled, dateFrom, dateTo).
 		Count(&cancelledSubs).Error; err != nil {

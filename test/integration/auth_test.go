@@ -31,7 +31,8 @@ func TestAuthFlow(t *testing.T) {
 		"city":     "Almaty",
 	}
 
-	regRes, regBodyStr := ts.SendRequest(t, "POST", "/api/v1/auth/register", "", registerBody)
+	// ❗️ Добавлен 'tx'
+	regRes, regBodyStr := ts.SendRequest(t, tx, "POST", "/api/v1/auth/register", "", registerBody)
 
 	assert.Equal(t, http.StatusCreated, regRes.StatusCode)
 	assert.Contains(t, regBodyStr, "Registration successful")
@@ -42,7 +43,8 @@ func TestAuthFlow(t *testing.T) {
 		"email":    email,
 		"password": "super_password123",
 	}
-	logRes, logBodyStr := ts.SendRequest(t, "POST", "/api/v1/auth/login", "", loginBody)
+	// ❗️ Добавлен 'tx'
+	logRes, logBodyStr := ts.SendRequest(t, tx, "POST", "/api/v1/auth/login", "", loginBody)
 
 	assert.Equal(t, http.StatusForbidden, logRes.StatusCode)
 	assert.Contains(t, logBodyStr, "User not verified")
@@ -60,7 +62,8 @@ func TestGetProfile_Success(t *testing.T) {
 	// ✅ Хелпер создаст уникальный email
 	userToken, user, _ := helpers.CreateAndLoginModel(t, ts, tx)
 
-	profRes, profBodyStr := ts.SendRequest(t, "GET", "/api/v1/profile", userToken, nil)
+	// ❗️ Добавлен 'tx'
+	profRes, profBodyStr := ts.SendRequest(t, tx, "GET", "/api/v1/profile", userToken, nil)
 
 	assert.Equal(t, http.StatusOK, profRes.StatusCode)
 	assert.Contains(t, profBodyStr, user.Email)
@@ -96,7 +99,8 @@ func TestRegister_DuplicateEmail(t *testing.T) {
 		"city":         "Astana",
 		"company_name": "Test Company",
 	}
-	regRes, regBodyStr := ts.SendRequest(t, "POST", "/api/v1/auth/register", "", duplicateBody)
+	// ❗️ Добавлен 'tx'
+	regRes, regBodyStr := ts.SendRequest(t, tx, "POST", "/api/v1/auth/register", "", duplicateBody)
 
 	assert.Equal(t, http.StatusConflict, regRes.StatusCode)
 	assert.Contains(t, regBodyStr, "Email already exists")
@@ -127,7 +131,8 @@ func TestLogin_BadPassword(t *testing.T) {
 		"email":    email,
 		"password": "WRONG-password",
 	}
-	logRes, logBodyStr := ts.SendRequest(t, "POST", "/api/v1/auth/login", "", loginBody)
+	// ❗️ Добавлен 'tx'
+	logRes, logBodyStr := ts.SendRequest(t, tx, "POST", "/api/v1/auth/login", "", loginBody)
 
 	assert.Equal(t, http.StatusUnauthorized, logRes.StatusCode)
 	assert.Contains(t, logBodyStr, "Invalid email or password")
@@ -167,7 +172,8 @@ func TestLogin_Success(t *testing.T) {
 		"email":    email,
 		"password": password, // ✅ Сырой пароль
 	}
-	logRes, logBodyStr := ts.SendRequest(t, "POST", "/api/v1/auth/login", "", loginBody)
+	// ❗️ Добавлен 'tx'
+	logRes, logBodyStr := ts.SendRequest(t, tx, "POST", "/api/v1/auth/login", "", loginBody)
 
 	assert.Equal(t, http.StatusOK, logRes.StatusCode)
 	assert.Contains(t, logBodyStr, "access_token")

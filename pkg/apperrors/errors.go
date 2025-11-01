@@ -112,3 +112,17 @@ func NewForbiddenError(message string) *AppError {
 func NewBadRequestError(message string) *AppError {
 	return New(CodeValidationFailed, "request", message, http.StatusBadRequest)
 }
+
+// ▼▼▼ ДОБАВЛЕНО ▼▼▼
+
+// NewNotFoundError создает ошибку 404
+func NewNotFoundError(message string) *AppError {
+	return New(CodeNotFound, "resource", message, http.StatusNotFound)
+}
+
+// NewInternalServerError создает ошибку 500
+func NewInternalServerError(message string) *AppError {
+	return New(CodeInternalError, "system", message, http.StatusInternalServerError)
+}
+
+// ▲▲▲ ДОБАВЛЕНО ▲▲▲

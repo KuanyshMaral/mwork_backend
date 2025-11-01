@@ -3,11 +3,11 @@ package handlers
 import (
 	"net/http"
 
-	"mwork_backend/internal/appErrors"  // <-- Добавлен импорт
 	"mwork_backend/internal/middleware" // <-- Все еще нужен для RegisterRoutes
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/services"
 	"mwork_backend/internal/services/dto"
+	"mwork_backend/pkg/apperrors" // <-- Добавлен импорт
 	// "strconv" // <-- Больше не нужен
 
 	"github.com/gin-gonic/gin"
@@ -62,7 +62,8 @@ func (h *ReviewHandler) RegisterRoutes(r *gin.RouterGroup) {
 func (h *ReviewHandler) GetReview(c *gin.Context) {
 	reviewID := c.Param("reviewId")
 
-	review, err := h.reviewService.GetReview(reviewID)
+	// ✅ DB: Используем h.GetDB(c)
+	review, err := h.reviewService.GetReview(h.GetDB(c), reviewID)
 	if err != nil {
 		h.HandleServiceError(c, err) // <-- 4. Используем HandleServiceError
 		return
@@ -77,7 +78,8 @@ func (h *ReviewHandler) GetModelReviews(c *gin.Context) {
 	// 5. Используем ParsePagination
 	page, pageSize := ParsePagination(c)
 
-	reviews, err := h.reviewService.GetModelReviews(modelID, page, pageSize)
+	// ✅ DB: Используем h.GetDB(c)
+	reviews, err := h.reviewService.GetModelReviews(h.GetDB(c), modelID, page, pageSize)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -94,7 +96,8 @@ func (h *ReviewHandler) GetModelReviews(c *gin.Context) {
 func (h *ReviewHandler) GetModelRatingStats(c *gin.Context) {
 	modelID := c.Param("modelId")
 
-	stats, err := h.reviewService.GetModelRatingStats(modelID)
+	// ✅ DB: Используем h.GetDB(c)
+	stats, err := h.reviewService.GetModelRatingStats(h.GetDB(c), modelID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -106,7 +109,8 @@ func (h *ReviewHandler) GetModelRatingStats(c *gin.Context) {
 func (h *ReviewHandler) GetReviewSummary(c *gin.Context) {
 	modelID := c.Param("modelId")
 
-	summary, err := h.reviewService.GetReviewSummary(modelID)
+	// ✅ DB: Используем h.GetDB(c)
+	summary, err := h.reviewService.GetReviewSummary(h.GetDB(c), modelID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -133,7 +137,8 @@ func (h *ReviewHandler) CreateReview(c *gin.Context) {
 	// Set employer ID from context
 	req.EmployerID = employerID
 
-	review, err := h.reviewService.CreateReview(employerID, &req)
+	// ✅ DB: Используем h.GetDB(c)
+	review, err := h.reviewService.CreateReview(h.GetDB(c), employerID, &req)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -150,7 +155,8 @@ func (h *ReviewHandler) GetMyReviews(c *gin.Context) {
 
 	page, pageSize := ParsePagination(c)
 
-	reviews, err := h.reviewService.GetEmployerReviews(employerID, page, pageSize)
+	// ✅ DB: Используем h.GetDB(c)
+	reviews, err := h.reviewService.GetEmployerReviews(h.GetDB(c), employerID, page, pageSize)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -176,7 +182,8 @@ func (h *ReviewHandler) UpdateReview(c *gin.Context) {
 		return
 	}
 
-	if err := h.reviewService.UpdateReview(employerID, reviewID, &req); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.reviewService.UpdateReview(h.GetDB(c), employerID, reviewID, &req); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -191,7 +198,8 @@ func (h *ReviewHandler) DeleteReview(c *gin.Context) {
 	}
 	reviewID := c.Param("reviewId")
 
-	if err := h.reviewService.DeleteReview(employerID, reviewID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.reviewService.DeleteReview(h.GetDB(c), employerID, reviewID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -209,11 +217,12 @@ func (h *ReviewHandler) CanCreateReview(c *gin.Context) {
 
 	if modelID == "" || castingID == "" {
 		// 8. Используем appErrors
-		appErrors.HandleError(c, appErrors.NewBadRequestError("model_id and casting_id are required"))
+		apperrors.HandleError(c, apperrors.NewBadRequestError("model_id and casting_id are required"))
 		return
 	}
 
-	canCreate, err := h.reviewService.CanUserReview(employerID, modelID, castingID)
+	// ✅ DB: Используем h.GetDB(c)
+	canCreate, err := h.reviewService.CanUserReview(h.GetDB(c), employerID, modelID, castingID)
 	if err != nil {
 		// Особый случай: отправляем ошибку как часть ответа, а не как HTTP-ошибку
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -236,7 +245,8 @@ func (h *ReviewHandler) GetPlatformReviewStats(c *gin.Context) {
 		return
 	}
 
-	stats, err := h.reviewService.GetPlatformReviewStats()
+	// ✅ DB: Используем h.GetDB(c)
+	stats, err := h.reviewService.GetPlatformReviewStats(h.GetDB(c))
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -256,7 +266,8 @@ func (h *ReviewHandler) GetRecentReviews(c *gin.Context) {
 		limit = 20
 	}
 
-	reviews, err := h.reviewService.GetRecentReviews(limit)
+	// ✅ DB: Используем h.GetDB(c)
+	reviews, err := h.reviewService.GetRecentReviews(h.GetDB(c), limit)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return

@@ -42,7 +42,8 @@ func TestNotification_UserFlow(t *testing.T) {
 	userToken, user, _ := helpers.CreateAndLoginModel(t, ts, tx)
 
 	// 2. Действие: Проверка, что уведомлений нет (GET /unread-count)
-	res, bodyStr := ts.SendRequest(t, "GET", "/api/v1/notifications/unread-count", userToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "GET", "/api/v1/notifications/unread-count", userToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	var unreadResponse struct {
@@ -58,7 +59,8 @@ func TestNotification_UserFlow(t *testing.T) {
 	_ = CreateTestNotification(t, tx, user.ID, "Новое сообщение", "Вам пришло сообщение")
 
 	// 4. Действие: Проверяем непрочитанные (GET /unread-count)
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/notifications/unread-count", userToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/notifications/unread-count", userToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	err = json.Unmarshal([]byte(bodyStr), &unreadResponse)
 	assert.NoError(t, err)
@@ -66,7 +68,8 @@ func TestNotification_UserFlow(t *testing.T) {
 	t.Logf("УВЕДОМЛЕНИЯ: Непрочитанных - 2 (200) - Успешно.")
 
 	// 5. Действие: Получаем все уведомления (GET /)
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/notifications", userToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/notifications", userToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, "Новый отклик")
 	assert.Contains(t, bodyStr, "Новое сообщение")
@@ -82,13 +85,15 @@ func TestNotification_UserFlow(t *testing.T) {
 
 	// 6. Действие: Читаем первое уведомление (PUT /:id/read)
 	notificationID := notif1.ID
-	res, bodyStr = ts.SendRequest(t, "PUT", "/api/v1/notifications/"+notificationID+"/read", userToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "PUT", "/api/v1/notifications/"+notificationID+"/read", userToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, "Notification marked as read")
 	t.Logf("УВЕДОМЛЕНИЯ: Пометить прочитанным (200) - Успешно.")
 
 	// 7. Действие: Проверяем непрочитанные (GET /unread-count)
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/notifications/unread-count", userToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/notifications/unread-count", userToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	err = json.Unmarshal([]byte(bodyStr), &unreadResponse)
 	assert.NoError(t, err)
@@ -96,12 +101,14 @@ func TestNotification_UserFlow(t *testing.T) {
 	t.Logf("УВЕДОМЛЕНИЯ: Непрочитанных - 1 (200) - Успешно.")
 
 	// 8. Действие: Читаем все (PUT /read-all)
-	res, bodyStr = ts.SendRequest(t, "PUT", "/api/v1/notifications/read-all", userToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "PUT", "/api/v1/notifications/read-all", userToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	t.Logf("УВЕДОМЛЕНИЯ: Пометить все прочитанным (200) - Успешно.")
 
 	// 9. Действие: Проверяем непрочитанные (GET /unread-count)
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/notifications/unread-count", userToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/notifications/unread-count", userToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	err = json.Unmarshal([]byte(bodyStr), &unreadResponse)
 	assert.NoError(t, err)
@@ -109,12 +116,14 @@ func TestNotification_UserFlow(t *testing.T) {
 	t.Logf("УВЕДОМЛЕНИЯ: Непрочитанных - 0 (200) - Успешно.")
 
 	// 10. Действие: Удаляем одно (DELETE /:id)
-	res, bodyStr = ts.SendRequest(t, "DELETE", "/api/v1/notifications/"+notificationID, userToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "DELETE", "/api/v1/notifications/"+notificationID, userToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	t.Logf("УВЕДОМЛЕНИЯ: Удаление (200) - Успешно.")
 
 	// 11. Действие: Проверяем общее кол-во
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/notifications", userToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/notifications", userToken, nil)
 	err = json.Unmarshal([]byte(bodyStr), &getResponse)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, getResponse.Total, "Должно остаться 1 уведомление")
@@ -141,32 +150,37 @@ func TestNotification_Security(t *testing.T) {
 	notificationA := CreateTestNotification(t, tx, userA.ID, "Секрет", "Секретное сообщение")
 
 	// 2. Действие: Аноним пытается получить список
-	res, _ := ts.SendRequest(t, "GET", "/api/v1/notifications", "", nil)
+	// ❗️ Добавлен 'tx'
+	res, _ := ts.SendRequest(t, tx, "GET", "/api/v1/notifications", "", nil)
 	// 3. Проверка: (401 Unauthorized)
 	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	t.Logf("БЕЗОПАСНОСТЬ: Аноним не может читать список (401) - Успешно.")
 
 	// 2. Действие: Пользователь Б пытается прочитать уведомление А
-	res, _ = ts.SendRequest(t, "GET", "/api/v1/notifications/"+notificationA.ID, tokenB, nil)
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, "GET", "/api/v1/notifications/"+notificationA.ID, tokenB, nil)
 	// 3. Проверка: (404 Not Found)
 	// (Сервис не должен находить чужое уведомление)
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 	t.Logf("БЕЗОПАСНОСТЬ: Пользователь Б не может читать чужое уведомление (404) - Успешно.")
 
 	// 2. Действие: Пользователь Б пытается пометить прочитанным уведомление А
-	res, _ = ts.SendRequest(t, "PUT", "/api/v1/notifications/"+notificationA.ID+"/read", tokenB, nil)
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, "PUT", "/api/v1/notifications/"+notificationA.ID+"/read", tokenB, nil)
 	// 3. Проверка: (404 Not Found)
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 	t.Logf("БЕЗОПАСНОСТЬ: Пользователь Б не может читать чужое уведомление (404) - Успешно.")
 
 	// 2. Действие: Обычный юзер (Модель А) пытается получить доступ к роутам админа
-	res, _ = ts.SendRequest(t, "GET", "/admin/notifications", tokenA, nil)
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, "GET", "/admin/notifications", tokenA, nil)
 	// 3. Проверка: (403 Forbidden)
 	assert.Equal(t, http.StatusForbidden, res.StatusCode)
 	t.Logf("БЕЗОПАСНОСТЬ: Обычный юзер не может читать /admin/notifications (403) - Успешно.")
 
 	// 2. Действие: Админ получает доступ к /admin/notifications
-	res, bodyStr := ts.SendRequest(t, "GET", "/admin/notifications", adminToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "GET", "/admin/notifications", adminToken, nil)
 	// 3. Проверка: (200 OK)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, "Секретное сообщение") // Админ видит все
@@ -192,7 +206,8 @@ func TestNotification_Pagination(t *testing.T) {
 	}
 
 	// Тестируем пагинацию
-	res, bodyStr := ts.SendRequest(t, "GET", "/api/v1/notifications?page=1&limit=2", userToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "GET", "/api/v1/notifications?page=1&limit=2", userToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	var paginatedResponse struct {
@@ -225,7 +240,8 @@ func TestNotification_RealTime(t *testing.T) {
 
 	// Проверяем, что real-time endpoint доступен
 	// (это может быть WebSocket endpoint или long-polling)
-	res, _ := ts.SendRequest(t, "GET", "/api/v1/notifications/stream", userToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, _ := ts.SendRequest(t, tx, "GET", "/api/v1/notifications/stream", userToken, nil)
 
 	// В зависимости от реализации, это может быть:
 	// - 200 OK для long-polling
@@ -259,7 +275,8 @@ func TestNotification_MarkAllRead(t *testing.T) {
 	}
 
 	// Проверяем, что есть непрочитанные
-	res, bodyStr := ts.SendRequest(t, "GET", "/api/v1/notifications/unread-count", userToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "GET", "/api/v1/notifications/unread-count", userToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	var unreadResponse struct {
 		Count int `json:"unread_count"`
@@ -268,11 +285,13 @@ func TestNotification_MarkAllRead(t *testing.T) {
 	assert.Equal(t, 3, unreadResponse.Count)
 
 	// Помечаем все как прочитанные
-	res, bodyStr = ts.SendRequest(t, "PUT", "/api/v1/notifications/read-all", userToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "PUT", "/api/v1/notifications/read-all", userToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	// Проверяем, что непрочитанных не осталось
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/notifications/unread-count", userToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/notifications/unread-count", userToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	json.Unmarshal([]byte(bodyStr), &unreadResponse)
 	assert.Equal(t, 0, unreadResponse.Count)
@@ -294,7 +313,8 @@ func TestNotification_Filtering(t *testing.T) {
 	CreateTestNotification(t, tx, user.ID, "Чат уведомление", "Новое сообщение в чате")
 
 	// Тестируем фильтрацию по типу (если поддерживается API)
-	res, bodyStr := ts.SendRequest(t, "GET", "/api/v1/notifications", userToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "GET", "/api/v1/notifications", userToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, "Системное уведомление")
 	assert.Contains(t, bodyStr, "Чат уведомление")

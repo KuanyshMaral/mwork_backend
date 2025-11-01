@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"mwork_backend/internal/logger" // <-- Добавлен импорт
+	"mwork_backend/internal/logger"
 	"mwork_backend/internal/services"
 	"mwork_backend/internal/services/dto"
 	"net/http"
@@ -10,27 +10,48 @@ import (
 )
 
 type AuthHandler struct {
-	*BaseHandler // <-- 1. Встраиваем BaseHandler
-	authService  services.AuthService
+	*BaseHandler
+	authService services.AuthService
 }
 
-// 2. Обновляем конструктор
 func NewAuthHandler(base *BaseHandler, authService services.AuthService) *AuthHandler {
 	return &AuthHandler{
-		BaseHandler: base, // <-- 3. Сохраняем его
+		BaseHandler: base,
 		authService: authService,
 	}
 }
 
-func (h *AuthHandler) Register(c *gin.Context) {
-	var req dto.RegisterRequest
-	// 4. Используем BindAndValidate_JSON
-	if !h.BindAndValidate_JSON(c, &req) {
-		return // Ошибка уже залоггирована и отправлена
+// <-- ✅ ВОТ ИСПРАВЛЕНИЕ
+//
+// RegisterRoutes регистрирует все маршруты для аутентификации
+func (h *AuthHandler) RegisterRoutes(rg *gin.RouterGroup) {
+	// Создаем подгруппу /api/v1/auth
+	auth := rg.Group("/auth")
+	{
+		auth.POST("/register", h.Register)
+		auth.POST("/login", h.Login)
+		auth.POST("/refresh", h.RefreshToken)
+		auth.POST("/logout", h.Logout)
+		auth.POST("/verify-email", h.VerifyEmail)
+		auth.POST("/request-password-reset", h.RequestPasswordReset)
+		auth.POST("/reset-password", h.ResetPassword)
 	}
 
-	// 5. Используем HandleServiceError
-	err := h.authService.Register(&req)
+	// Примечание: h.GetCurrentUser не регистрируется здесь.
+	// Он, очевидно, требует аутентификации и должен быть частью
+	// другой группы (например, /profile или /users/me),
+	// которая уже защищена middleware.
+}
+
+func (h *AuthHandler) Register(c *gin.Context) {
+	var req dto.RegisterRequest
+	if !h.BindAndValidate_JSON(c, &req) {
+		return
+	}
+
+	db := h.GetDB(c)
+
+	err := h.authService.Register(db, &req)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -47,7 +68,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	response, err := h.authService.Login(&req)
+	db := h.GetDB(c)
+
+	response, err := h.authService.Login(db, &req)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -62,7 +85,9 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	response, err := h.authService.RefreshToken(req.RefreshToken)
+	db := h.GetDB(c)
+
+	response, err := h.authService.RefreshToken(db, req.RefreshToken)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -77,7 +102,9 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	if err := h.authService.Logout(req.RefreshToken); err != nil {
+	db := h.GetDB(c)
+
+	if err := h.authService.Logout(db, req.RefreshToken); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -93,7 +120,9 @@ func (h *AuthHandler) VerifyEmail(c *gin.Context) {
 		return
 	}
 
-	if err := h.authService.VerifyEmail(req.Token); err != nil {
+	db := h.GetDB(c)
+
+	if err := h.authService.VerifyEmail(db, req.Token); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -109,18 +138,15 @@ func (h *AuthHandler) RequestPasswordReset(c *gin.Context) {
 		return
 	}
 
-	// Особый случай: мы не хотим возвращать ошибку пользователю,
-	// но хотим ее залоггировать.
-	if err := h.authService.RequestPasswordReset(req.Email); err != nil {
-		// Не используем h.HandleServiceError, т.к. он отправит ответ.
-		// Логгируем вручную.
+	db := h.GetDB(c)
+
+	if err := h.authService.RequestPasswordReset(db, req.Email); err != nil {
 		logger.CtxWarn(c.Request.Context(), "Password reset request failed (hiding from user)",
 			"error", err.Error(),
 			"email", req.Email,
 		)
 	}
 
-	// Всегда возвращаем OK для безопасности
 	c.JSON(http.StatusOK, gin.H{
 		"message": "If the email exists, a password reset link has been sent",
 	})
@@ -132,7 +158,9 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	if err := h.authService.ResetPassword(req.Token, req.NewPassword); err != nil {
+	db := h.GetDB(c)
+
+	if err := h.authService.ResetPassword(db, req.Token, req.NewPassword); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -143,14 +171,13 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 }
 
 func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
-	// 6. Используем GetAndAuthorizeUserID
 	userID, ok := h.GetAndAuthorizeUserID(c)
 	if !ok {
-		return // Ошибка уже отправлена
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"id":   userID,
-		"role": c.GetString("role"), // c.GetString("role") по-прежнему безопасно
+		"role": c.GetString("role"),
 	})
 }

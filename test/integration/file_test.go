@@ -2,11 +2,13 @@ package integration_test
 
 import (
 	"bytes"
+	"context" // ❗️ ДОБАВЛЕН ИМПОРТ
 	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"mwork_backend/internal/models"
+	"mwork_backend/pkg/contextkeys" // ❗️ ДОБАВЛЕН ИМПОРТ
 	"mwork_backend/test/helpers"
 	"net/http"
 	"os"
@@ -16,6 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 // TestFileUploadSystem - comprehensive tests for the production-ready file upload system
@@ -23,7 +26,7 @@ func TestFileUploadSystem(t *testing.T) {
 	t.Parallel()
 
 	ts := GetTestServer(t)
-	tx := ts.BeginTransaction(t)
+	tx := ts.BeginTransaction(t) // ❗️ Транзакция
 	defer ts.RollbackTransaction(t, tx)
 
 	// Create test users
@@ -57,6 +60,10 @@ func TestFileUploadSystem(t *testing.T) {
 		url := ts.Server.URL + "/api/v1/uploads"
 		req, err := http.NewRequest(http.MethodPost, url, body)
 		require.NoError(t, err)
+
+		// ❗️ Внедряем транзакцию в контекст
+		ctx := context.WithValue(req.Context(), contextkeys.DBContextKey, tx)
+		req = req.WithContext(ctx)
 
 		req.Header.Set("Authorization", "Bearer "+modelToken)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -105,6 +112,11 @@ func TestFileUploadSystem(t *testing.T) {
 
 		url := ts.Server.URL + "/api/v1/uploads"
 		req, _ := http.NewRequest(http.MethodPost, url, body)
+
+		// ❗️ Внедряем транзакцию в контекст
+		ctx := context.WithValue(req.Context(), contextkeys.DBContextKey, tx)
+		req = req.WithContext(ctx)
+
 		req.Header.Set("Authorization", "Bearer "+modelToken)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 
@@ -133,6 +145,11 @@ func TestFileUploadSystem(t *testing.T) {
 
 		url := ts.Server.URL + "/api/v1/uploads"
 		req, _ := http.NewRequest(http.MethodPost, url, body)
+
+		// ❗️ Внедряем транзакцию в контекст
+		ctx := context.WithValue(req.Context(), contextkeys.DBContextKey, tx)
+		req = req.WithContext(ctx)
+
 		req.Header.Set("Authorization", "Bearer "+modelToken)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 
@@ -146,7 +163,8 @@ func TestFileUploadSystem(t *testing.T) {
 
 	t.Run("Storage Quota Check", func(t *testing.T) {
 		// Get current storage usage
-		res, bodyStr := ts.SendRequest(t, http.MethodGet, "/api/v1/uploads/storage/usage", modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, "/api/v1/uploads/storage/usage", modelToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 
 		var usage map[string]interface{}
@@ -163,14 +181,17 @@ func TestFileUploadSystem(t *testing.T) {
 	t.Run("File Serving and Download", func(t *testing.T) {
 		// First upload a file
 		imageData := createTestImage(t, 400, 300)
-		uploadID := uploadTestFile(t, ts, modelToken, modelProfile.ID, "test-download.jpg", imageData)
+		// ❗️ Добавлен 'tx'
+		uploadID := uploadTestFile(t, ts, tx, modelToken, modelProfile.ID, "test-download.jpg", imageData)
 
 		// Test public file access (no auth required)
-		res, _ := ts.SendRequest(t, http.MethodGet, "/api/v1/files/"+uploadID, "", nil)
+		// ❗️ Добавлен 'tx'
+		res, _ := ts.SendRequest(t, tx, http.MethodGet, "/api/v1/files/"+uploadID, "", nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 
 		// Test file metadata retrieval
-		res, bodyStr := ts.SendRequest(t, http.MethodGet, "/api/v1/uploads/"+uploadID, modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, "/api/v1/uploads/"+uploadID, modelToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Contains(t, bodyStr, uploadID)
 	})
@@ -192,6 +213,11 @@ func TestFileUploadSystem(t *testing.T) {
 
 		url := ts.Server.URL + "/api/v1/uploads"
 		req, _ := http.NewRequest(http.MethodPost, url, body)
+
+		// ❗️ Внедряем транзакцию в контекст
+		ctx := context.WithValue(req.Context(), contextkeys.DBContextKey, tx)
+		req = req.WithContext(ctx)
+
 		req.Header.Set("Authorization", "Bearer "+modelToken)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 
@@ -204,25 +230,30 @@ func TestFileUploadSystem(t *testing.T) {
 		json.Unmarshal(resBody, &upload)
 
 		// Owner can access
-		res, _ = ts.SendRequest(t, http.MethodGet, "/api/v1/files/"+upload.ID, modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/files/"+upload.ID, modelToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 
 		// Non-owner cannot access private file
-		res, _ = ts.SendRequest(t, http.MethodGet, "/api/v1/files/"+upload.ID, empToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/files/"+upload.ID, empToken, nil)
 		assert.Equal(t, http.StatusForbidden, res.StatusCode)
 
 		// Unauthenticated cannot access
-		res, _ = ts.SendRequest(t, http.MethodGet, "/api/v1/files/"+upload.ID, "", nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/files/"+upload.ID, "", nil)
 		assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	})
 
 	t.Run("Signed URLs for Temporary Access", func(t *testing.T) {
 		// Upload a private file
 		imageData := createTestImage(t, 150, 150)
-		uploadID := uploadTestFile(t, ts, modelToken, modelProfile.ID, "signed-url-test.jpg", imageData)
+		// ❗️ Добавлен 'tx'
+		uploadID := uploadTestFile(t, ts, tx, modelToken, modelProfile.ID, "signed-url-test.jpg", imageData)
 
 		// Request a signed URL
-		res, bodyStr := ts.SendRequest(t, http.MethodPost,
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodPost,
 			fmt.Sprintf("/api/v1/files/%s/signed-url", uploadID),
 			modelToken,
 			gin.H{"expires_in": 3600})
@@ -247,12 +278,14 @@ func TestFileUploadSystem(t *testing.T) {
 		uploadIDs := make([]string, 3)
 		for i := 0; i < 3; i++ {
 			imageData := createTestImage(t, 100+i*50, 100+i*50)
-			uploadIDs[i] = uploadTestFile(t, ts, modelToken, modelProfile.ID,
+			// ❗️ Добавлен 'tx'
+			uploadIDs[i] = uploadTestFile(t, ts, tx, modelToken, modelProfile.ID,
 				fmt.Sprintf("bulk-test-%d.jpg", i), imageData)
 		}
 
 		// Get all user uploads
-		res, bodyStr := ts.SendRequest(t, http.MethodGet, "/api/v1/uploads/user/me", modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, "/api/v1/uploads/user/me", modelToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 
 		// Verify all uploads are returned
@@ -261,17 +294,20 @@ func TestFileUploadSystem(t *testing.T) {
 		}
 
 		// Delete one file
-		res, _ = ts.SendRequest(t, http.MethodDelete, "/api/v1/uploads/"+uploadIDs[0], modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodDelete, "/api/v1/uploads/"+uploadIDs[0], modelToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 
 		// Verify it's deleted
-		res, _ = ts.SendRequest(t, http.MethodGet, "/api/v1/uploads/"+uploadIDs[0], modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/uploads/"+uploadIDs[0], modelToken, nil)
 		assert.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
 	t.Run("Admin File Management", func(t *testing.T) {
 		// Get system-wide upload stats
-		res, bodyStr := ts.SendRequest(t, http.MethodGet, "/api/v1/admin/uploads/stats", adminToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, "/api/v1/admin/uploads/stats", adminToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 
 		var stats map[string]interface{}
@@ -283,43 +319,52 @@ func TestFileUploadSystem(t *testing.T) {
 		assert.Contains(t, stats, "by_type")
 
 		// Non-admin cannot access
-		res, _ = ts.SendRequest(t, http.MethodGet, "/api/v1/admin/uploads/stats", modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/admin/uploads/stats", modelToken, nil)
 		assert.Equal(t, http.StatusForbidden, res.StatusCode)
 
 		// Clean orphaned files
-		res, _ = ts.SendRequest(t, http.MethodPost, "/api/v1/admin/uploads/clean-orphaned", adminToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodPost, "/api/v1/admin/uploads/clean-orphaned", adminToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 	})
 
 	t.Run("File Deletion Cascade", func(t *testing.T) {
 		// Upload a file
 		imageData := createTestImage(t, 200, 200)
-		uploadID := uploadTestFile(t, ts, modelToken, modelProfile.ID, "cascade-test.jpg", imageData)
+		// ❗️ Добавлен 'tx'
+		uploadID := uploadTestFile(t, ts, tx, modelToken, modelProfile.ID, "cascade-test.jpg", imageData)
 
 		// Verify file exists
-		res, _ := ts.SendRequest(t, http.MethodGet, "/api/v1/uploads/"+uploadID, modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ := ts.SendRequest(t, tx, http.MethodGet, "/api/v1/uploads/"+uploadID, modelToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 
 		// Delete the file
-		res, _ = ts.SendRequest(t, http.MethodDelete, "/api/v1/uploads/"+uploadID, modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodDelete, "/api/v1/uploads/"+uploadID, modelToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 
 		// Verify file is deleted from database
-		res, _ = ts.SendRequest(t, http.MethodGet, "/api/v1/uploads/"+uploadID, modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/uploads/"+uploadID, modelToken, nil)
 		assert.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
 	t.Run("Security - Unauthorized Access", func(t *testing.T) {
 		// Upload file as model
 		imageData := createTestImage(t, 150, 150)
-		uploadID := uploadTestFile(t, ts, modelToken, modelProfile.ID, "security-test.jpg", imageData)
+		// ❗️ Добавлен 'tx'
+		uploadID := uploadTestFile(t, ts, tx, modelToken, modelProfile.ID, "security-test.jpg", imageData)
 
 		// Employer tries to delete model's file
-		res, _ := ts.SendRequest(t, http.MethodDelete, "/api/v1/uploads/"+uploadID, empToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ := ts.SendRequest(t, tx, http.MethodDelete, "/api/v1/uploads/"+uploadID, empToken, nil)
 		assert.Equal(t, http.StatusForbidden, res.StatusCode)
 
 		// Verify file still exists
-		res, _ = ts.SendRequest(t, http.MethodGet, "/api/v1/uploads/"+uploadID, modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/uploads/"+uploadID, modelToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 	})
 
@@ -333,6 +378,11 @@ func TestFileUploadSystem(t *testing.T) {
 
 		url := ts.Server.URL + "/api/v1/uploads"
 		req, _ := http.NewRequest(http.MethodPost, url, body)
+
+		// ❗️ Внедряем транзакцию в контекст
+		ctx := context.WithValue(req.Context(), contextkeys.DBContextKey, tx)
+		req = req.WithContext(ctx)
+
 		req.Header.Set("Authorization", "Bearer "+modelToken)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 
@@ -359,6 +409,11 @@ func TestFileUploadSystem(t *testing.T) {
 
 		url := ts.Server.URL + "/api/v1/uploads"
 		req, _ := http.NewRequest(http.MethodPost, url, body)
+
+		// ❗️ Внедряем транзакцию в контекст
+		ctx := context.WithValue(req.Context(), contextkeys.DBContextKey, tx)
+		req = req.WithContext(ctx)
+
 		req.Header.Set("Authorization", "Bearer "+modelToken)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 
@@ -401,6 +456,11 @@ func TestFileUpload_Concurrent(t *testing.T) {
 
 			url := ts.Server.URL + "/api/v1/uploads"
 			req, _ := http.NewRequest(http.MethodPost, url, body)
+
+			// ❗️ Внедряем транзакцию в контекст
+			ctx := context.WithValue(req.Context(), contextkeys.DBContextKey, tx)
+			req = req.WithContext(ctx)
+
 			req.Header.Set("Authorization", "Bearer "+modelToken)
 			req.Header.Set("Content-Type", writer.FormDataContentType())
 
@@ -461,7 +521,8 @@ func createTestImage(t *testing.T, width, height int) []byte {
 }
 
 // uploadTestFile is a helper to upload a file and return its ID
-func uploadTestFile(t *testing.T, ts *helpers.TestServer, token, entityID, filename string, data []byte) string {
+// ❗️ Добавлен 'tx *gorm.DB'
+func uploadTestFile(t *testing.T, ts *helpers.TestServer, tx *gorm.DB, token, entityID, filename string, data []byte) string {
 	t.Helper()
 
 	body := new(bytes.Buffer)
@@ -482,6 +543,10 @@ func uploadTestFile(t *testing.T, ts *helpers.TestServer, token, entityID, filen
 	url := ts.Server.URL + "/api/v1/uploads"
 	req, err := http.NewRequest(http.MethodPost, url, body)
 	require.NoError(t, err)
+
+	// ❗️ Внедряем транзакцию в контекст
+	ctx := context.WithValue(req.Context(), contextkeys.DBContextKey, tx)
+	req = req.WithContext(ctx)
 
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -512,10 +577,12 @@ func TestFileUpload_ImageVariants(t *testing.T) {
 
 	// Upload an image
 	imageData := createTestImage(t, 1920, 1080)
-	uploadID := uploadTestFile(t, ts, modelToken, modelProfile.ID, "variants-test.jpg", imageData)
+	// ❗️ Добавлен 'tx'
+	uploadID := uploadTestFile(t, ts, tx, modelToken, modelProfile.ID, "variants-test.jpg", imageData)
 
 	// Get upload details
-	res, bodyStr := ts.SendRequest(t, http.MethodGet, "/api/v1/uploads/"+uploadID, modelToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, "/api/v1/uploads/"+uploadID, modelToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	var upload models.Upload

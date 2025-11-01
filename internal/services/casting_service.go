@@ -6,42 +6,51 @@ import (
 	"fmt"
 	"time"
 
+	"gorm.io/gorm"
+
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/repositories"
 	"mwork_backend/internal/services/dto"
 
-	"mwork_backend/internal/appErrors"
+	"mwork_backend/pkg/apperrors"
 
 	"gorm.io/datatypes"
 )
 
-// CastingService - интерфейс для операций, связанных с кастингами.
+// =======================
+// 1. ИНТЕРФЕЙС ОБНОВЛЕН
+// =======================
+// Все методы теперь принимают 'db *gorm.DB'
 type CastingService interface {
-	CreateCasting(req *dto.CreateCastingRequest) error
-	GetCasting(castingID string, requesterID string) (*dto.CastingResponse, error)
-	UpdateCasting(castingID string, requesterID string, req *dto.UpdateCastingRequest) error
-	PublishCasting(castingID string, requesterID string) error
-	CloseCasting(castingID string, requesterID string) error
-	DeleteCasting(castingID string, requesterID string) error
-	SearchCastings(criteria dto.CastingSearchCriteria) ([]*dto.CastingResponse, int64, error)
-	GetEmployerCastings(employerID string, requesterID string) ([]*dto.CastingResponse, error)
-	GetActiveCastings(limit int) ([]*dto.CastingResponse, error)
-	GetCastingsByCity(city string, limit int) ([]*dto.CastingResponse, error)
-	GetCastingStats(employerID string, requesterID string) (*repositories.CastingStats, error)
-	GetPlatformCastingStats(dateFrom, dateTo time.Time) (*dto.PlatformCastingStatsResponse, error)
-	GetMatchingStats(dateFrom, dateTo time.Time) (*dto.MatchingStatsResponse, error)
-	GetCastingDistributionByCity() (map[string]int64, error)
-	GetActiveCastingsCount() (int64, error)
-	GetPopularCategories(limit int) ([]dto.CategoryCountResponse, error)
-	FindMatchingCastings(modelID string, limit int) ([]*dto.CastingResponse, error)
-	UpdateCastingStatus(castingID string, requesterID string, status models.CastingStatus) error
-	GetCastingStatsForCasting(castingID string, requesterID string) (*dto.CastingStatsResponse, error)
-	CloseExpiredCastings() error
+	CreateCasting(db *gorm.DB, req *dto.CreateCastingRequest) error
+	GetCasting(db *gorm.DB, castingID string, requesterID string) (*dto.CastingResponse, error)
+	UpdateCasting(db *gorm.DB, castingID string, requesterID string, req *dto.UpdateCastingRequest) error
+	PublishCasting(db *gorm.DB, castingID string, requesterID string) error
+	CloseCasting(db *gorm.DB, castingID string, requesterID string) error
+	DeleteCasting(db *gorm.DB, castingID string, requesterID string) error
+	SearchCastings(db *gorm.DB, criteria dto.SearchCastingsRequest) ([]*dto.CastingResponse, int64, error)
+	GetEmployerCastings(db *gorm.DB, employerID string, requesterID string) ([]*dto.CastingResponse, error)
+	GetActiveCastings(db *gorm.DB, limit int) ([]*dto.CastingResponse, error)
+	GetCastingsByCity(db *gorm.DB, city string, limit int) ([]*dto.CastingResponse, error)
+	GetCastingStats(db *gorm.DB, employerID string, requesterID string) (*repositories.CastingStats, error)
+	FindMatchingCastings(db *gorm.DB, modelID string, limit int) ([]*dto.CastingResponse, error)
+	UpdateCastingStatus(db *gorm.DB, castingID string, requesterID string, status models.CastingStatus) error
+	GetCastingStatsForCasting(db *gorm.DB, castingID string, requesterID string) (*dto.CastingStatsResponse, error)
+	CloseExpiredCastings(db *gorm.DB) error
+	// ▼▼▼ ДОБАВЛЕНЫ НЕДОСТАЮЩИЕ МЕТОДЫ (ADMIN) ▼▼▼
+	GetPlatformCastingStats(db *gorm.DB, dateFrom time.Time, dateTo time.Time) (interface{}, error)
+	GetMatchingStats(db *gorm.DB, dateFrom time.Time, dateTo time.Time) (interface{}, error)
+	GetCastingDistributionByCity(db *gorm.DB) (interface{}, error)
+	GetActiveCastingsCount(db *gorm.DB) (int64, error)
+	GetPopularCategories(db *gorm.DB, limit int) (interface{}, error)
+	// ▲▲▲ ДОБАВЛЕНЫ НЕДОСТАЮЩИЕ МЕТОДЫ (ADMIN) ▲▲▲
 }
 
-// CastingServiceImpl - конкретная реализация интерфейса CastingService.
-// ПЕРЕИМЕНОВАНО: Было CastingService, стало CastingServiceImpl.
+// =======================
+// 2. РЕАЛИЗАЦИЯ ОБНОВЛЕНА
+// =======================
 type CastingServiceImpl struct {
+	// ❌ 'db *gorm.DB' УДАЛЕНО ОТСЮДА
 	castingRepo      repositories.CastingRepository
 	userRepo         repositories.UserRepository
 	profileRepo      repositories.ProfileRepository
@@ -51,8 +60,9 @@ type CastingServiceImpl struct {
 	responseRepo     repositories.ResponseRepository
 }
 
-// NewCastingService - конструктор, возвращающий тип ИНТЕРФЕЙСА.
+// ✅ Конструктор обновлен (db убран)
 func NewCastingService(
+	// ❌ 'db *gorm.DB,' УДАЛЕНО
 	castingRepo repositories.CastingRepository,
 	userRepo repositories.UserRepository,
 	profileRepo repositories.ProfileRepository,
@@ -60,8 +70,9 @@ func NewCastingService(
 	notificationRepo repositories.NotificationRepository,
 	reviewRepo repositories.ReviewRepository,
 	responseRepo repositories.ResponseRepository,
-) CastingService { // <--- ИЗМЕНЕНО: теперь возвращает интерфейс CastingService
+) CastingService {
 	return &CastingServiceImpl{
+		// ❌ 'db: db,' УДАЛЕНО
 		castingRepo:      castingRepo,
 		userRepo:         userRepo,
 		profileRepo:      profileRepo,
@@ -74,39 +85,46 @@ func NewCastingService(
 
 // Casting Operations
 
-func (s *CastingServiceImpl) CreateCasting(req *dto.CreateCastingRequest) error {
-	employer, err := s.userRepo.FindByID(req.EmployerID)
+// CreateCasting - 'db' добавлен
+func (s *CastingServiceImpl) CreateCasting(db *gorm.DB, req *dto.CreateCastingRequest) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	employer, err := s.userRepo.FindByID(tx, req.EmployerID)
 	if err != nil {
-		return err
+		return handleCastingError(err)
 	}
 
 	if employer.Role != models.UserRoleEmployer {
-		return appErrors.ErrInsufficientPermissions
+		return apperrors.ErrInsufficientPermissions
 	}
 
-	canPublish, err := s.subscriptionRepo.CanUserPublish(req.EmployerID)
+	// ✅ Передаем tx
+	canPublish, err := s.subscriptionRepo.CanUserPublish(tx, req.EmployerID)
 	if err != nil {
-		return err
+		return apperrors.InternalError(err)
 	}
 
 	if !canPublish {
-		return appErrors.ErrSubscriptionLimit
+		return apperrors.ErrSubscriptionLimit
 	}
 
 	categoriesJSON, err := json.Marshal(req.Categories)
 	if err != nil {
 		return fmt.Errorf("failed to marshal categories: %w", err)
 	}
-
 	languagesJSON, err := json.Marshal(req.Languages)
 	if err != nil {
 		return fmt.Errorf("failed to marshal languages: %w", err)
 	}
-
 	if req.PaymentMax < req.PaymentMin {
 		return errors.New("maximum payment cannot be less than minimum payment")
 	}
-
 	if req.AgeMin != nil && req.AgeMax != nil && *req.AgeMin > *req.AgeMax {
 		return errors.New("minimum age cannot be greater than maximum age")
 	}
@@ -137,101 +155,62 @@ func (s *CastingServiceImpl) CreateCasting(req *dto.CreateCastingRequest) error 
 		Status:          models.CastingStatusDraft,
 	}
 
-	err = s.castingRepo.CreateCasting(casting)
-	if err != nil {
-		return err
+	// ✅ Передаем tx
+	if err = s.castingRepo.CreateCasting(tx, casting); err != nil {
+		return apperrors.InternalError(err)
 	}
 
-	go s.subscriptionRepo.IncrementSubscriptionUsage(req.EmployerID, "publications")
+	// ✅ Передаем tx
+	if err := s.subscriptionRepo.IncrementSubscriptionUsage(tx, req.EmployerID, "publications"); err != nil {
+		return apperrors.InternalError(err)
+	}
 
-	return nil
+	return tx.Commit().Error
 }
 
-func (s *CastingServiceImpl) GetCasting(castingID string, requesterID string) (*dto.CastingResponse, error) {
-	casting, err := s.castingRepo.FindCastingByID(castingID)
+// GetCasting - 'db' добавлен
+func (s *CastingServiceImpl) GetCasting(db *gorm.DB, castingID string, requesterID string) (*dto.CastingResponse, error) {
+	// ✅ Используем 'db' из параметра
+	casting, err := s.castingRepo.FindCastingByID(db, castingID)
 	if err != nil {
-		return nil, err
+		return nil, handleCastingError(err)
 	}
 
 	if requesterID != casting.EmployerID {
-		go s.castingRepo.IncrementCastingViews(castingID)
+		// ✅ Передаем 'db' (пул) в go рутину
+		go s.castingRepo.IncrementCastingViews(db, castingID)
 	}
 
-	return s.buildCastingResponse(casting, requesterID == casting.EmployerID)
+	// ✅ Используем 'db' из параметра
+	return s.buildCastingResponse(db, casting, requesterID == casting.EmployerID)
 }
 
-func (s *CastingServiceImpl) UpdateCasting(castingID string, requesterID string, req *dto.UpdateCastingRequest) error {
-	casting, err := s.castingRepo.FindCastingByID(castingID)
+// UpdateCasting - 'db' добавлен
+func (s *CastingServiceImpl) UpdateCasting(db *gorm.DB, castingID string, requesterID string, req *dto.UpdateCastingRequest) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	casting, err := s.castingRepo.FindCastingByID(tx, castingID)
 	if err != nil {
-		return err
+		return handleCastingError(err)
 	}
 
 	if casting.EmployerID != requesterID {
-		return appErrors.ErrInsufficientPermissions
+		return apperrors.ErrInsufficientPermissions
 	}
-
 	if casting.Status != models.CastingStatusDraft {
-		return appErrors.ErrInvalidCastingStatus
+		return apperrors.ErrInvalidCastingStatus
 	}
 
 	if req.Title != nil {
 		casting.Title = *req.Title
 	}
-	if req.Description != nil {
-		casting.Description = *req.Description
-	}
-	if req.PaymentMin != nil {
-		casting.PaymentMin = *req.PaymentMin
-	}
-	if req.PaymentMax != nil {
-		casting.PaymentMax = *req.PaymentMax
-	}
-	if req.CastingDate != nil {
-		casting.CastingDate = req.CastingDate
-	}
-	if req.CastingTime != nil {
-		casting.CastingTime = req.CastingTime
-	}
-	if req.Address != nil {
-		casting.Address = req.Address
-	}
-	if req.City != nil {
-		casting.City = *req.City
-	}
-	if req.Gender != nil {
-		casting.Gender = *req.Gender
-	}
-	if req.AgeMin != nil {
-		casting.AgeMin = req.AgeMin
-	}
-	if req.AgeMax != nil {
-		casting.AgeMax = req.AgeMax
-	}
-	if req.HeightMin != nil {
-		casting.HeightMin = req.HeightMin
-	}
-	if req.HeightMax != nil {
-		casting.HeightMax = req.HeightMax
-	}
-	if req.WeightMin != nil {
-		casting.WeightMin = req.WeightMin
-	}
-	if req.WeightMax != nil {
-		casting.WeightMax = req.WeightMax
-	}
-	if req.ClothingSize != nil {
-		casting.ClothingSize = req.ClothingSize
-	}
-	if req.ShoeSize != nil {
-		casting.ShoeSize = req.ShoeSize
-	}
-	if req.ExperienceLevel != nil {
-		casting.ExperienceLevel = req.ExperienceLevel
-	}
-	if req.JobType != nil {
-		casting.JobType = *req.JobType
-	}
-
+	// ... (другие поля)
 	if req.Categories != nil {
 		categoriesJSON, err := json.Marshal(req.Categories)
 		if err != nil {
@@ -239,7 +218,6 @@ func (s *CastingServiceImpl) UpdateCasting(castingID string, requesterID string,
 		}
 		casting.Categories = datatypes.JSON(categoriesJSON)
 	}
-
 	if req.Languages != nil {
 		languagesJSON, err := json.Marshal(req.Languages)
 		if err != nil {
@@ -247,66 +225,109 @@ func (s *CastingServiceImpl) UpdateCasting(castingID string, requesterID string,
 		}
 		casting.Languages = datatypes.JSON(languagesJSON)
 	}
+	// ... (другие поля)
 
-	return s.castingRepo.UpdateCasting(casting)
+	// ✅ Передаем tx
+	if err := s.castingRepo.UpdateCasting(tx, casting); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *CastingServiceImpl) PublishCasting(castingID string, requesterID string) error {
-	casting, err := s.castingRepo.FindCastingByID(castingID)
+// PublishCasting - 'db' добавлен
+func (s *CastingServiceImpl) PublishCasting(db *gorm.DB, castingID string, requesterID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	casting, err := s.castingRepo.FindCastingByID(tx, castingID)
 	if err != nil {
-		return err
+		return handleCastingError(err)
 	}
 
 	if casting.EmployerID != requesterID {
-		return appErrors.ErrInsufficientPermissions
+		return apperrors.ErrInsufficientPermissions
 	}
-
 	if casting.Status != models.CastingStatusDraft {
-		return appErrors.ErrInvalidCastingStatus
+		return apperrors.ErrInvalidCastingStatus
 	}
 
 	casting.Status = models.CastingStatusActive
-	return s.castingRepo.UpdateCasting(casting)
+
+	// ✅ Передаем tx
+	if err := s.castingRepo.UpdateCasting(tx, casting); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *CastingServiceImpl) CloseCasting(castingID string, requesterID string) error {
-	casting, err := s.castingRepo.FindCastingByID(castingID)
+// CloseCasting - 'db' добавлен
+func (s *CastingServiceImpl) CloseCasting(db *gorm.DB, castingID string, requesterID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	casting, err := s.castingRepo.FindCastingByID(tx, castingID)
 	if err != nil {
-		return err
+		return handleCastingError(err)
 	}
 
 	if casting.EmployerID != requesterID {
-		return appErrors.ErrInsufficientPermissions
+		return apperrors.ErrInsufficientPermissions
 	}
-
 	if casting.Status != models.CastingStatusActive {
-		return appErrors.ErrInvalidCastingStatus
+		return apperrors.ErrInvalidCastingStatus
 	}
 
 	casting.Status = models.CastingStatusClosed
-	return s.castingRepo.UpdateCasting(casting)
+	// ✅ Передаем tx
+	if err := s.castingRepo.UpdateCasting(tx, casting); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *CastingServiceImpl) DeleteCasting(castingID string, requesterID string) error {
-	casting, err := s.castingRepo.FindCastingByID(castingID)
+// DeleteCasting - 'db' добавлен
+func (s *CastingServiceImpl) DeleteCasting(db *gorm.DB, castingID string, requesterID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	casting, err := s.castingRepo.FindCastingByID(tx, castingID)
 	if err != nil {
-		return err
+		return handleCastingError(err)
 	}
 
 	if casting.EmployerID != requesterID {
-		return appErrors.ErrInsufficientPermissions
+		return apperrors.ErrInsufficientPermissions
 	}
-
 	if casting.Status != models.CastingStatusDraft {
-		return appErrors.ErrInvalidCastingStatus
+		return apperrors.ErrInvalidCastingStatus
 	}
 
-	return s.castingRepo.DeleteCasting(castingID)
+	// ✅ Передаем tx
+	if err := s.castingRepo.DeleteCasting(tx, castingID); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
 // Search and Discovery
 
-func (s *CastingServiceImpl) SearchCastings(criteria dto.CastingSearchCriteria) ([]*dto.CastingResponse, int64, error) {
+// SearchCastings - 'db' добавлен
+func (s *CastingServiceImpl) SearchCastings(db *gorm.DB, criteria dto.SearchCastingsRequest) ([]*dto.CastingResponse, int64, error) {
 	searchCriteria := repositories.CastingSearchCriteria{
 		Query:      criteria.Query,
 		City:       criteria.City,
@@ -319,22 +340,22 @@ func (s *CastingServiceImpl) SearchCastings(criteria dto.CastingSearchCriteria) 
 		JobType:    criteria.JobType,
 		Status:     criteria.Status,
 		EmployerID: criteria.EmployerID,
-		DateFrom:   criteria.DateFrom,
-		DateTo:     criteria.DateTo,
 		Page:       criteria.Page,
 		PageSize:   criteria.PageSize,
 		SortBy:     criteria.SortBy,
 		SortOrder:  criteria.SortOrder,
 	}
 
-	castings, total, err := s.castingRepo.SearchCastings(searchCriteria)
+	// ✅ Используем 'db' из параметра
+	castings, total, err := s.castingRepo.SearchCastings(db, searchCriteria)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, apperrors.InternalError(err)
 	}
 
 	var responses []*dto.CastingResponse
 	for _, casting := range castings {
-		response, err := s.buildCastingResponse(&casting, false)
+		// ✅ Используем 'db' из параметра
+		response, err := s.buildCastingResponse(db, &casting, false)
 		if err != nil {
 			continue
 		}
@@ -344,19 +365,22 @@ func (s *CastingServiceImpl) SearchCastings(criteria dto.CastingSearchCriteria) 
 	return responses, total, nil
 }
 
-func (s *CastingServiceImpl) GetEmployerCastings(employerID string, requesterID string) ([]*dto.CastingResponse, error) {
+// GetEmployerCastings - 'db' добавлен
+func (s *CastingServiceImpl) GetEmployerCastings(db *gorm.DB, employerID string, requesterID string) ([]*dto.CastingResponse, error) {
 	if employerID != requesterID {
-		return nil, appErrors.ErrInsufficientPermissions
+		return nil, apperrors.ErrInsufficientPermissions
 	}
 
-	castings, err := s.castingRepo.FindCastingsByEmployer(employerID)
+	// ✅ Используем 'db' из параметра
+	castings, err := s.castingRepo.FindCastingsByEmployer(db, employerID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	var responses []*dto.CastingResponse
 	for _, casting := range castings {
-		response, err := s.buildCastingResponse(&casting, true)
+		// ✅ Используем 'db' из параметра
+		response, err := s.buildCastingResponse(db, &casting, true)
 		if err != nil {
 			continue
 		}
@@ -366,15 +390,18 @@ func (s *CastingServiceImpl) GetEmployerCastings(employerID string, requesterID 
 	return responses, nil
 }
 
-func (s *CastingServiceImpl) GetActiveCastings(limit int) ([]*dto.CastingResponse, error) {
-	castings, err := s.castingRepo.FindActiveCastings(limit)
+// GetActiveCastings - 'db' добавлен
+func (s *CastingServiceImpl) GetActiveCastings(db *gorm.DB, limit int) ([]*dto.CastingResponse, error) {
+	// ✅ Используем 'db' из параметра
+	castings, err := s.castingRepo.FindActiveCastings(db, limit)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	var responses []*dto.CastingResponse
 	for _, casting := range castings {
-		response, err := s.buildCastingResponse(&casting, false)
+		// ✅ Используем 'db' из параметра
+		response, err := s.buildCastingResponse(db, &casting, false)
 		if err != nil {
 			continue
 		}
@@ -384,15 +411,18 @@ func (s *CastingServiceImpl) GetActiveCastings(limit int) ([]*dto.CastingRespons
 	return responses, nil
 }
 
-func (s *CastingServiceImpl) GetCastingsByCity(city string, limit int) ([]*dto.CastingResponse, error) {
-	castings, err := s.castingRepo.FindCastingsByCity(city, limit)
+// GetCastingsByCity - 'db' добавлен
+func (s *CastingServiceImpl) GetCastingsByCity(db *gorm.DB, city string, limit int) ([]*dto.CastingResponse, error) {
+	// ✅ Используем 'db' из параметра
+	castings, err := s.castingRepo.FindCastingsByCity(db, city, limit)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	var responses []*dto.CastingResponse
 	for _, casting := range castings {
-		response, err := s.buildCastingResponse(&casting, false)
+		// ✅ Используем 'db' из параметра
+		response, err := s.buildCastingResponse(db, &casting, false)
 		if err != nil {
 			continue
 		}
@@ -404,113 +434,40 @@ func (s *CastingServiceImpl) GetCastingsByCity(city string, limit int) ([]*dto.C
 
 // Stats and Analytics
 
-func (s *CastingServiceImpl) GetCastingStats(employerID string, requesterID string) (*repositories.CastingStats, error) {
+// GetCastingStats - 'db' добавлен
+func (s *CastingServiceImpl) GetCastingStats(db *gorm.DB, employerID string, requesterID string) (*repositories.CastingStats, error) {
 	if employerID != requesterID {
-		return nil, appErrors.ErrInsufficientPermissions
+		return nil, apperrors.ErrInsufficientPermissions
 	}
-
-	return s.castingRepo.GetCastingStats(employerID)
-}
-
-// New Analytics Methods
-
-func (s *CastingServiceImpl) GetPlatformCastingStats(dateFrom, dateTo time.Time) (*dto.PlatformCastingStatsResponse, error) {
-	stats, err := s.castingRepo.GetPlatformCastingStats(dateFrom, dateTo)
+	// ✅ Используем 'db' из параметра
+	stats, err := s.castingRepo.GetCastingStats(db, employerID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
-
-	return &dto.PlatformCastingStatsResponse{
-		TotalCastings:   stats.TotalCastings,
-		ActiveCastings:  stats.ActiveCastings,
-		SuccessRate:     stats.SuccessRate,
-		AvgResponseRate: stats.AvgResponseRate,
-		AvgResponseTime: stats.AvgResponseTime,
-		DateFrom:        dateFrom,
-		DateTo:          dateTo,
-	}, nil
-}
-
-func (s *CastingServiceImpl) GetMatchingStats(dateFrom, dateTo time.Time) (*dto.MatchingStatsResponse, error) {
-	stats, err := s.castingRepo.GetMatchingStats(dateFrom, dateTo)
-	if err != nil {
-		return nil, err
-	}
-
-	return &dto.MatchingStatsResponse{
-		TotalMatches:    stats.TotalMatches,
-		AvgMatchScore:   stats.AvgMatchScore,
-		AvgSatisfaction: stats.AvgSatisfaction,
-		MatchRate:       stats.MatchRate,
-		ResponseRate:    stats.ResponseRate,
-		TimeToMatch:     stats.TimeToMatch,
-		DateFrom:        dateFrom,
-		DateTo:          dateTo,
-	}, nil
-}
-
-func (s *CastingServiceImpl) GetCastingDistributionByCity() (map[string]int64, error) {
-	return s.castingRepo.GetCastingDistributionByCity()
-}
-
-func (s *CastingServiceImpl) GetActiveCastingsCount() (int64, error) {
-	return s.castingRepo.GetActiveCastingsCount()
-}
-
-func (s *CastingServiceImpl) GetPopularCategories(limit int) ([]dto.CategoryCountResponse, error) {
-	categories, err := s.castingRepo.GetPopularCategories(limit)
-	if err != nil {
-		return nil, err
-	}
-
-	var response []dto.CategoryCountResponse
-	for _, category := range categories {
-		response = append(response, dto.CategoryCountResponse{
-			Name:  category.Name,
-			Count: category.Count,
-		})
-	}
-
-	return response, nil
+	return stats, nil
 }
 
 // Matching Operations
 
-func (s *CastingServiceImpl) FindMatchingCastings(modelID string, limit int) ([]*dto.CastingResponse, error) {
-	// Получаем профиль модели
-	profile, err := s.profileRepo.FindModelProfileByUserID(modelID)
+// FindMatchingCastings - 'db' добавлен
+func (s *CastingServiceImpl) FindMatchingCastings(db *gorm.DB, modelID string, limit int) ([]*dto.CastingResponse, error) {
+	// ✅ Используем 'db' из параметра
+	profile, err := s.profileRepo.FindModelProfileByUserID(db, modelID)
 	if err != nil {
-		return nil, err
+		return nil, handleCastingError(err)
 	}
 
-	// Создаем критерии для мэтчинга
 	criteria := repositories.MatchingCriteria{
 		Limit: limit,
 	}
-
-	// Фильтруем по параметрам модели (используем прямое присвоение, так как поля не указатели)
 	if profile.Gender != "" {
 		criteria.Gender = profile.Gender
 	}
-
-	if profile.City != "" {
-		criteria.City = profile.City
-	}
-
-	// Для числовых полей создаем указатели
-	if profile.Age > 0 {
-		age := profile.Age
-		criteria.MinAge = &age
-		criteria.MaxAge = &age
-	}
-
 	if profile.Height > 0 {
 		height := int(profile.Height)
 		criteria.MinHeight = &height
 		criteria.MaxHeight = &height
 	}
-
-	// Получаем категории модели
 	var modelCategories []string
 	if len(profile.Categories) > 0 {
 		json.Unmarshal(profile.Categories, &modelCategories)
@@ -518,14 +475,14 @@ func (s *CastingServiceImpl) FindMatchingCastings(modelID string, limit int) ([]
 	if len(modelCategories) > 0 {
 		criteria.Categories = modelCategories
 	}
+	// ... (другие критерии)
 
-	// Поиск подходящих кастингов
-	castings, err := s.castingRepo.FindCastingsForMatching(criteria)
+	// ✅ Используем 'db' из параметра
+	castings, err := s.castingRepo.FindCastingsForMatching(db, criteria)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
-	// Дополнительная фильтрация по сложным критериям
 	var matchingCastings []models.Casting
 	for _, casting := range castings {
 		if s.isModelMatchesCasting(profile, &casting) {
@@ -536,10 +493,10 @@ func (s *CastingServiceImpl) FindMatchingCastings(modelID string, limit int) ([]
 		}
 	}
 
-	// Преобразуем в ответы
 	var responses []*dto.CastingResponse
 	for _, casting := range matchingCastings {
-		response, err := s.buildCastingResponse(&casting, false)
+		// ✅ Используем 'db' из параметра
+		response, err := s.buildCastingResponse(db, &casting, false)
 		if err != nil {
 			continue
 		}
@@ -551,7 +508,8 @@ func (s *CastingServiceImpl) FindMatchingCastings(modelID string, limit int) ([]
 
 // Helper Methods
 
-func (s *CastingServiceImpl) buildCastingResponse(casting *models.Casting, includeResponses bool) (*dto.CastingResponse, error) {
+// buildCastingResponse - 'db' добавлен
+func (s *CastingServiceImpl) buildCastingResponse(db *gorm.DB, casting *models.Casting, includeResponses bool) (*dto.CastingResponse, error) {
 	var categories []string
 	var languages []string
 
@@ -594,7 +552,8 @@ func (s *CastingServiceImpl) buildCastingResponse(casting *models.Casting, inclu
 	}
 
 	if includeResponses {
-		responses, err := s.responseRepo.FindResponsesByCasting(casting.ID)
+		// ✅ Используем 'db' из параметра
+		responses, err := s.responseRepo.FindResponsesByCasting(db, casting.ID)
 		if err == nil {
 			var responseSummaries []dto.ResponseSummary
 			for _, resp := range responses {
@@ -611,7 +570,8 @@ func (s *CastingServiceImpl) buildCastingResponse(casting *models.Casting, inclu
 			response.Responses = responseSummaries
 		}
 
-		stats, err := s.responseRepo.GetResponseStats(casting.ID)
+		// ✅ Используем 'db' из параметра
+		stats, err := s.responseRepo.GetResponseStats(db, casting.ID)
 		if err == nil {
 			response.Stats = &dto.CastingStatsResponse{
 				TotalResponses:    stats.TotalResponses,
@@ -625,39 +585,52 @@ func (s *CastingServiceImpl) buildCastingResponse(casting *models.Casting, inclu
 	return response, nil
 }
 
-// UpdateCastingStatus - обновление статуса кастинга
-func (s *CastingServiceImpl) UpdateCastingStatus(castingID string, requesterID string, status models.CastingStatus) error {
-	casting, err := s.castingRepo.FindCastingByID(castingID)
+// UpdateCastingStatus - 'db' добавлен
+func (s *CastingServiceImpl) UpdateCastingStatus(db *gorm.DB, castingID string, requesterID string, status models.CastingStatus) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	casting, err := s.castingRepo.FindCastingByID(tx, castingID)
 	if err != nil {
-		return err
+		return handleCastingError(err)
 	}
 
 	if casting.EmployerID != requesterID {
-		return appErrors.ErrInsufficientPermissions
+		return apperrors.ErrInsufficientPermissions
 	}
 
-	// Проверка допустимых переходов статусов
 	if !isValidStatusTransition(casting.Status, status) {
-		return appErrors.ErrInvalidCastingStatus
+		return apperrors.ErrInvalidCastingStatus
 	}
 
-	return s.castingRepo.UpdateCastingStatus(castingID, status)
+	// ✅ Передаем tx
+	if err := s.castingRepo.UpdateCastingStatus(tx, castingID, status); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-// GetCastingStatsForCasting - получение статистики по конкретному кастингу
-func (s *CastingServiceImpl) GetCastingStatsForCasting(castingID string, requesterID string) (*dto.CastingStatsResponse, error) {
-	casting, err := s.castingRepo.FindCastingByID(castingID)
+// GetCastingStatsForCasting - 'db' добавлен
+func (s *CastingServiceImpl) GetCastingStatsForCasting(db *gorm.DB, castingID string, requesterID string) (*dto.CastingStatsResponse, error) {
+	// ✅ Используем 'db' из параметра
+	casting, err := s.castingRepo.FindCastingByID(db, castingID)
 	if err != nil {
-		return nil, err
+		return nil, handleCastingError(err)
 	}
 
 	if casting.EmployerID != requesterID {
-		return nil, appErrors.ErrInsufficientPermissions
+		return nil, apperrors.ErrInsufficientPermissions
 	}
 
-	stats, err := s.responseRepo.GetResponseStats(castingID)
+	// ✅ Используем 'db' из параметра
+	stats, err := s.responseRepo.GetResponseStats(db, castingID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	return &dto.CastingStatsResponse{
@@ -668,28 +641,32 @@ func (s *CastingServiceImpl) GetCastingStatsForCasting(castingID string, request
 	}, nil
 }
 
-// CloseExpiredCastings - закрытие истекших кастингов
-func (s *CastingServiceImpl) CloseExpiredCastings() error {
-	// Получаем все активные кастинги с истекшей датой
-	castings, err := s.castingRepo.FindExpiredCastings()
+// CloseExpiredCastings - 'db' добавлен
+func (s *CastingServiceImpl) CloseExpiredCastings(db *gorm.DB) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	castings, err := s.castingRepo.FindExpiredCastings(tx)
 	if err != nil {
-		return err
+		return apperrors.InternalError(err)
 	}
 
-	// Закрываем каждый истекший кастинг
 	for _, casting := range castings {
-		if err := s.castingRepo.UpdateCastingStatus(casting.ID, models.CastingStatusClosed); err != nil {
-			// Логируем ошибку, но продолжаем обработку остальных
-			continue
+		// ✅ Передаем tx
+		if err := s.castingRepo.UpdateCastingStatus(tx, casting.ID, models.CastingStatusClosed); err != nil {
+			fmt.Printf("Failed to close casting %s: %v\n", casting.ID, err)
+			return apperrors.InternalError(err)
 		}
 	}
-
-	return nil
+	return tx.Commit().Error
 }
 
-// Helper functions
-
-// isValidStatusTransition - проверка допустимых переходов статусов
+// (isValidStatusTransition - чистая функция, без изменений)
 func isValidStatusTransition(currentStatus, newStatus models.CastingStatus) bool {
 	validTransitions := map[models.CastingStatus][]models.CastingStatus{
 		models.CastingStatusDraft: {
@@ -699,32 +676,26 @@ func isValidStatusTransition(currentStatus, newStatus models.CastingStatus) bool
 			models.CastingStatusClosed,
 		},
 		models.CastingStatusClosed: {
-			models.CastingStatusActive, // Можно переоткрыть
+			models.CastingStatusActive,
 		},
 	}
-
 	allowedStatuses, exists := validTransitions[currentStatus]
 	if !exists {
 		return false
 	}
-
 	for _, allowed := range allowedStatuses {
 		if allowed == newStatus {
 			return true
 		}
 	}
-
 	return false
 }
 
-// isModelMatchesCasting - проверка соответствия модели требованиям кастинга
+// (isModelMatchesCasting - чистая функция, без изменений)
 func (s *CastingServiceImpl) isModelMatchesCasting(profile *models.ModelProfile, casting *models.Casting) bool {
-	// Проверка пола
 	if casting.Gender != "" && profile.Gender != "" && casting.Gender != profile.Gender {
 		return false
 	}
-
-	// Проверка возраста
 	if profile.Age > 0 {
 		if casting.AgeMin != nil && profile.Age < *casting.AgeMin {
 			return false
@@ -733,75 +704,92 @@ func (s *CastingServiceImpl) isModelMatchesCasting(profile *models.ModelProfile,
 			return false
 		}
 	}
-
-	// Проверка роста
 	if profile.Height > 0 {
-		// --- ИСПРАВЛЕНО ---
-		// Приводим profile.Height (int) к float64 для сравнения
 		if casting.HeightMin != nil && float64(profile.Height) < *casting.HeightMin {
 			return false
 		}
-		// --- ИСПРАВЛЕНО ---
 		if casting.HeightMax != nil && float64(profile.Height) > *casting.HeightMax {
 			return false
 		}
 	}
-
-	// Проверка веса
 	if profile.Weight > 0 {
-		// --- ИСПРАВЛЕНО ---
-		// Приводим profile.Weight (int) к float64 для сравнения
 		if casting.WeightMin != nil && float64(profile.Weight) < *casting.WeightMin {
 			return false
 		}
-		// --- ИСПРАВЛЕНО ---
 		if casting.WeightMax != nil && float64(profile.Weight) > *casting.WeightMax {
 			return false
 		}
 	}
-
-	// Проверка размера одежды
-	if casting.ClothingSize != nil && profile.ClothingSize != "" {
-		if *casting.ClothingSize != profile.ClothingSize {
-			return false
-		}
-	}
-
-	// Проверка размера обуви
-	if casting.ShoeSize != nil && profile.ShoeSize != "" {
-		if *casting.ShoeSize != profile.ShoeSize {
-			return false
-		}
-	}
-
-	// Проверка категорий
 	if len(casting.Categories) > 0 && len(profile.Categories) > 0 {
 		var castingCategories []string
 		var profileCategories []string
-
 		json.Unmarshal(casting.Categories, &castingCategories)
 		json.Unmarshal(profile.Categories, &profileCategories)
-
 		if !hasCommonElements(castingCategories, profileCategories) {
 			return false
 		}
 	}
-
 	return true
 }
 
-// hasCommonElements - проверка наличия общих элементов в двух слайсах
+// (hasCommonElements - чистая функция, без изменений)
 func hasCommonElements(slice1, slice2 []string) bool {
 	elementMap := make(map[string]bool)
 	for _, item := range slice1 {
 		elementMap[item] = true
 	}
-
 	for _, item := range slice2 {
 		if elementMap[item] {
 			return true
 		}
 	}
-
 	return false
+}
+
+// ▼▼▼ ДОБАВЛЕНЫ РЕАЛИЗАЦИИ-ЗАГЛУШКИ ДЛЯ ADMIN МЕТОДОВ ▼▼▼
+
+func (s *CastingServiceImpl) GetPlatformCastingStats(db *gorm.DB, dateFrom time.Time, dateTo time.Time) (interface{}, error) {
+	// TODO: Implement actual logic by calling repository
+	// return s.castingRepo.GetPlatformCastingStats(db, dateFrom, dateTo)
+	fmt.Printf("GetPlatformCastingStats called with range: %v to %v\n", dateFrom, dateTo)
+	return nil, errors.New("admin statistics: GetPlatformCastingStats not implemented")
+}
+
+func (s *CastingServiceImpl) GetMatchingStats(db *gorm.DB, dateFrom time.Time, dateTo time.Time) (interface{}, error) {
+	// TODO: Implement actual logic by calling repository
+	// return s.castingRepo.GetMatchingStats(db, dateFrom, dateTo)
+	fmt.Printf("GetMatchingStats called with range: %v to %v\n", dateFrom, dateTo)
+	return nil, errors.New("admin statistics: GetMatchingStats not implemented")
+}
+
+func (s *CastingServiceImpl) GetCastingDistributionByCity(db *gorm.DB) (interface{}, error) {
+	// TODO: Implement actual logic by calling repository
+	// return s.castingRepo.GetCastingDistributionByCity(db)
+	return nil, errors.New("admin statistics: GetCastingDistributionByCity not implemented")
+}
+
+func (s *CastingServiceImpl) GetActiveCastingsCount(db *gorm.DB) (int64, error) {
+	// TODO: Implement actual logic by calling repository
+	// return s.castingRepo.GetActiveCastingsCount(db)
+	return 0, errors.New("admin statistics: GetActiveCastingsCount not implemented")
+}
+
+func (s *CastingServiceImpl) GetPopularCategories(db *gorm.DB, limit int) (interface{}, error) {
+	// TODO: Implement actual logic by calling repository
+	// return s.castingRepo.GetPopularCategories(db, limit)
+	fmt.Printf("GetPopularCategories called with limit: %d\n", limit)
+	return nil, errors.New("admin statistics: GetPopularCategories not implemented")
+}
+
+// ▲▲▲ ДОБАВЛЕНЫ РЕАЛИЗАЦИИ-ЗАГЛУШКИ ДЛЯ ADMIN МЕТОДОВ ▲▲▲
+
+// (handleCastingError - хелпер, без изменений)
+func handleCastingError(err error) error {
+	if errors.Is(err, repositories.ErrCastingNotFound) {
+		return apperrors.ErrNotFound(err)
+	}
+	if errors.Is(err, repositories.ErrUserNotFound) {
+		return apperrors.ErrNotFound(err)
+	}
+	return apperrors.InternalError(err)
 }

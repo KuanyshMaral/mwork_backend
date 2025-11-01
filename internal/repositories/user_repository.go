@@ -2,9 +2,8 @@ package repositories
 
 import (
 	"errors"
-	"time"
-
 	"mwork_backend/internal/models"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -16,42 +15,28 @@ var (
 
 type UserRepository interface {
 	// User operations
-	FindByID(id string) (*models.User, error)
-	FindByEmail(email string) (*models.User, error)
-	Create(user *models.User) error
-	Update(user *models.User) error
-	UpdateStatus(userID string, status models.UserStatus) error
-	VerifyUser(userID string) error
-	Delete(userID string) error
-	FindByRole(role models.UserRole, limit, offset int) ([]models.User, error)
-	CountByRole(role models.UserRole) (int64, error)
-
-	// RefreshToken operations
-	CreateRefreshToken(token *models.RefreshToken) error
-	FindRefreshToken(token string) (*models.RefreshToken, error)
-	DeleteRefreshToken(token string) error
-	DeleteUserRefreshTokens(userID string) error
-	CleanExpiredRefreshTokens() error
+	FindByID(db *gorm.DB, id string) (*models.User, error)
+	FindByEmail(db *gorm.DB, email string) (*models.User, error)
+	Create(db *gorm.DB, user *models.User) error
+	Update(db *gorm.DB, user *models.User) error
+	UpdateStatus(db *gorm.DB, userID string, status models.UserStatus) error
+	VerifyUser(db *gorm.DB, userID string) error
+	Delete(db *gorm.DB, userID string) error
+	FindByRole(db *gorm.DB, role models.UserRole, limit, offset int) ([]models.User, error)
+	CountByRole(db *gorm.DB, role models.UserRole) (int64, error)
 
 	// Admin operations
-	FindAll(limit, offset int) ([]models.User, error)
-	CountAll() (int64, error)
-	FindWithFilter(criteria UserFilter) ([]models.User, int64, error)
-	GetRegistrationStats(days int) (*RegistrationStats, error)
+	FindAll(db *gorm.DB, limit, offset int) ([]models.User, error)
+	CountAll(db *gorm.DB) (int64, error)
+	FindWithFilter(db *gorm.DB, criteria UserFilter) ([]models.User, int64, error)
 
-	GetUserStats(dateFrom, dateTo time.Time) (*UserStats, error)
-
-	// Analytics methods
-	GetActiveUsersCount(minutes int) (int64, error)
-	GetUserDistributionByCity() (map[string]int64, error)
-
-	FindByVerificationToken(token string) (*models.User, error)
-	FindByResetToken(token string) (*models.User, error)
-	UpdateLastActive(userID string) error
+	FindByVerificationToken(db *gorm.DB, token string) (*models.User, error)
+	FindByResetToken(db *gorm.DB, token string) (*models.User, error)
+	UpdateLastActive(db *gorm.DB, userID string) error
 }
 
 type UserRepositoryImpl struct {
-	db *gorm.DB
+	// ✅ Пусто! db *gorm.DB больше не хранится здесь
 }
 
 type UserFilter struct {
@@ -65,31 +50,17 @@ type UserFilter struct {
 	PageSize   int
 }
 
-type RegistrationStats struct {
-	Total           int64            `json:"total"`
-	Today           int64            `json:"today"`
-	ThisWeek        int64            `json:"this_week"`
-	ThisMonth       int64            `json:"this_month"`
-	ByRole          map[string]int64 `json:"by_role"`
-	VerifiedCount   int64            `json:"verified_count"`
-	UnverifiedCount int64            `json:"unverified_count"`
-}
-
-type UserStats struct {
-	TotalUsers  int64
-	NewUsers    int64
-	ActiveUsers int64
-}
-
-func NewUserRepository(db *gorm.DB) UserRepository {
-	return &UserRepositoryImpl{db: db}
+// ✅ Конструктор не принимает db
+func NewUserRepository() UserRepository {
+	return &UserRepositoryImpl{}
 }
 
 // User operations
 
-func (r *UserRepositoryImpl) FindByID(id string) (*models.User, error) {
+func (r *UserRepositoryImpl) FindByID(db *gorm.DB, id string) (*models.User, error) {
 	var user models.User
-	err := r.db.Preload("ModelProfile").Preload("EmployerProfile").Preload("Subscription").
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("ModelProfile").Preload("EmployerProfile").Preload("Subscription").
 		First(&user, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -100,9 +71,10 @@ func (r *UserRepositoryImpl) FindByID(id string) (*models.User, error) {
 	return &user, nil
 }
 
-func (r *UserRepositoryImpl) FindByEmail(email string) (*models.User, error) {
+func (r *UserRepositoryImpl) FindByEmail(db *gorm.DB, email string) (*models.User, error) {
 	var user models.User
-	err := r.db.Preload("ModelProfile").Preload("EmployerProfile").
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("ModelProfile").Preload("EmployerProfile").
 		First(&user, "email = ?", email).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -113,18 +85,21 @@ func (r *UserRepositoryImpl) FindByEmail(email string) (*models.User, error) {
 	return &user, nil
 }
 
-func (r *UserRepositoryImpl) Create(user *models.User) error {
+func (r *UserRepositoryImpl) Create(db *gorm.DB, user *models.User) error {
 	// Check if user already exists
 	var existing models.User
-	if err := r.db.Where("email = ?", user.Email).First(&existing).Error; err == nil {
+	// ✅ Используем 'db' из параметра
+	if err := db.Where("email = ?", user.Email).First(&existing).Error; err == nil {
 		return ErrUserAlreadyExists
 	}
 
-	return r.db.Create(user).Error
+	// ✅ Используем 'db' из параметра
+	return db.Create(user).Error
 }
 
-func (r *UserRepositoryImpl) Update(user *models.User) error {
-	result := r.db.Model(user).Updates(map[string]interface{}{
+func (r *UserRepositoryImpl) Update(db *gorm.DB, user *models.User) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(user).Updates(map[string]interface{}{
 		"email":              user.Email,
 		"role":               user.Role,
 		"status":             user.Status,
@@ -144,8 +119,9 @@ func (r *UserRepositoryImpl) Update(user *models.User) error {
 	return nil
 }
 
-func (r *UserRepositoryImpl) UpdateStatus(userID string, status models.UserStatus) error {
-	result := r.db.Model(&models.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
+func (r *UserRepositoryImpl) UpdateStatus(db *gorm.DB, userID string, status models.UserStatus) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&models.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
 		"status":     status,
 		"updated_at": time.Now(),
 	})
@@ -159,8 +135,9 @@ func (r *UserRepositoryImpl) UpdateStatus(userID string, status models.UserStatu
 	return nil
 }
 
-func (r *UserRepositoryImpl) VerifyUser(userID string) error {
-	result := r.db.Model(&models.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
+func (r *UserRepositoryImpl) VerifyUser(db *gorm.DB, userID string) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&models.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
 		"is_verified":        true,
 		"verification_token": "",
 		"updated_at":         time.Now(),
@@ -175,58 +152,15 @@ func (r *UserRepositoryImpl) VerifyUser(userID string) error {
 	return nil
 }
 
-func (r *UserRepositoryImpl) Delete(userID string) error {
-	// Start transaction to delete user and related data
-	return r.db.Transaction(func(tx *gorm.DB) error {
-		// Delete refresh tokens first
-		if err := tx.Where("user_id = ?", userID).Delete(&models.RefreshToken{}).Error; err != nil {
-			return err
-		}
+func (r *UserRepositoryImpl) Delete(db *gorm.DB, userID string) error {
+	// ✅ Вложенная транзакция удалена.
+	// Мы используем переданный 'db', который может быть (или не быть) транзакцией.
+	// Логика удаления связанных refresh-токенов удалена,
+	// т.к. она относится к RefreshTokenRepository и должна быть в слое сервиса.
 
-		// Delete user
-		result := tx.Where("id = ?", userID).Delete(&models.User{})
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected == 0 {
-			return ErrUserNotFound
-		}
-		return nil
-	})
-}
-
-func (r *UserRepositoryImpl) FindByRole(role models.UserRole, limit, offset int) ([]models.User, error) {
-	var users []models.User
-	err := r.db.Where("role = ?", role).Limit(limit).Offset(offset).Find(&users).Error
-	return users, err
-}
-
-func (r *UserRepositoryImpl) CountByRole(role models.UserRole) (int64, error) {
-	var count int64
-	err := r.db.Model(&models.User{}).Where("role = ?", role).Count(&count).Error
-	return count, err
-}
-
-// RefreshToken operations
-
-func (r *UserRepositoryImpl) CreateRefreshToken(token *models.RefreshToken) error {
-	return r.db.Create(token).Error
-}
-
-func (r *UserRepositoryImpl) FindRefreshToken(token string) (*models.RefreshToken, error) {
-	var refreshToken models.RefreshToken
-	err := r.db.Where("token = ?", token).First(&refreshToken).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrUserNotFound
-		}
-		return nil, err
-	}
-	return &refreshToken, nil
-}
-
-func (r *UserRepositoryImpl) DeleteRefreshToken(token string) error {
-	result := r.db.Where("token = ?", token).Delete(&models.RefreshToken{})
+	// Delete user
+	// ✅ Используем 'db' из параметра
+	result := db.Where("id = ?", userID).Delete(&models.User{})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -236,32 +170,45 @@ func (r *UserRepositoryImpl) DeleteRefreshToken(token string) error {
 	return nil
 }
 
-func (r *UserRepositoryImpl) DeleteUserRefreshTokens(userID string) error {
-	return r.db.Where("user_id = ?", userID).Delete(&models.RefreshToken{}).Error
+func (r *UserRepositoryImpl) FindByRole(db *gorm.DB, role models.UserRole, limit, offset int) ([]models.User, error) {
+	var users []models.User
+	// ✅ Используем 'db' из параметра
+	err := db.Where("role = ?", role).Limit(limit).Offset(offset).Find(&users).Error
+	return users, err
 }
 
-func (r *UserRepositoryImpl) CleanExpiredRefreshTokens() error {
-	return r.db.Where("expires_at < ?", time.Now()).Delete(&models.RefreshToken{}).Error
+func (r *UserRepositoryImpl) CountByRole(db *gorm.DB, role models.UserRole) (int64, error) {
+	var count int64
+	// ✅ Используем 'db' из параметра
+	err := db.Model(&models.User{}).Where("role = ?", role).Count(&count).Error
+	return count, err
 }
+
+// ❌❌❌ Удален раздел RefreshToken operations ❌❌❌
+// (CreateRefreshToken, FindRefreshToken, DeleteRefreshToken, DeleteUserRefreshTokens, CleanExpiredRefreshTokens)
+// Они перенесены в refresh_token_repository.go
 
 // Admin operations
 
-func (r *UserRepositoryImpl) FindAll(limit, offset int) ([]models.User, error) {
+func (r *UserRepositoryImpl) FindAll(db *gorm.DB, limit, offset int) ([]models.User, error) {
 	var users []models.User
-	err := r.db.Preload("ModelProfile").Preload("EmployerProfile").
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("ModelProfile").Preload("EmployerProfile").
 		Order("created_at DESC").Limit(limit).Offset(offset).Find(&users).Error
 	return users, err
 }
 
-func (r *UserRepositoryImpl) CountAll() (int64, error) {
+func (r *UserRepositoryImpl) CountAll(db *gorm.DB) (int64, error) {
 	var count int64
-	err := r.db.Model(&models.User{}).Count(&count).Error
+	// ✅ Используем 'db' из параметра
+	err := db.Model(&models.User{}).Count(&count).Error
 	return count, err
 }
 
-func (r *UserRepositoryImpl) FindWithFilter(criteria UserFilter) ([]models.User, int64, error) {
+func (r *UserRepositoryImpl) FindWithFilter(db *gorm.DB, criteria UserFilter) ([]models.User, int64, error) {
 	var users []models.User
-	query := r.db.Model(&models.User{})
+	// ✅ Используем 'db' из параметра
+	query := db.Model(&models.User{})
 
 	// Apply filters
 	if criteria.Role != "" {
@@ -300,142 +247,14 @@ func (r *UserRepositoryImpl) FindWithFilter(criteria UserFilter) ([]models.User,
 	return users, total, err
 }
 
-func (r *UserRepositoryImpl) GetRegistrationStats(days int) (*RegistrationStats, error) {
-	var stats RegistrationStats
-	now := time.Now()
+// ❌❌❌ Удален раздел Analytics operations ❌❌❌
+// (GetRegistrationStats, GetUserStats, GetActiveUsersCount, GetUserDistributionByCity)
+// Они перенесены в analytics_repository.go
 
-	// Total count
-	if err := r.db.Model(&models.User{}).Count(&stats.Total).Error; err != nil {
-		return nil, err
-	}
-
-	// Today
-	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	if err := r.db.Model(&models.User{}).Where("created_at >= ?", todayStart).Count(&stats.Today).Error; err != nil {
-		return nil, err
-	}
-
-	// This week
-	weekStart := todayStart.AddDate(0, 0, -int(todayStart.Weekday()))
-	if err := r.db.Model(&models.User{}).Where("created_at >= ?", weekStart).Count(&stats.ThisWeek).Error; err != nil {
-		return nil, err
-	}
-
-	// This month
-	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-	if err := r.db.Model(&models.User{}).Where("created_at >= ?", monthStart).Count(&stats.ThisMonth).Error; err != nil {
-		return nil, err
-	}
-
-	// By role
-	stats.ByRole = make(map[string]int64)
-	roles := []models.UserRole{models.UserRoleModel, models.UserRoleEmployer, models.UserRoleAdmin}
-
-	for _, role := range roles {
-		var count int64
-		if err := r.db.Model(&models.User{}).Where("role = ?", role).Count(&count).Error; err != nil {
-			return nil, err
-		}
-		stats.ByRole[string(role)] = count
-	}
-
-	// Verified counts
-	if err := r.db.Model(&models.User{}).Where("is_verified = ?", true).Count(&stats.VerifiedCount).Error; err != nil {
-		return nil, err
-	}
-	stats.UnverifiedCount = stats.Total - stats.VerifiedCount
-
-	return &stats, nil
-}
-
-func (r *UserRepositoryImpl) GetUserStats(dateFrom, dateTo time.Time) (*UserStats, error) {
-	var stats UserStats
-
-	// Count total users
-	if err := r.db.Model(&models.User{}).Count(&stats.TotalUsers).Error; err != nil {
-		return nil, err
-	}
-
-	// Count new users within the range
-	if err := r.db.Model(&models.User{}).
-		Where("created_at BETWEEN ? AND ?", dateFrom, dateTo).
-		Count(&stats.NewUsers).Error; err != nil {
-		return nil, err
-	}
-
-	// Count active users — assumes you track last_active_at or similar
-	if r.db.Migrator().HasColumn(&models.User{}, "last_active_at") {
-		if err := r.db.Model(&models.User{}).
-			Where("last_active_at BETWEEN ? AND ?", dateFrom, dateTo).
-			Count(&stats.ActiveUsers).Error; err != nil {
-			return nil, err
-		}
-	}
-
-	return &stats, nil
-}
-
-func (r *UserRepositoryImpl) GetActiveUsersCount(minutes int) (int64, error) {
-	var count int64
-
-	// Если есть поле last_active_at, используем его
-	if r.db.Migrator().HasColumn(&models.User{}, "last_active_at") {
-		activeSince := time.Now().Add(-time.Duration(minutes) * time.Minute)
-		err := r.db.Model(&models.User{}).
-			Where("last_active_at >= ?", activeSince).
-			Count(&count).Error
-		return count, err
-	}
-
-	// Альтернатива: считаем пользователей, которые были активны сегодня
-	today := time.Now().Truncate(24 * time.Hour)
-	err := r.db.Model(&models.User{}).
-		Where("created_at >= ? OR updated_at >= ?", today, today).
-		Count(&count).Error
-
-	return count, err
-}
-
-func (r *UserRepositoryImpl) GetUserDistributionByCity() (map[string]int64, error) {
-	type CityCount struct {
-		City  string
-		Count int64
-	}
-
-	var cityCounts []CityCount
-	result := make(map[string]int64)
-
-	// Сначала проверяем, есть ли город в профиле модели
-	if r.db.Migrator().HasColumn(&models.ModelProfile{}, "city") {
-		err := r.db.Model(&models.ModelProfile{}).
-			Select("city, COUNT(*) as count").
-			Where("city IS NOT NULL AND city != ''").
-			Group("city").
-			Find(&cityCounts).Error
-
-		if err == nil && len(cityCounts) > 0 {
-			for _, cc := range cityCounts {
-				result[cc.City] = cc.Count
-			}
-			return result, nil
-		}
-	}
-
-	// Если нет данных о городе, возвращаем демо-данные
-	result = map[string]int64{
-		"Almaty":    450,
-		"Astana":    380,
-		"Shymkent":  120,
-		"Karaganda": 85,
-		"Aktobe":    65,
-	}
-
-	return result, nil
-}
-
-func (r *UserRepositoryImpl) FindByVerificationToken(token string) (*models.User, error) {
+func (r *UserRepositoryImpl) FindByVerificationToken(db *gorm.DB, token string) (*models.User, error) {
 	var user models.User
-	err := r.db.Where("verification_token = ? AND verification_token != ''", token).First(&user).Error
+	// ✅ Используем 'db' из параметра
+	err := db.Where("verification_token = ? AND verification_token != ''", token).First(&user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrUserNotFound
@@ -446,9 +265,10 @@ func (r *UserRepositoryImpl) FindByVerificationToken(token string) (*models.User
 }
 
 // FindByResetToken находит пользователя по токену сброса пароля
-func (r *UserRepositoryImpl) FindByResetToken(token string) (*models.User, error) {
+func (r *UserRepositoryImpl) FindByResetToken(db *gorm.DB, token string) (*models.User, error) {
 	var user models.User
-	err := r.db.Where("reset_token = ? AND reset_token_exp > ?", token, time.Now()).First(&user).Error
+	// ✅ Используем 'db' из параметра
+	err := db.Where("reset_token = ? AND reset_token_exp > ?", token, time.Now()).First(&user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrUserNotFound
@@ -459,14 +279,16 @@ func (r *UserRepositoryImpl) FindByResetToken(token string) (*models.User, error
 }
 
 // UpdateLastActive обновляет время последней активности пользователя
-func (r *UserRepositoryImpl) UpdateLastActive(userID string) error {
+func (r *UserRepositoryImpl) UpdateLastActive(db *gorm.DB, userID string) error {
+	// ✅ Используем 'db' из параметра
 	// Проверяем наличие колонки
-	if !r.db.Migrator().HasColumn(&models.User{}, "last_active_at") {
+	if !db.Migrator().HasColumn(&models.User{}, "last_active_at") {
 		// Если колонки нет, ничего не делаем
 		return nil
 	}
 
-	result := r.db.Model(&models.User{}).Where("id = ?", userID).Update("last_active_at", time.Now())
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&models.User{}).Where("id = ?", userID).Update("last_active_at", time.Now())
 	if result.Error != nil {
 		return result.Error
 	}

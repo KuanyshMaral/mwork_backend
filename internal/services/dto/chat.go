@@ -1,9 +1,8 @@
 package dto
 
 import (
-	"time"
-
 	"mwork_backend/internal/repositories"
+	"time"
 )
 
 // Request/Response structures
@@ -130,10 +129,13 @@ type DialogListResponse struct {
 }
 
 type DialogWithMessagesResponse struct {
-	Dialog   *DialogResponse    `json:"dialog"`
-	Messages []*MessageResponse `json:"messages"`
-	Total    int64              `json:"total"`
-	HasMore  bool               `json:"has_more"`
+	Dialog     *DialogResponse    `json:"dialog"`
+	Messages   []*MessageResponse `json:"messages"`
+	Total      int64              `json:"total"`
+	Page       int                `json:"page"`        // <-- ДОБАВЛЕНО
+	PageSize   int                `json:"page_size"`   // <-- ДОБАВЛЕНО
+	TotalPages int                `json:"total_pages"` // <-- ДОБАВЛЕНО
+	HasMore    bool               `json:"has_more"`
 }
 
 // Re-export repository types

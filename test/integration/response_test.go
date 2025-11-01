@@ -1,7 +1,7 @@
 package integration_test
 
 import (
-	"encoding/json"
+	"encoding/json" // ✅ Added missing import
 	"fmt"
 	"mwork_backend/internal/models"
 	"mwork_backend/test/helpers"
@@ -28,7 +28,8 @@ func TestResponse_ModelFlow(t *testing.T) {
 	responseBody := map[string]interface{}{
 		"message": "Я идеально подхожу для этой роли!",
 	}
-	res, bodyStr := ts.SendRequest(t, "POST", "/api/v1/responses/castings/"+casting.ID, modelToken, responseBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "POST", "/api/v1/responses/castings/"+casting.ID, modelToken, responseBody)
 
 	// 3. Проверка: Создание
 	assert.Equal(t, http.StatusCreated, res.StatusCode)
@@ -36,7 +37,8 @@ func TestResponse_ModelFlow(t *testing.T) {
 	t.Logf("ОТКЛИК (Model): Создание (201) - Успешно.")
 
 	// 4. Действие: Модель получает свои отклики (GET /my)
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/responses/my", modelToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/responses/my", modelToken, nil)
 
 	// 5. Проверка:
 	assert.Equal(t, http.StatusOK, res.StatusCode)
@@ -54,19 +56,22 @@ func TestResponse_ModelFlow(t *testing.T) {
 	t.Logf("ОТКЛИК (Model): GET /my (200) - Успешно, найден 1 отклик.")
 
 	// 6. Действие: Модель читает свой отклик (GET /:responseId)
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/responses/"+responseID, modelToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/responses/"+responseID, modelToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, responseID)
 	t.Logf("ОТКЛИК (Common): Модель читает свой отклик (200) - Успешно.")
 
 	// 7. Действие: Модель удаляет свой отклик (DELETE)
-	res, bodyStr = ts.SendRequest(t, "DELETE", "/api/v1/responses/"+responseID, modelToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "DELETE", "/api/v1/responses/"+responseID, modelToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, "Response deleted successfully")
 	t.Logf("ОТКЛИК (Model): DELETE /:id (200) - Успешно.")
 
 	// 8. Действие: Модель проверяет, что отклик удален (GET /my)
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/responses/my", modelToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/responses/my", modelToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, `"total":0`)
 	t.Logf("ОТКЛИК (Model): GET /my (пусто) (200) - Успешно.")
@@ -91,7 +96,8 @@ func TestResponse_EmployerFlow(t *testing.T) {
 
 	// 2. Действие: Работодатель получает список откликов (GET /list)
 	listURL := fmt.Sprintf("/api/v1/responses/castings/%s/list", casting.ID)
-	res, bodyStr := ts.SendRequest(t, "GET", listURL, employerToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "GET", listURL, employerToken, nil)
 
 	// 3. Проверка:
 	assert.Equal(t, http.StatusOK, res.StatusCode)
@@ -104,7 +110,8 @@ func TestResponse_EmployerFlow(t *testing.T) {
 	statusBody := map[string]interface{}{
 		"status": models.ResponseStatusAccepted,
 	}
-	res, bodyStr = ts.SendRequest(t, "PUT", statusURL, employerToken, statusBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "PUT", statusURL, employerToken, statusBody)
 
 	// 5. Проверка:
 	assert.Equal(t, http.StatusOK, res.StatusCode)
@@ -112,7 +119,8 @@ func TestResponse_EmployerFlow(t *testing.T) {
 	t.Logf("ОТКЛИК (Employer): PUT /status (200) - Успешно.")
 
 	// 6. Действие: Работодатель читает этот отклик (GET /:responseId)
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/responses/"+responseID, employerToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/responses/"+responseID, employerToken, nil)
 
 	// 7. Проверка:
 	assert.Equal(t, http.StatusOK, res.StatusCode)
@@ -135,26 +143,30 @@ func TestResponse_Security(t *testing.T) {
 	response := CreateTestResponse(t, tx, casting.ID, modelUser.ID, models.ResponseStatusPending)
 
 	// 2. Действие: Работодатель пытается откликнуться (роут Модели)
-	res, _ := ts.SendRequest(t, "POST", "/api/v1/responses/castings/"+casting.ID, employerToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, _ := ts.SendRequest(t, tx, "POST", "/api/v1/responses/castings/"+casting.ID, employerToken, nil)
 	// 3. Проверка: (403 Forbidden)
 	assert.Equal(t, http.StatusForbidden, res.StatusCode)
 	t.Logf("БЕЗОПАСНОСТЬ (Response): Работодатель не может откликнуться (403) - Успешно.")
 
 	// 4. Действие: Модель пытается посмотреть список откликов (роут Работодателя)
-	res, _ = ts.SendRequest(t, "GET", "/api/v1/responses/castings/"+casting.ID+"/list", modelToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, "GET", "/api/v1/responses/castings/"+casting.ID+"/list", modelToken, nil)
 	// 5. Проверка: (403 Forbidden)
 	assert.Equal(t, http.StatusForbidden, res.StatusCode)
 	t.Logf("БЕЗОПАСНОСТЬ (Response): Модель не может читать список (403) - Успешно.")
 
 	// 6. Действие: Модель пытается обновить статус (роут Работодателя)
 	statusURL := fmt.Sprintf("/api/v1/responses/%s/status", response.ID)
-	res, _ = ts.SendRequest(t, "PUT", statusURL, modelToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, "PUT", statusURL, modelToken, nil)
 	// 7. Проверка: (403 Forbidden)
 	assert.Equal(t, http.StatusForbidden, res.StatusCode)
 	t.Logf("БЕЗОПАСНОСТЬ (Response): Модель не может обновить статус (403) - Успешно.")
 
 	// 8. Действие: Аноним пытается получить отклики
-	res, _ = ts.SendRequest(t, "GET", "/api/v1/responses/my", "", nil)
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, "GET", "/api/v1/responses/my", "", nil)
 	// 9. Проверка: (401 Unauthorized)
 	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	t.Logf("БЕЗОПАСНОСТЬ (Response): Аноним не может читать /my (401) - Успешно.")
@@ -176,40 +188,47 @@ func TestResponse_StatusWorkflow(t *testing.T) {
 	responseBody := map[string]interface{}{
 		"message": "Хочу участвовать!",
 	}
-	res, bodyStr := ts.SendRequest(t, "POST", "/api/v1/responses/castings/"+casting.ID, modelToken, responseBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "POST", "/api/v1/responses/castings/"+casting.ID, modelToken, responseBody)
 	assert.Equal(t, http.StatusCreated, res.StatusCode)
 
 	// Получаем ID созданного отклика
 	var getMyResp struct {
 		Responses []models.CastingResponse `json:"responses"`
 	}
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/responses/my", modelToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/responses/my", modelToken, nil)
 	err := json.Unmarshal([]byte(bodyStr), &getMyResp)
 	assert.NoError(t, err)
 	responseID := getMyResp.Responses[0].ID
 
 	// 2. Работодатель проверяет статус (должен быть pending)
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/responses/"+responseID, employerToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/responses/"+responseID, employerToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, `"status":"pending"`)
 
 	// 3. Работодатель меняет статус на accepted
 	statusBody := map[string]interface{}{"status": models.ResponseStatusAccepted}
-	res, bodyStr = ts.SendRequest(t, "PUT", "/api/v1/responses/"+responseID+"/status", employerToken, statusBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "PUT", "/api/v1/responses/"+responseID+"/status", employerToken, statusBody)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	// 4. Проверяем, что статус обновился
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/responses/"+responseID, modelToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/responses/"+responseID, modelToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, `"status":"accepted"`)
 
 	// 5. Работодатель меняет статус на rejected
 	statusBody["status"] = models.ResponseStatusRejected
-	res, bodyStr = ts.SendRequest(t, "PUT", "/api/v1/responses/"+responseID+"/status", employerToken, statusBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "PUT", "/api/v1/responses/"+responseID+"/status", employerToken, statusBody)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	// 6. Проверяем финальный статус
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/responses/"+responseID, employerToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/responses/"+responseID, employerToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, `"status":"rejected"`)
 }
@@ -230,16 +249,19 @@ func TestResponse_DuplicatePrevention(t *testing.T) {
 	responseBody := map[string]interface{}{
 		"message": "Первый отклик",
 	}
-	res, bodyStr := ts.SendRequest(t, "POST", "/api/v1/responses/castings/"+casting.ID, modelToken, responseBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "POST", "/api/v1/responses/castings/"+casting.ID, modelToken, responseBody)
 	assert.Equal(t, http.StatusCreated, res.StatusCode)
 
 	// 2. Второй отклик от той же модели - должен быть конфликт
-	res, bodyStr = ts.SendRequest(t, "POST", "/api/v1/responses/castings/"+casting.ID, modelToken, responseBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "POST", "/api/v1/responses/castings/"+casting.ID, modelToken, responseBody)
 	assert.Equal(t, http.StatusConflict, res.StatusCode)
 	assert.Contains(t, bodyStr, "already responded", "Should prevent duplicate responses")
 
 	// 3. Проверяем, что в базе только один отклик
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/responses/my", modelToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/responses/my", modelToken, nil)
 	var getMyResp struct {
 		Responses []models.CastingResponse `json:"responses"`
 		Total     int                      `json:"total"`
@@ -260,16 +282,19 @@ func TestResponse_NotFound(t *testing.T) {
 	modelToken, _, _ := helpers.CreateAndLoginModel(t, ts, tx)
 
 	// Пытаемся получить несуществующий отклик
-	res, bodyStr := ts.SendRequest(t, "GET", "/api/v1/responses/non-existent-uuid", modelToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "GET", "/api/v1/responses/non-existent-uuid", modelToken, nil)
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 	assert.Contains(t, bodyStr, "not found", "Should return not found for non-existent response")
 
 	// Пытаемся удалить несуществующий отклик
-	res, bodyStr = ts.SendRequest(t, "DELETE", "/api/v1/responses/non-existent-uuid", modelToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "DELETE", "/api/v1/responses/non-existent-uuid", modelToken, nil)
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 
 	// Пытаемся обновить статус несуществующего отклика
 	statusBody := map[string]interface{}{"status": models.ResponseStatusAccepted}
-	res, bodyStr = ts.SendRequest(t, "PUT", "/api/v1/responses/non-existent-uuid/status", modelToken, statusBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "PUT", "/api/v1/responses/non-existent-uuid/status", modelToken, statusBody)
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 }

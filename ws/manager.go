@@ -1,9 +1,12 @@
 package ws
 
 import (
+	"context" // <-- Добавлен
 	"log"
 	"mwork_backend/internal/services"
 	"sync"
+
+	"gorm.io/gorm" // <-- Добавлен
 )
 
 type WebSocketManager struct {
@@ -13,17 +16,25 @@ type WebSocketManager struct {
 	broadcast  chan any
 	mu         sync.RWMutex
 
-	chatService services.ChatService // Используем интерфейс
+	chatService services.ChatService
+	dbPool      *gorm.DB // <-- Храним главный пул DB
 }
 
-func NewWebSocketManager(chatService services.ChatService) *WebSocketManager {
+// Принимаем dbPool
+func NewWebSocketManager(chatService services.ChatService, dbPool *gorm.DB) *WebSocketManager {
 	return &WebSocketManager{
 		clients:     make(map[string]*Client),
 		register:    make(chan *Client),
 		unregister:  make(chan *Client),
 		broadcast:   make(chan any),
 		chatService: chatService,
+		dbPool:      dbPool, // <-- Сохраняем пул
 	}
+}
+
+// getDB создает новую DB-сессию из пула для конкретной операции
+func (manager *WebSocketManager) getDB(ctx context.Context) *gorm.DB {
+	return manager.dbPool.WithContext(ctx)
 }
 
 func (manager *WebSocketManager) Run() {
@@ -51,11 +62,10 @@ func (manager *WebSocketManager) Run() {
 }
 
 // BroadcastToDialog отправляет сообщение всем участникам диалога
-func (manager *WebSocketManager) BroadcastToDialog(dialogID string, message any) {
+// (Принимает context)
+func (manager *WebSocketManager) BroadcastToDialog(ctx context.Context, dialogID string, message any) {
 	// Получаем участников диалога из ChatService
-	// ВАЖНО: Вам нужно добавить метод GetDialogParticipants в ваш ChatService
-	// или использовать существующие методы для получения участников
-	participants, err := manager.getDialogParticipants(dialogID)
+	participants, err := manager.getDialogParticipants(ctx, dialogID) // Передаем context
 	if err != nil {
 		log.Printf("Failed to get dialog participants: %v", err)
 		return
@@ -79,10 +89,13 @@ func (manager *WebSocketManager) BroadcastToDialog(dialogID string, message any)
 	}
 }
 
-// getDialogParticipants - вспомогательный метод для получения участников диалога
-func (manager *WebSocketManager) getDialogParticipants(dialogID string) ([]string, error) {
-	// Получаем информацию о диалоге
-	dialog, err := manager.chatService.GetDialog(dialogID, "") // userID может быть пустым для административных целей
+// getDialogParticipants - вспомогательный метод (Принимает context)
+func (manager *WebSocketManager) getDialogParticipants(ctx context.Context, dialogID string) ([]string, error) {
+	// Создаем DB сессию для этого запроса
+	db := manager.getDB(ctx)
+
+	// Передаем 'db' в сервис
+	dialog, err := manager.chatService.GetDialog(db, dialogID, "")
 	if err != nil {
 		return nil, err
 	}

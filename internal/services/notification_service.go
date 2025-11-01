@@ -5,69 +5,82 @@ import (
 	"errors"
 	"fmt"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 	"time"
 
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/repositories"
 	"mwork_backend/internal/services/dto"
+	"mwork_backend/pkg/apperrors"
 )
 
+// =======================
+// 1. ИНТЕРФЕЙС ОБНОВЛЕН
+// =======================
+// Все методы теперь принимают 'db *gorm.DB'
 type NotificationService interface {
 	// Notification operations
-	CreateNotification(userID string, req *dto.CreateNotificationRequest) (*dto.NotificationResponse, error)
-	CreateBulkNotifications(req *dto.CreateBulkNotificationsRequest) error
-	GetNotification(notificationID string) (*dto.NotificationResponse, error)
-	GetUserNotifications(userID string, criteria dto.NotificationCriteria) (*dto.NotificationListResponse, error)
-	MarkAsRead(userID, notificationID string) error
-	MarkAllAsRead(userID string) error
-	MarkMultipleAsRead(userID string, notificationIDs []string) error
-	DeleteNotification(userID, notificationID string) error
-	DeleteUserNotifications(userID string) error
-	CleanOldNotifications(days int) error
+	CreateNotification(db *gorm.DB, userID string, req *dto.CreateNotificationRequest) (*dto.NotificationResponse, error)
+	CreateBulkNotifications(db *gorm.DB, req *dto.CreateBulkNotificationsRequest) error
+	GetNotification(db *gorm.DB, notificationID string) (*dto.NotificationResponse, error)
+	GetUserNotifications(db *gorm.DB, userID string, criteria dto.NotificationCriteria) (*dto.NotificationListResponse, error)
+	MarkAsRead(db *gorm.DB, userID, notificationID string) error
+	MarkAllAsRead(db *gorm.DB, userID string) error
+	MarkMultipleAsRead(db *gorm.DB, userID string, notificationIDs []string) error
+	DeleteNotification(db *gorm.DB, userID, notificationID string) error
+	DeleteUserNotifications(db *gorm.DB, userID string) error
+	CleanOldNotifications(db *gorm.DB, days int) error
 
 	// Notification stats
-	GetUserNotificationStats(userID string) (*repositories.NotificationStats, error)
-	GetUnreadCount(userID string) (int64, error)
+	GetUserNotificationStats(db *gorm.DB, userID string) (*repositories.NotificationStats, error)
+	GetUnreadCount(db *gorm.DB, userID string) (int64, error)
 
 	// Template operations
-	CreateTemplate(adminID string, req *dto.CreateTemplateRequest) error
-	GetTemplate(templateID string) (*repositories.NotificationTemplate, error)
-	GetTemplateByType(notificationType string) (*repositories.NotificationTemplate, error)
-	UpdateTemplate(adminID, templateID string, req *dto.UpdateTemplateRequest) error
-	DeleteTemplate(adminID, templateID string) error
-	GetAllTemplates() ([]*repositories.NotificationTemplate, error)
+	CreateTemplate(db *gorm.DB, adminID string, req *dto.CreateTemplateRequest) error
+	GetTemplate(db *gorm.DB, templateID string) (*repositories.NotificationTemplate, error)
+	GetTemplateByType(db *gorm.DB, notificationType string) (*repositories.NotificationTemplate, error)
+	UpdateTemplate(db *gorm.DB, adminID, templateID string, req *dto.UpdateTemplateRequest) error
+	DeleteTemplate(db *gorm.DB, adminID, templateID string) error
+	GetAllTemplates(db *gorm.DB) ([]*repositories.NotificationTemplate, error)
 
 	// Factory methods for common notification types
-	NotifyNewResponse(employerID, castingID, responseID, modelName string) error
-	NotifyResponseStatus(modelID, castingTitle string, status models.ResponseStatus) error
-	NotifyCastingMatch(modelID string, castingTitle string, score float64) error
-	NotifyNewMessage(recipientID, senderName, dialogID string) error
-	NotifySubscriptionExpiring(userID, planName string, daysRemaining int) error
-	NotifyNewCasting(modelID string, castingTitle string) error
-	NotifyProfileView(modelID string, viewerName string) error
+	NotifyNewResponse(db *gorm.DB, employerID, castingID, responseID, modelName string) error
+	NotifyResponseStatus(db *gorm.DB, modelID, castingTitle string, status models.ResponseStatus) error
+	NotifyCastingMatch(db *gorm.DB, modelID string, castingTitle string, score float64) error
+	NotifyNewMessage(db *gorm.DB, recipientID, senderName, dialogID string) error
+	NotifySubscriptionExpiring(db *gorm.DB, userID, planName string, daysRemaining int) error
+	NotifyNewCasting(db *gorm.DB, modelID string, castingTitle string) error
+	NotifyProfileView(db *gorm.DB, modelID string, viewerName string) error
 
 	// Batch operations
-	NotifyBulkResponses(employerID string, responses []dto.ResponseNotificationData) error
-	NotifyBulkCastingMatches(matches []dto.CastingMatchNotificationData) error
+	NotifyBulkResponses(db *gorm.DB, employerID string, responses []dto.ResponseNotificationData) error
+	NotifyBulkCastingMatches(db *gorm.DB, matches []dto.CastingMatchNotificationData) error
 
 	// Admin operations
-	GetAllNotifications(criteria dto.AdminNotificationCriteria) (*dto.NotificationListResponse, error)
-	GetPlatformNotificationStats() (*repositories.PlatformNotificationStats, error)
-	SendBulkNotification(adminID string, req *dto.SendBulkNotificationRequest) error
+	GetAllNotifications(db *gorm.DB, criteria dto.AdminNotificationCriteria) (*dto.NotificationListResponse, error)
+	GetPlatformNotificationStats(db *gorm.DB) (*repositories.PlatformNotificationStats, error)
+	SendBulkNotification(db *gorm.DB, adminID string, req *dto.SendBulkNotificationRequest) error
 }
 
+// =======================
+// 2. РЕАЛИЗАЦИЯ ОБНОВЛЕНА
+// =======================
 type notificationService struct {
+	// ❌ 'db *gorm.DB' УДАЛЕНО ОТСЮДА
 	notificationRepo repositories.NotificationRepository
 	userRepo         repositories.UserRepository
 	profileRepo      repositories.ProfileRepository
 }
 
+// ✅ Конструктор обновлен (db убран)
 func NewNotificationService(
+	// ❌ 'db *gorm.DB,' УДАЛЕНО
 	notificationRepo repositories.NotificationRepository,
 	userRepo repositories.UserRepository,
 	profileRepo repositories.ProfileRepository,
 ) NotificationService {
 	return &notificationService{
+		// ❌ 'db: db,' УДАЛЕНО
 		notificationRepo: notificationRepo,
 		userRepo:         userRepo,
 		profileRepo:      profileRepo,
@@ -76,8 +89,17 @@ func NewNotificationService(
 
 // ---------------- Notification operations ----------------
 
-func (s *notificationService) CreateNotification(userID string, req *dto.CreateNotificationRequest) (*dto.NotificationResponse, error) {
-	if _, err := s.userRepo.FindByID(req.UserID); err != nil {
+// CreateNotification - 'db' добавлен
+func (s *notificationService) CreateNotification(db *gorm.DB, userID string, req *dto.CreateNotificationRequest) (*dto.NotificationResponse, error) {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return nil, apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	if _, err := s.userRepo.FindByID(tx, req.UserID); err != nil {
 		return nil, errors.New("user not found")
 	}
 
@@ -99,18 +121,33 @@ func (s *notificationService) CreateNotification(userID string, req *dto.CreateN
 		IsRead:  false,
 	}
 
-	if err := s.notificationRepo.CreateNotification(notification); err != nil {
-		return nil, err
+	// ✅ Передаем tx
+	if err := s.notificationRepo.CreateNotification(tx, notification); err != nil {
+		return nil, apperrors.InternalError(err)
+	}
+
+	// ✅ Коммитим транзакцию
+	if err := tx.Commit().Error; err != nil {
+		return nil, apperrors.InternalError(err)
 	}
 
 	return s.buildNotificationResponse(notification), nil
 }
 
-func (s *notificationService) CreateBulkNotifications(req *dto.CreateBulkNotificationsRequest) error {
+// CreateBulkNotifications - 'db' добавлен
+func (s *notificationService) CreateBulkNotifications(db *gorm.DB, req *dto.CreateBulkNotificationsRequest) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
 	var notifications []*models.Notification
 
 	for _, notificationReq := range req.Notifications {
-		if _, err := s.userRepo.FindByID(notificationReq.UserID); err != nil {
+		// ✅ Передаем tx
+		if _, err := s.userRepo.FindByID(tx, notificationReq.UserID); err != nil {
 			return fmt.Errorf("user not found: %s", notificationReq.UserID)
 		}
 
@@ -133,27 +170,60 @@ func (s *notificationService) CreateBulkNotifications(req *dto.CreateBulkNotific
 		})
 	}
 
-	return s.notificationRepo.CreateBulkNotifications(notifications)
+	// ✅ Передаем tx
+	if err := s.notificationRepo.CreateBulkNotifications(tx, notifications); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *notificationService) GetNotification(notificationID string) (*dto.NotificationResponse, error) {
-	notification, err := s.notificationRepo.FindNotificationByID(notificationID)
+// GetNotification - 'db' добавлен
+func (s *notificationService) GetNotification(db *gorm.DB, notificationID string) (*dto.NotificationResponse, error) {
+	// ✅ Используем 'db' из параметра
+	notification, err := s.notificationRepo.FindNotificationByID(db, notificationID)
 	if err != nil {
-		return nil, err
+		return nil, handleNotificationError(err)
 	}
 	return s.buildNotificationResponse(notification), nil
 }
 
-func (s *notificationService) GetUserNotifications(userID string, criteria dto.NotificationCriteria) (*dto.NotificationListResponse, error) {
-	// конвертируем DTO → репозиторий
+// GetUserNotifications - 'db' добавлен
+func (s *notificationService) GetUserNotifications(db *gorm.DB, userID string, criteria dto.NotificationCriteria) (*dto.NotificationListResponse, error) {
+
+	// 1. Инициализируем критерии репозитория только общими полями
 	repoCriteria := repositories.NotificationCriteria{
 		Page:     criteria.Page,
 		PageSize: criteria.PageSize,
 	}
 
-	notifications, total, err := s.notificationRepo.FindUserNotifications(userID, repoCriteria)
+	// 2. Безопасно извлекаем значения из карты Filters
+	if criteria.Filters != nil {
+		if val, ok := criteria.Filters["unread_only"]; ok {
+			if boolVal, ok := val.(bool); ok {
+				repoCriteria.UnreadOnly = boolVal
+			}
+		}
+		if val, ok := criteria.Filters["type"]; ok {
+			if strVal, ok := val.(string); ok {
+				repoCriteria.Type = strVal
+			}
+		}
+		if val, ok := criteria.Filters["date_from"]; ok {
+			if timeVal, ok := val.(time.Time); ok {
+				repoCriteria.DateFrom = timeVal
+			}
+		}
+		if val, ok := criteria.Filters["date_to"]; ok {
+			if timeVal, ok := val.(time.Time); ok {
+				repoCriteria.DateTo = timeVal
+			}
+		}
+	}
+
+	// ✅ Используем 'db' из параметра и обновленные repoCriteria
+	notifications, total, err := s.notificationRepo.FindUserNotifications(db, userID, repoCriteria)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	var notificationResponses []*dto.NotificationResponse
@@ -170,69 +240,160 @@ func (s *notificationService) GetUserNotifications(userID string, criteria dto.N
 	}, nil
 }
 
-func (s *notificationService) MarkAsRead(userID, notificationID string) error {
-	notification, err := s.notificationRepo.FindNotificationByID(notificationID)
+// MarkAsRead - 'db' добавлен
+func (s *notificationService) MarkAsRead(db *gorm.DB, userID, notificationID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	notification, err := s.notificationRepo.FindNotificationByID(tx, notificationID)
 	if err != nil {
-		return err
+		return handleNotificationError(err)
 	}
 	if notification.UserID != userID {
 		return errors.New("access denied")
 	}
-	return s.notificationRepo.MarkAsRead(notificationID)
+
+	// ✅ Передаем tx
+	if err := s.notificationRepo.MarkAsRead(tx, notificationID); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *notificationService) MarkAllAsRead(userID string) error {
-	return s.notificationRepo.MarkAllAsRead(userID)
+// MarkAllAsRead - 'db' добавлен
+func (s *notificationService) MarkAllAsRead(db *gorm.DB, userID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	if err := s.notificationRepo.MarkAllAsRead(tx, userID); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *notificationService) MarkMultipleAsRead(userID string, notificationIDs []string) error {
+// MarkMultipleAsRead - 'db' добавлен
+func (s *notificationService) MarkMultipleAsRead(db *gorm.DB, userID string, notificationIDs []string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
 	for _, notificationID := range notificationIDs {
-		notification, err := s.notificationRepo.FindNotificationByID(notificationID)
+		// ✅ Передаем tx
+		notification, err := s.notificationRepo.FindNotificationByID(tx, notificationID)
 		if err != nil {
-			return err
+			return handleNotificationError(err)
 		}
 		if notification.UserID != userID {
 			return errors.New("access denied for some notifications")
 		}
 	}
-	return s.notificationRepo.MarkMultipleAsRead(notificationIDs)
+
+	// ✅ Передаем tx
+	if err := s.notificationRepo.MarkMultipleAsRead(tx, notificationIDs); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *notificationService) DeleteNotification(userID, notificationID string) error {
-	notification, err := s.notificationRepo.FindNotificationByID(notificationID)
+// DeleteNotification - 'db' добавлен
+func (s *notificationService) DeleteNotification(db *gorm.DB, userID, notificationID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	notification, err := s.notificationRepo.FindNotificationByID(tx, notificationID)
 	if err != nil {
-		return err
+		return handleNotificationError(err)
 	}
 	if notification.UserID != userID {
 		return errors.New("access denied")
 	}
-	return s.notificationRepo.DeleteNotification(notificationID)
+
+	// ✅ Передаем tx
+	if err := s.notificationRepo.DeleteNotification(tx, notificationID); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *notificationService) DeleteUserNotifications(userID string) error {
-	return s.notificationRepo.DeleteUserNotifications(userID)
+// DeleteUserNotifications - 'db' добавлен
+func (s *notificationService) DeleteUserNotifications(db *gorm.DB, userID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	if err := s.notificationRepo.DeleteUserNotifications(tx, userID); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *notificationService) CleanOldNotifications(days int) error {
-	return s.notificationRepo.CleanOldNotifications(days)
+// CleanOldNotifications - 'db' добавлен
+func (s *notificationService) CleanOldNotifications(db *gorm.DB, days int) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	if err := s.notificationRepo.CleanOldNotifications(tx, days); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
 // ---------------- Notification stats ----------------
 
-func (s *notificationService) GetUserNotificationStats(userID string) (*repositories.NotificationStats, error) {
-	return s.notificationRepo.GetUserNotificationStats(userID)
+// GetUserNotificationStats - 'db' добавлен
+func (s *notificationService) GetUserNotificationStats(db *gorm.DB, userID string) (*repositories.NotificationStats, error) {
+	// ✅ Используем 'db' из параметра
+	return s.notificationRepo.GetUserNotificationStats(db, userID)
 }
 
-func (s *notificationService) GetUnreadCount(userID string) (int64, error) {
-	return s.notificationRepo.GetUnreadCount(userID)
+// GetUnreadCount - 'db' добавлен
+func (s *notificationService) GetUnreadCount(db *gorm.DB, userID string) (int64, error) {
+	// ✅ Используем 'db' из параметра
+	return s.notificationRepo.GetUnreadCount(db, userID)
 }
 
 // ---------------- Template operations ----------------
 
-func (s *notificationService) CreateTemplate(adminID string, req *dto.CreateTemplateRequest) error {
-	admin, err := s.userRepo.FindByID(adminID)
+// CreateTemplate - 'db' добавлен
+func (s *notificationService) CreateTemplate(db *gorm.DB, adminID string, req *dto.CreateTemplateRequest) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	admin, err := s.userRepo.FindByID(tx, adminID)
 	if err != nil {
-		return err
+		return handleNotificationError(err)
 	}
 	if admin.Role != models.UserRoleAdmin {
 		return errors.New("insufficient permissions")
@@ -251,29 +412,55 @@ func (s *notificationService) CreateTemplate(adminID string, req *dto.CreateTemp
 		UpdatedAt: time.Now(),
 	}
 
-	return s.notificationRepo.CreateNotificationTemplate(template)
+	// ✅ Передаем tx
+	if err := s.notificationRepo.CreateNotificationTemplate(tx, template); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *notificationService) GetTemplate(templateID string) (*repositories.NotificationTemplate, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (s *notificationService) GetTemplateByType(notificationType string) (*repositories.NotificationTemplate, error) {
-	return s.notificationRepo.FindTemplateByType(notificationType)
-}
-
-func (s *notificationService) UpdateTemplate(adminID, templateID string, req *dto.UpdateTemplateRequest) error {
-	admin, err := s.userRepo.FindByID(adminID)
+// GetTemplate - 'db' добавлен
+func (s *notificationService) GetTemplate(db *gorm.DB, templateID string) (*repositories.NotificationTemplate, error) {
+	// ✅ Используем 'db' из параметра
+	template, err := s.notificationRepo.FindTemplateByID(db, templateID)
 	if err != nil {
-		return err
+		return nil, handleNotificationError(err)
+	}
+	return template, nil
+}
+
+// GetTemplateByType - 'db' добавлен
+func (s *notificationService) GetTemplateByType(db *gorm.DB, notificationType string) (*repositories.NotificationTemplate, error) {
+	// ✅ Используем 'db' из параметра
+	template, err := s.notificationRepo.FindTemplateByType(db, notificationType)
+	if err != nil {
+		return nil, handleNotificationError(err)
+	}
+	return template, nil
+}
+
+// UpdateTemplate - 'db' добавлен
+func (s *notificationService) UpdateTemplate(db *gorm.DB, adminID, templateID string, req *dto.UpdateTemplateRequest) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	admin, err := s.userRepo.FindByID(tx, adminID)
+	if err != nil {
+		return handleNotificationError(err)
 	}
 	if admin.Role != models.UserRoleAdmin {
 		return errors.New("insufficient permissions")
 	}
 
-	template, err := s.GetTemplate(templateID)
+	// ✅ Передаем tx
+	template, err := s.notificationRepo.FindTemplateByID(tx, templateID)
 	if err != nil {
-		return err
+		return handleNotificationError(err)
 	}
 
 	if req.Title != nil {
@@ -288,105 +475,274 @@ func (s *notificationService) UpdateTemplate(adminID, templateID string, req *dt
 	if req.IsActive != nil {
 		template.IsActive = *req.IsActive
 	}
-
 	template.UpdatedAt = time.Now()
 
-	return s.notificationRepo.UpdateTemplate(template)
+	// ✅ Передаем tx
+	if err := s.notificationRepo.UpdateTemplate(tx, template); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *notificationService) DeleteTemplate(adminID, templateID string) error {
-	admin, err := s.userRepo.FindByID(adminID)
+// DeleteTemplate - 'db' добавлен
+func (s *notificationService) DeleteTemplate(db *gorm.DB, adminID, templateID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	admin, err := s.userRepo.FindByID(tx, adminID)
 	if err != nil {
-		return err
+		return handleNotificationError(err)
 	}
 	if admin.Role != models.UserRoleAdmin {
 		return errors.New("insufficient permissions")
 	}
-	return errors.New("not implemented")
+
+	// ✅ Передаем tx
+	if err := s.notificationRepo.DeleteTemplate(tx, templateID); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *notificationService) GetAllTemplates() ([]*repositories.NotificationTemplate, error) {
-	return []*repositories.NotificationTemplate{}, nil
+// GetAllTemplates - 'db' добавлен
+func (s *notificationService) GetAllTemplates(db *gorm.DB) ([]*repositories.NotificationTemplate, error) {
+	// ✅ Используем 'db' из параметра
+	templates, err := s.notificationRepo.FindAllTemplates(db)
+	if err != nil {
+		return nil, apperrors.InternalError(err)
+	}
+	return templates, nil
 }
 
 // ---------------- Factory methods ----------------
 
-func (s *notificationService) NotifyNewResponse(employerID, castingID, responseID, modelName string) error {
-	return s.notificationRepo.CreateNewResponseNotification(employerID, castingID, responseID, modelName)
+// NotifyNewResponse - 'db' добавлен
+func (s *notificationService) NotifyNewResponse(db *gorm.DB, employerID, castingID, responseID, modelName string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	if err := s.notificationRepo.CreateNewResponseNotification(tx, employerID, castingID, responseID, modelName); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *notificationService) NotifyResponseStatus(modelID, castingTitle string, status models.ResponseStatus) error {
-	return s.notificationRepo.CreateResponseStatusNotification(modelID, castingTitle, status)
+// NotifyResponseStatus - 'db' добавлен
+func (s *notificationService) NotifyResponseStatus(db *gorm.DB, modelID, castingTitle string, status models.ResponseStatus) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	if err := s.notificationRepo.CreateResponseStatusNotification(tx, modelID, castingTitle, status); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *notificationService) NotifyCastingMatch(modelID string, castingTitle string, score float64) error {
-	return s.notificationRepo.CreateCastingMatchNotification(modelID, castingTitle, score)
+// NotifyCastingMatch - 'db' добавлен
+func (s *notificationService) NotifyCastingMatch(db *gorm.DB, modelID string, castingTitle string, score float64) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	if err := s.notificationRepo.CreateCastingMatchNotification(tx, modelID, castingTitle, score); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *notificationService) NotifyNewMessage(recipientID, senderName, dialogID string) error {
-	return s.notificationRepo.CreateNewMessageNotification(recipientID, senderName, dialogID)
+// NotifyNewMessage - 'db' добавлен
+func (s *notificationService) NotifyNewMessage(db *gorm.DB, recipientID, senderName, dialogID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	if err := s.notificationRepo.CreateNewMessageNotification(tx, recipientID, senderName, dialogID); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *notificationService) NotifySubscriptionExpiring(userID, planName string, daysRemaining int) error {
-	return s.notificationRepo.CreateSubscriptionExpiringNotification(userID, planName, daysRemaining)
+// NotifySubscriptionExpiring - 'db' добавлен
+func (s *notificationService) NotifySubscriptionExpiring(db *gorm.DB, userID, planName string, daysRemaining int) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	if err := s.notificationRepo.CreateSubscriptionExpiringNotification(tx, userID, planName, daysRemaining); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *notificationService) NotifyNewCasting(modelID string, castingTitle string) error {
+// NotifyNewCasting - 'db' добавлен
+func (s *notificationService) NotifyNewCasting(db *gorm.DB, modelID string, castingTitle string) error {
 	notification := &models.Notification{
 		UserID:  modelID,
 		Type:    repositories.NotificationTypeNewCasting,
 		Title:   "Новый кастинг в вашем городе",
 		Message: fmt.Sprintf("Появился новый кастинг '%s', который может вас заинтересовать", castingTitle),
 	}
-	return s.notificationRepo.CreateNotification(notification)
+
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	if err := s.notificationRepo.CreateNotification(tx, notification); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *notificationService) NotifyProfileView(modelID string, viewerName string) error {
+// NotifyProfileView - 'db' добавлен
+func (s *notificationService) NotifyProfileView(db *gorm.DB, modelID string, viewerName string) error {
 	notification := &models.Notification{
 		UserID:  modelID,
 		Type:    repositories.NotificationTypeProfileView,
 		Title:   "Ваш профиль просмотрели",
 		Message: fmt.Sprintf("Ваш профиль просмотрел(а) %s", viewerName),
 	}
-	return s.notificationRepo.CreateNotification(notification)
+
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	if err := s.notificationRepo.CreateNotification(tx, notification); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
 // ---------------- Batch operations ----------------
 
-func (s *notificationService) NotifyBulkResponses(employerID string, responses []dto.ResponseNotificationData) error {
+// NotifyBulkResponses - 'db' добавлен
+func (s *notificationService) NotifyBulkResponses(db *gorm.DB, employerID string, responses []dto.ResponseNotificationData) error {
 	repoResponses := make([]repositories.ResponseNotificationData, len(responses))
 	for i, r := range responses {
 		repoResponses[i] = repositories.ResponseNotificationData{
-			CastingID:  r.CastingID, // убедись, что поле существует в репозитории
+			CastingID:  r.CastingID,
 			ResponseID: r.ResponseID,
-			ModelName:  r.ModelName, // может быть ModelID вместо ModelName
+			ModelName:  r.ModelName,
 		}
 	}
-	return s.notificationRepo.CreateBulkResponseNotifications(employerID, repoResponses)
+
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	if err := s.notificationRepo.CreateBulkResponseNotifications(tx, employerID, repoResponses); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *notificationService) NotifyBulkCastingMatches(matches []dto.CastingMatchNotificationData) error {
+// NotifyBulkCastingMatches - 'db' добавлен
+func (s *notificationService) NotifyBulkCastingMatches(db *gorm.DB, matches []dto.CastingMatchNotificationData) error {
 	repoMatches := make([]repositories.CastingMatchNotificationData, len(matches))
 	for i, m := range matches {
 		repoMatches[i] = repositories.CastingMatchNotificationData{
-			ModelID: m.ModelID,
-			Score:   m.Score,
+			ModelID:      m.ModelID,
+			CastingTitle: m.CastingTitle,
+			Score:        m.Score,
 		}
 	}
-	return s.notificationRepo.CreateBulkCastingMatchNotifications(repoMatches)
+
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	if err := s.notificationRepo.CreateBulkCastingMatchNotifications(tx, repoMatches); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
 // ---------------- Admin operations ----------------
 
-func (s *notificationService) GetAllNotifications(criteria dto.AdminNotificationCriteria) (*dto.NotificationListResponse, error) {
+// GetAllNotifications - 'db' добавлен
+func (s *notificationService) GetAllNotifications(db *gorm.DB, criteria dto.AdminNotificationCriteria) (*dto.NotificationListResponse, error) {
+
+	// 1. Инициализируем критерии репозитория только общими полями
 	repoCriteria := repositories.AdminNotificationCriteria{
 		Page:     criteria.Page,
 		PageSize: criteria.PageSize,
 	}
 
-	notifications, total, err := s.notificationRepo.FindAllNotifications(repoCriteria)
+	// 2. Безопасно извлекаем значения из карты Filters
+	if criteria.Filters != nil {
+		if val, ok := criteria.Filters["user_id"]; ok {
+			if strVal, ok := val.(string); ok {
+				repoCriteria.UserID = strVal
+			}
+		}
+		if val, ok := criteria.Filters["type"]; ok {
+			if strVal, ok := val.(string); ok {
+				repoCriteria.Type = strVal
+			}
+		}
+		if val, ok := criteria.Filters["unread_only"]; ok {
+			if boolVal, ok := val.(bool); ok {
+				repoCriteria.UnreadOnly = boolVal
+			}
+		}
+		if val, ok := criteria.Filters["date_from"]; ok {
+			if timeVal, ok := val.(time.Time); ok {
+				repoCriteria.DateFrom = timeVal
+			}
+		}
+		if val, ok := criteria.Filters["date_to"]; ok {
+			if timeVal, ok := val.(time.Time); ok {
+				repoCriteria.DateTo = timeVal
+			}
+		}
+	}
+
+	// ✅ Используем 'db' из параметра и обновленные repoCriteria
+	notifications, total, err := s.notificationRepo.FindAllNotifications(db, repoCriteria)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	var notificationResponses []*dto.NotificationResponse
@@ -403,14 +759,25 @@ func (s *notificationService) GetAllNotifications(criteria dto.AdminNotification
 	}, nil
 }
 
-func (s *notificationService) GetPlatformNotificationStats() (*repositories.PlatformNotificationStats, error) {
-	return s.notificationRepo.GetPlatformNotificationStats()
+// GetPlatformNotificationStats - 'db' добавлен
+func (s *notificationService) GetPlatformNotificationStats(db *gorm.DB) (*repositories.PlatformNotificationStats, error) {
+	// ✅ Используем 'db' из параметра
+	return s.notificationRepo.GetPlatformNotificationStats(db)
 }
 
-func (s *notificationService) SendBulkNotification(adminID string, req *dto.SendBulkNotificationRequest) error {
-	admin, err := s.userRepo.FindByID(adminID)
+// SendBulkNotification - 'db' добавлен
+func (s *notificationService) SendBulkNotification(db *gorm.DB, adminID string, req *dto.SendBulkNotificationRequest) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	admin, err := s.userRepo.FindByID(tx, adminID)
 	if err != nil {
-		return err
+		return handleNotificationError(err)
 	}
 	if admin.Role != models.UserRoleAdmin {
 		return errors.New("insufficient permissions")
@@ -419,23 +786,42 @@ func (s *notificationService) SendBulkNotification(adminID string, req *dto.Send
 		return errors.New("invalid notification type")
 	}
 
-	var notifications []*dto.CreateNotificationRequest
+	var notifications []*models.Notification
 	for _, userID := range req.UserIDs {
-		notifications = append(notifications, &dto.CreateNotificationRequest{
+		// ✅ Передаем tx
+		if _, err := s.userRepo.FindByID(tx, userID); err != nil {
+			return fmt.Errorf("user not found: %s", userID)
+		}
+
+		var dataJSON datatypes.JSON
+		if req.Data != nil {
+			jsonData, err := json.Marshal(req.Data)
+			if err != nil {
+				return fmt.Errorf("failed to marshal notification data: %w", err)
+			}
+			dataJSON = datatypes.JSON(jsonData)
+		}
+
+		notifications = append(notifications, &models.Notification{
 			UserID:  userID,
 			Type:    req.Type,
 			Title:   req.Title,
 			Message: req.Message,
-			Data:    req.Data,
+			Data:    dataJSON,
+			IsRead:  false,
 		})
 	}
 
-	bulkRequest := &dto.CreateBulkNotificationsRequest{Notifications: notifications}
-	return s.CreateBulkNotifications(bulkRequest)
+	// ✅ Передаем tx
+	if err := s.notificationRepo.CreateBulkNotifications(tx, notifications); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
 // ---------------- Helpers ----------------
 
+// (buildNotificationResponse - чистая функция, без изменений)
 func (s *notificationService) buildNotificationResponse(notification *models.Notification) *dto.NotificationResponse {
 	response := &dto.NotificationResponse{
 		ID:        notification.ID,
@@ -459,6 +845,7 @@ func (s *notificationService) buildNotificationResponse(notification *models.Not
 	return response
 }
 
+// (isValidNotificationType - чистая функция, без изменений)
 func isValidNotificationType(notificationType string) bool {
 	validTypes := map[string]bool{
 		repositories.NotificationTypeNewResponse:          true,
@@ -470,4 +857,28 @@ func isValidNotificationType(notificationType string) bool {
 		repositories.NotificationTypeProfileView:          true,
 	}
 	return validTypes[notificationType]
+}
+
+// (calculateTotalPages - чистая функция, добавлена)
+func calculateTotalPages(total int64, pageSize int) int {
+	if pageSize <= 0 {
+		return 0
+	}
+	totalPages := int(total) / pageSize
+	if int(total)%pageSize != 0 {
+		totalPages++
+	}
+	return totalPages
+}
+
+// (handleNotificationError - хелпер, без изменений)
+func handleNotificationError(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) ||
+		errors.Is(err, repositories.ErrNotificationNotFound) {
+		return apperrors.ErrNotFound(err)
+	}
+	if errors.Is(err, repositories.ErrUserNotFound) {
+		return apperrors.ErrNotFound(err)
+	}
+	return apperrors.InternalError(err)
 }

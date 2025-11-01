@@ -20,7 +20,8 @@ func TestSubscription_PublicPlanListing(t *testing.T) {
 	defer ts.RollbackTransaction(t, tx)
 
 	// 2. Действие: Анонимный юзер запрашивает планы
-	res, bodyStr := ts.SendRequest(t, "GET", "/api/v1/plans", "", nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "GET", "/api/v1/plans", "", nil)
 
 	// 3. Проверка:
 	assert.Equal(t, http.StatusOK, res.StatusCode)
@@ -50,7 +51,8 @@ func TestSubscription_AdminPlanManagement(t *testing.T) {
 		"limits":    map[string]int{"publications": 50, "responses": 100},
 		"is_active": true,
 	}
-	res, bodyStr := ts.SendRequest(t, "POST", "/api/v1/admin/plans", adminToken, planBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "POST", "/api/v1/admin/plans", adminToken, planBody)
 
 	// 3. Проверка: Создание
 	assert.Equal(t, http.StatusCreated, res.StatusCode)
@@ -58,7 +60,8 @@ func TestSubscription_AdminPlanManagement(t *testing.T) {
 	t.Logf("ПОДПИСКИ (Admin): POST /admin/plans (201) - Успешно.")
 
 	// 4. Действие: Получаем ID созданного плана (через публичный роут)
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/plans", "", nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/plans", "", nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	var plansResponse struct {
@@ -84,26 +87,30 @@ func TestSubscription_AdminPlanManagement(t *testing.T) {
 		"price":     5500,
 		"is_active": false,
 	}
-	res, bodyStr = ts.SendRequest(t, "PUT", "/api/v1/admin/plans/"+planID, adminToken, updateBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "PUT", "/api/v1/admin/plans/"+planID, adminToken, updateBody)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, "Plan updated successfully")
 	t.Logf("ПОДПИСКИ (Admin): PUT /admin/plans/:id (200) - Успешно.")
 
 	// 6. Действие: Проверяем обновление (GET /:planId)
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/plans/"+planID, "", nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/plans/"+planID, "", nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, `"Price":5500`)
 	assert.Contains(t, bodyStr, `"IsActive":false`)
 	t.Logf("ПОДПИСКИ (Admin): Проверка обновления (200) - Успешно.")
 
 	// 7. Действие: Админ удаляет план (DELETE)
-	res, bodyStr = ts.SendRequest(t, "DELETE", "/api/v1/admin/plans/"+planID, adminToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "DELETE", "/api/v1/admin/plans/"+planID, adminToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, "Plan deleted successfully")
 	t.Logf("ПОДПИСКИ (Admin): DELETE /admin/plans/:id (200) - Успешно.")
 
 	// 8. Действие: Проверяем удаление (GET /:planId)
-	res, _ = ts.SendRequest(t, "GET", "/api/v1/plans/"+planID, "", nil)
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, "GET", "/api/v1/plans/"+planID, "", nil)
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 	t.Logf("ПОДПИСКИ (Admin): Проверка удаления (404) - Успешно.")
 }
@@ -121,7 +128,8 @@ func TestSubscription_UserFlow(t *testing.T) {
 	adminToken, _ := helpers.CreateAndLoginUser(t, ts, tx, "Admin", "admin@sub.com", "adminpass", models.UserRoleAdmin) // ✅ Fixed: 2 return values
 
 	// 2. Действие (Модель): Проверяем "мою" подписку (должна быть "Free")
-	res, bodyStr := ts.SendRequest(t, "GET", "/api/v1/subscriptions/my", modelToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "GET", "/api/v1/subscriptions/my", modelToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, `"Name":"Free"`)
 	t.Logf("ПОДПИСКИ (User): GET /my (Free) - Успешно.")
@@ -136,11 +144,13 @@ func TestSubscription_UserFlow(t *testing.T) {
 		"limits":    map[string]int{"publications": 10},
 		"is_active": true,
 	}
-	res, _ = ts.SendRequest(t, "POST", "/api/v1/admin/plans", adminToken, planBody)
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, "POST", "/api/v1/admin/plans", adminToken, planBody)
 	assert.Equal(t, http.StatusCreated, res.StatusCode)
 
 	// ...и получаем его ID
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/plans", "", nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/plans", "", nil)
 	var plansResponse struct {
 		Plans []models.SubscriptionPlan `json:"plans"`
 	}
@@ -155,20 +165,23 @@ func TestSubscription_UserFlow(t *testing.T) {
 
 	// 4. Действие (Модель): Апгрейд подписки (POST /subscribe)
 	subBody := map[string]interface{}{"plan_id": premiumPlanID}
-	res, bodyStr = ts.SendRequest(t, "POST", "/api/v1/subscriptions/subscribe", modelToken, subBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "POST", "/api/v1/subscriptions/subscribe", modelToken, subBody)
 	assert.Equal(t, http.StatusCreated, res.StatusCode)
 	assert.Contains(t, bodyStr, `"PlanID":"`+premiumPlanID+`"`)
 	t.Logf("ПОДПИСКИ (User): POST /subscribe (201) - Успешно.")
 
 	// 5. Действие (Модель): Проверяем "мою" подписку (должна быть "Premium")
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/subscriptions/my", modelToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/subscriptions/my", modelToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, `"Name":"Premium"`)
 	assert.Contains(t, bodyStr, `"status":"active"`)
 	t.Logf("ПОДПИСКИ (User): GET /my (Premium) - Успешно.")
 
 	// 6. Действие (Модель): Проверяем лимиты
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/subscriptions/check-limit?feature=publications", modelToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/subscriptions/check-limit?feature=publications", modelToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, `"can_use":true`)
 	t.Logf("ПОДПИСКИ (User): GET /check-limit - Успешно.")
@@ -186,26 +199,30 @@ func TestSubscription_Security(t *testing.T) {
 	modelToken, _, _ := helpers.CreateAndLoginModel(t, ts, tx)
 
 	// 2. Действие: Аноним пытается получить /my
-	res, _ := ts.SendRequest(t, "GET", "/api/v1/subscriptions/my", "", nil)
+	// ❗️ Добавлен 'tx'
+	res, _ := ts.SendRequest(t, tx, "GET", "/api/v1/subscriptions/my", "", nil)
 	// 3. Проверка: (401 Unauthorized)
 	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	t.Logf("БЕЗОПАСНОСТЬ (Sub): Аноним не может читать /my (401) - Успешно.")
 
 	// 2. Действие: Аноним пытается создать /subscribe
-	res, _ = ts.SendRequest(t, "POST", "/api/v1/subscriptions/subscribe", "", nil)
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, "POST", "/api/v1/subscriptions/subscribe", "", nil)
 	// 3. Проверка: (401 Unauthorized)
 	assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	t.Logf("БЕЗОПАСНОСТЬ (Sub): Аноним не может /subscribe (401) - Успешно.")
 
 	// 2. Действие: Модель пытается создать План (роут Админа)
 	planBody := map[string]interface{}{"name": "Hacked Plan", "price": 1}
-	res, _ = ts.SendRequest(t, "POST", "/api/v1/admin/plans", modelToken, planBody)
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, "POST", "/api/v1/admin/plans", modelToken, planBody)
 	// 3. Проверка: (403 Forbidden)
 	assert.Equal(t, http.StatusForbidden, res.StatusCode)
 	t.Logf("БЕЗОПАСНОСТЬ (Sub): Модель не может /admin/plans (403) - Успешно.")
 
 	// 2. Действие: Модель пытается получить статистику (роут Админа)
-	res, _ = ts.SendRequest(t, "GET", "/api/v1/admin/subscriptions/stats/platform", modelToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, "GET", "/api/v1/admin/subscriptions/stats/platform", modelToken, nil)
 	// 3. Проверка: (403 Forbidden)
 	assert.Equal(t, http.StatusForbidden, res.StatusCode)
 	t.Logf("БЕЗОПАСНОСТЬ (Sub): Модель не может /admin/subscriptions/stats (403) - Успешно.")
@@ -231,11 +248,13 @@ func TestSubscription_PlanCreationIsolated(t *testing.T) {
 		"limits":    map[string]int{"limit1": 5},
 		"is_active": true,
 	}
-	res, bodyStr := ts.SendRequest(t, "POST", "/api/v1/admin/plans", adminToken, planBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "POST", "/api/v1/admin/plans", adminToken, planBody)
 	assert.Equal(t, http.StatusCreated, res.StatusCode)
 
 	// Проверяем, что план создался
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/plans", "", nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/plans", "", nil)
 	assert.Contains(t, bodyStr, "Isolated Plan")
 }
 
@@ -257,11 +276,13 @@ func TestSubscription_UserSubscriptionIsolated(t *testing.T) {
 		"duration":  "monthly",
 		"is_active": true,
 	}
-	res, _ := ts.SendRequest(t, "POST", "/api/v1/admin/plans", adminToken, planBody)
+	// ❗️ Добавлен 'tx'
+	res, _ := ts.SendRequest(t, tx, "POST", "/api/v1/admin/plans", adminToken, planBody)
 	assert.Equal(t, http.StatusCreated, res.StatusCode)
 
 	// Получаем ID плана
-	res, bodyStr := ts.SendRequest(t, "GET", "/api/v1/plans", "", nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "GET", "/api/v1/plans", "", nil)
 	var plansResponse struct {
 		Plans []models.SubscriptionPlan `json:"plans"`
 	}
@@ -277,11 +298,13 @@ func TestSubscription_UserSubscriptionIsolated(t *testing.T) {
 
 	// Пользователь подписывается на план
 	subBody := map[string]interface{}{"plan_id": testPlanID}
-	res, bodyStr = ts.SendRequest(t, "POST", "/api/v1/subscriptions/subscribe", modelToken, subBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "POST", "/api/v1/subscriptions/subscribe", modelToken, subBody)
 	assert.Equal(t, http.StatusCreated, res.StatusCode)
 
 	// Проверяем, что подписка активна
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/subscriptions/my", modelToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/subscriptions/my", modelToken, nil)
 	assert.Contains(t, bodyStr, "User Test Plan")
 	assert.Contains(t, bodyStr, `"status":"active"`)
 }
@@ -296,12 +319,14 @@ func TestSubscription_LimitCheckingIsolated(t *testing.T) {
 	modelToken, _, _ := helpers.CreateAndLoginModel(t, ts, tx)
 
 	// Проверяем лимиты для Free плана
-	res, bodyStr := ts.SendRequest(t, "GET", "/api/v1/subscriptions/check-limit?feature=publications", modelToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, "GET", "/api/v1/subscriptions/check-limit?feature=publications", modelToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, `"can_use":true`)
 
 	// Проверяем несуществующий лимит
-	res, bodyStr = ts.SendRequest(t, "GET", "/api/v1/subscriptions/check-limit?feature=non_existent", modelToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, "GET", "/api/v1/subscriptions/check-limit?feature=non_existent", modelToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	// Может быть true или false в зависимости от реализации
 }
@@ -327,22 +352,26 @@ func TestSubscription_AdminSecurityIsolated(t *testing.T) {
 
 	for _, endpoint := range adminEndpoints {
 		// Модель не может получить доступ
-		res, _ := ts.SendRequest(t, http.MethodGet, endpoint, modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ := ts.SendRequest(t, tx, http.MethodGet, endpoint, modelToken, nil)
 		assert.Equal(t, http.StatusForbidden, res.StatusCode, "Model should be forbidden for: "+endpoint)
 
 		// Работодатель не может получить доступ
-		res, _ = ts.SendRequest(t, http.MethodGet, endpoint, empToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodGet, endpoint, empToken, nil)
 		assert.Equal(t, http.StatusForbidden, res.StatusCode, "Employer should be forbidden for: "+endpoint)
 
 		// Админ может получить доступ
 		if endpoint == "/api/v1/admin/plans" {
 			// Для POST endpoints проверяем с телом
 			planBody := map[string]interface{}{"name": "Test Plan", "price": 1000, "currency": "KZT"}
-			res, bodyStr := ts.SendRequest(t, http.MethodPost, endpoint, adminToken, planBody)
+			// ❗️ Добавлен 'tx'
+			res, bodyStr := ts.SendRequest(t, tx, http.MethodPost, endpoint, adminToken, planBody)
 			assert.Equal(t, http.StatusCreated, res.StatusCode, "Admin should access POST: "+endpoint+", Body: "+bodyStr)
 		} else {
 			// Для GET endpoints
-			res, bodyStr := ts.SendRequest(t, http.MethodGet, endpoint, adminToken, nil)
+			// ❗️ Добавлен 'tx'
+			res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, endpoint, adminToken, nil)
 			assert.Equal(t, http.StatusOK, res.StatusCode, "Admin should access GET: "+endpoint+", Body: "+bodyStr)
 		}
 	}

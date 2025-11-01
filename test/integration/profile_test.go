@@ -59,24 +59,29 @@ func TestProfile(t *testing.T) {
 		}
 
 		// 1. Успешное создание
-		res, bodyStr := ts.SendRequest(t, http.MethodPost, "/api/v1/profiles/model", userForModelToken, modelBody)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodPost, "/api/v1/profiles/model", userForModelToken, modelBody)
 		assert.Equal(t, http.StatusCreated, res.StatusCode, "Should create model profile. Body: "+bodyStr)
 
 		// 2. Ошибка: Попытка создать профиль ЕЩЕ РАЗ
-		res, bodyStr = ts.SendRequest(t, http.MethodPost, "/api/v1/profiles/model", userForModelToken, modelBody)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodPost, "/api/v1/profiles/model", userForModelToken, modelBody)
 		assert.Equal(t, http.StatusConflict, res.StatusCode, "Should return 409 Conflict when profile already exists. Body: "+bodyStr)
 
 		// 3. Ошибка: Невалидное тело (отсутствует 'name')
 		invalidModelBody := map[string]interface{}{"age": 22, "city": "Test City"}
-		res, bodyStr = ts.SendRequest(t, http.MethodPost, "/api/v1/profiles/model", userForModelToken, invalidModelBody)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodPost, "/api/v1/profiles/model", userForModelToken, invalidModelBody)
 		assert.Equal(t, http.StatusBadRequest, res.StatusCode, "Should return 400 on validation error. Body: "+bodyStr)
 
 		// 4. Ошибка: Без токена
-		res, bodyStr = ts.SendRequest(t, http.MethodPost, "/api/v1/profiles/model", "", modelBody)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodPost, "/api/v1/profiles/model", "", modelBody)
 		assert.Equal(t, http.StatusUnauthorized, res.StatusCode, "Should return 401 without token. Body: "+bodyStr)
 
 		// 5. Ошибка: Не та роль (Работодатель пытается создать профиль Модели)
-		res, bodyStr = ts.SendRequest(t, http.MethodPost, "/api/v1/profiles/model", userForEmpToken, modelBody)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodPost, "/api/v1/profiles/model", userForEmpToken, modelBody)
 		assert.Equal(t, http.StatusForbidden, res.StatusCode, "Should return 403 Forbidden for wrong role. Body: "+bodyStr)
 
 		// --- Тест создания профиля Работодателя ---
@@ -86,11 +91,13 @@ func TestProfile(t *testing.T) {
 		}
 
 		// 1. Успешное создание
-		res, bodyStr = ts.SendRequest(t, http.MethodPost, "/api/v1/profiles/employer", userForEmpToken, empBody)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodPost, "/api/v1/profiles/employer", userForEmpToken, empBody)
 		assert.Equal(t, http.StatusCreated, res.StatusCode, "Should create employer profile. Body: "+bodyStr)
 
 		// 2. Ошибка: Попытка создать ЕЩЕ РАЗ
-		res, bodyStr = ts.SendRequest(t, http.MethodPost, "/api/v1/profiles/employer", userForEmpToken, empBody)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodPost, "/api/v1/profiles/employer", userForEmpToken, empBody)
 		assert.Equal(t, http.StatusConflict, res.StatusCode, "Should return 409 Conflict. Body: "+bodyStr)
 	})
 
@@ -98,7 +105,8 @@ func TestProfile(t *testing.T) {
 	t.Run("GET /profiles/:userId - Public Profile Retrieval", func(t *testing.T) {
 		// 1. Успешное получение профиля Модели (используем ID из setup)
 		endpointModel := "/api/v1/profiles/" + modelUser.ID
-		res, bodyStr := ts.SendRequest(t, http.MethodGet, endpointModel, "", nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, endpointModel, "", nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode, "Should get model profile. Body: "+bodyStr)
 		// Проверяем, что в ответе есть данные профиля
 		assert.Contains(t, bodyStr, modelProfile.Name, "Response should contain model name")
@@ -106,14 +114,16 @@ func TestProfile(t *testing.T) {
 
 		// 2. Успешное получение профиля Работодателя
 		endpointEmp := "/api/v1/profiles/" + empUser.ID
-		res, bodyStr = ts.SendRequest(t, http.MethodGet, endpointEmp, "", nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, endpointEmp, "", nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode, "Should get employer profile. Body: "+bodyStr)
 		assert.Contains(t, bodyStr, empProfile.CompanyName, "Response should contain company name")
 		assert.Contains(t, bodyStr, `"type":"employer"`, "Response should specify type 'employer'")
 
 		// 3. Ошибка: Несуществующий ID
 		endpointNotFound := "/api/v1/profiles/non-existent-uuid"
-		res, bodyStr = ts.SendRequest(t, http.MethodGet, endpointNotFound, "", nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, endpointNotFound, "", nil)
 		assert.Equal(t, http.StatusNotFound, res.StatusCode, "Should return 404 for invalid ID. Body: "+bodyStr)
 	})
 
@@ -128,7 +138,8 @@ func TestProfile(t *testing.T) {
 			"hourly_rate": 5000.0,
 		}
 
-		res, bodyStr := ts.SendRequest(t, http.MethodPut, "/api/v1/profiles/me", modelToken, updateBody)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodPut, "/api/v1/profiles/me", modelToken, updateBody)
 		assert.Equal(t, http.StatusOK, res.StatusCode, "Should update model profile. Body: "+bodyStr)
 
 		// Проверяем в транзакции, что данные сохранились
@@ -149,7 +160,8 @@ func TestProfile(t *testing.T) {
 		// Хелпер создает профиль как 'IsPublic: true'
 		// Сначала выключаем
 		visibilityBody := map[string]interface{}{"is_public": false}
-		res, bodyStr = ts.SendRequest(t, http.MethodPut, "/api/v1/profiles/me/visibility", modelToken, visibilityBody)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodPut, "/api/v1/profiles/me/visibility", modelToken, visibilityBody)
 		assert.Equal(t, http.StatusOK, res.StatusCode, "Should toggle visibility off. Body: "+bodyStr)
 
 		// Проверяем в транзакции
@@ -158,7 +170,8 @@ func TestProfile(t *testing.T) {
 
 		// Включаем обратно
 		visibilityBody["is_public"] = true
-		res, bodyStr = ts.SendRequest(t, http.MethodPut, "/api/v1/profiles/me/visibility", modelToken, visibilityBody)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodPut, "/api/v1/profiles/me/visibility", modelToken, visibilityBody)
 		assert.Equal(t, http.StatusOK, res.StatusCode, "Should toggle visibility on. Body: "+bodyStr)
 
 		// Проверяем в транзакции
@@ -166,7 +179,8 @@ func TestProfile(t *testing.T) {
 		assert.True(t, updatedProfile.IsPublic, "Profile IsPublic should be true in DB")
 
 		// 3. Ошибка: Попытка обновить видимость для Работодателя (у него нет 'is_public')
-		res, bodyStr = ts.SendRequest(t, http.MethodPut, "/api/v1/profiles/me/visibility", empToken, visibilityBody)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodPut, "/api/v1/profiles/me/visibility", empToken, visibilityBody)
 		assert.Equal(t, http.StatusBadRequest, res.StatusCode, "Should fail to toggle visibility for Employer. Body: "+bodyStr)
 	})
 
@@ -176,7 +190,8 @@ func TestProfile(t *testing.T) {
 
 		// 1. Поиск Моделей
 		endpointModelSearch := "/api/v1/profiles/models/search?city=Almaty&page=1&pageSize=5"
-		res, bodyStr := ts.SendRequest(t, http.MethodGet, endpointModelSearch, "", nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, endpointModelSearch, "", nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode, "Should successfully search models. Body: "+bodyStr)
 		// Должны найти 'existing-model' и 'new-model' (которому мы создали профиль)
 		assert.Contains(t, bodyStr, `"total":2`, "Should find 2 models in Almaty")
@@ -185,7 +200,8 @@ func TestProfile(t *testing.T) {
 
 		// 2. Поиск Работодателей
 		endpointEmpSearch := "/api/v1/profiles/employers/search?city=Almaty"
-		res, bodyStr = ts.SendRequest(t, http.MethodGet, endpointEmpSearch, "", nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, endpointEmpSearch, "", nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode, "Should successfully search employers. Body: "+bodyStr)
 		// Должны найти 'existing-emp'
 		assert.Contains(t, bodyStr, `"total":1`, "Should find 1 employer in Almaty")
@@ -193,7 +209,8 @@ func TestProfile(t *testing.T) {
 
 		// 3. Поиск Моделей (пустой результат)
 		endpointModelSearchEmpty := "/api/v1/profiles/models/search?city=Mordor"
-		res, bodyStr = ts.SendRequest(t, http.MethodGet, endpointModelSearchEmpty, "", nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, endpointModelSearchEmpty, "", nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode, "Should return 200 for empty search. Body: "+bodyStr)
 		assert.Contains(t, bodyStr, `"total":0`, "Should find 0 models in Mordor")
 		assert.Contains(t, bodyStr, `"profiles":[]`, "Profiles array should be empty")
@@ -202,18 +219,21 @@ func TestProfile(t *testing.T) {
 	// Тест СТАТИСТИКИ
 	t.Run("GET /me/stats - Get My Stats", func(t *testing.T) {
 		// 1. Успешно для Модели
-		res, bodyStr := ts.SendRequest(t, http.MethodGet, "/api/v1/profiles/me/stats", modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, "/api/v1/profiles/me/stats", modelToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode, "Should get stats for model. Body: "+bodyStr)
 		// Проверяем наличие ключей статистики (значения могут быть 0)
 		assert.Contains(t, bodyStr, "total_views", "Stats should contain total_views")
 		assert.Contains(t, bodyStr, "total_responses", "Stats should contain total_responses")
 
 		// 2. Ошибка: Без токена
-		res, bodyStr = ts.SendRequest(t, http.MethodGet, "/api/v1/profiles/me/stats", "", nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/profiles/me/stats", "", nil)
 		assert.Equal(t, http.StatusUnauthorized, res.StatusCode, "Should return 401 without token. Body: "+bodyStr)
 
 		// 3. Ошибка: Для Работодателя (хэндлер явно возвращает 400)
-		res, bodyStr = ts.SendRequest(t, http.MethodGet, "/api/v1/profiles/me/stats", empToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/profiles/me/stats", empToken, nil)
 		assert.Equal(t, http.StatusBadRequest, res.StatusCode, "Should return 400 for employer role. Body: "+bodyStr)
 		assert.Contains(t, bodyStr, "Stats not available", "Error message should be specific")
 	})
@@ -246,7 +266,8 @@ func TestProfile_CreationIsolated(t *testing.T) {
 		"is_public": true,
 	}
 
-	res, bodyStr := ts.SendRequest(t, http.MethodPost, "/api/v1/profiles/model", userToken, modelBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, http.MethodPost, "/api/v1/profiles/model", userToken, modelBody)
 	assert.Equal(t, http.StatusCreated, res.StatusCode, "Should create model profile in isolated test. Body: "+bodyStr)
 
 	// Проверяем, что профиль создался в транзакции
@@ -284,16 +305,19 @@ func TestProfile_SearchIsolated(t *testing.T) {
 		"city":      "Astana", // Другой город
 		"is_public": true,
 	}
-	ts.SendRequest(t, http.MethodPost, "/api/v1/profiles/model", userToken, astanaBody)
+	// ❗️ Добавлен 'tx'
+	ts.SendRequest(t, tx, http.MethodPost, "/api/v1/profiles/model", userToken, astanaBody)
 
 	// Тестируем поиск по городу
-	res, bodyStr := ts.SendRequest(t, http.MethodGet, "/api/v1/profiles/models/search?city=Astana", "", nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, "/api/v1/profiles/models/search?city=Astana", "", nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, `"total":1`, "Should find only 1 model in Astana")
 	assert.Contains(t, bodyStr, "Astana Model")
 
 	// Поиск в другом городе
-	res, bodyStr = ts.SendRequest(t, http.MethodGet, "/api/v1/profiles/models/search?city=Almaty", "", nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/profiles/models/search?city=Almaty", "", nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Contains(t, bodyStr, `"total":1`, "Should find only 1 model in Almaty")
 }
@@ -310,13 +334,15 @@ func TestProfile_SecurityIsolated(t *testing.T) {
 	modelToken2, _, _ := helpers.CreateAndLoginModel(t, ts, tx)
 
 	// Модель 2 пытается получить приватную статистику модели 1
-	res, bodyStr := ts.SendRequest(t, http.MethodGet, "/api/v1/profiles/me/stats", modelToken2, nil)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, "/api/v1/profiles/me/stats", modelToken2, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode, "Should get own stats")
 	assert.NotContains(t, bodyStr, model1.ID, "Should not see other user's data")
 
 	// Модель 2 пытается обновить профиль модели 1
 	updateBody := map[string]interface{}{"name": "Hacked Name"}
-	res, bodyStr = ts.SendRequest(t, http.MethodPut, "/api/v1/profiles/me", modelToken2, updateBody)
+	// ❗️ Добавлен 'tx'
+	res, bodyStr = ts.SendRequest(t, tx, http.MethodPut, "/api/v1/profiles/me", modelToken2, updateBody)
 	assert.Equal(t, http.StatusOK, res.StatusCode, "Should update own profile")
 
 	// Проверяем, что профиль модели 1 не изменился

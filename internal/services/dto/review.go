@@ -22,18 +22,12 @@ type UpdateReviewRequest struct {
 // ======================
 // Search Criteria DTO (for Query Params)
 // ======================
-
-type ReviewSearchCriteria struct {
-	UserID    string    `form:"user_id"`
-	UserRole  string    `form:"user_role" validate:"omitempty,is-user-role"` // Custom rule
-	MinRating int       `form:"min_rating" validate:"omitempty,min=1,max=5"`
-	MaxRating int       `form:"max_rating" validate:"omitempty,min=1,max=5,gtefield=MinRating"`
-	DateFrom  time.Time `form:"date_from" validate:"omitempty"`
-	DateTo    time.Time `form:"date_to" validate:"omitempty,gtefield=DateFrom"`
-	HasText   *bool     `form:"has_text"`
-	Page      int       `form:"page" validate:"omitempty,min=1"`
-	PageSize  int       `form:"page_size" validate:"omitempty,min=1,max=100"`
-}
+//
+// !!!!!!!!!!!!!
+// СТРУКТУРА ReviewSearchCriteria БЫЛА УДАЛЕНА.
+// Она перенесена в dto/search.go
+// !!!!!!!!!!!!!
+//
 
 // ======================
 // Response DTOs (No validation needed)

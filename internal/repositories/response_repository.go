@@ -2,9 +2,8 @@ package repositories
 
 import (
 	"errors"
-	"time"
-
 	"mwork_backend/internal/models"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -15,19 +14,20 @@ var (
 )
 
 type ResponseRepository interface {
-	CreateResponse(response *models.CastingResponse) error
-	FindResponseByID(id string) (*models.CastingResponse, error)
-	FindResponseByCastingAndModel(castingID, modelID string) (*models.CastingResponse, error)
-	FindResponsesByCasting(castingID string) ([]models.CastingResponse, error)
-	FindResponsesByModel(modelID string) ([]models.CastingResponse, error)
-	UpdateResponseStatus(responseID string, status models.ResponseStatus) error
-	MarkResponseAsViewed(responseID string) error
-	DeleteResponse(responseID string) error
-	GetResponseStats(castingID string) (*ResponseStats, error)
+	CreateResponse(db *gorm.DB, response *models.CastingResponse) error
+	FindResponseByID(db *gorm.DB, id string) (*models.CastingResponse, error)
+	FindResponseByCastingAndModel(db *gorm.DB, castingID, modelID string) (*models.CastingResponse, error)
+	FindResponsesByCasting(db *gorm.DB, castingID string) ([]models.CastingResponse, error)
+	FindResponsesByModel(db *gorm.DB, modelID string) ([]models.CastingResponse, error)
+	UpdateResponseStatus(db *gorm.DB, responseID string, status models.ResponseStatus) error
+	MarkResponseAsViewed(db *gorm.DB, responseID string) error
+	DeleteResponse(db *gorm.DB, responseID string) error
+	GetResponseStats(db *gorm.DB, castingID string) (*ResponseStats, error)
+	UpdateResponseViewedByEmployer(db *gorm.DB, responseID string, viewed bool) error
 }
 
 type ResponseRepositoryImpl struct {
-	db *gorm.DB
+	// ✅ Пусто! db *gorm.DB больше не хранится здесь
 }
 
 // Statistics for responses
@@ -38,26 +38,29 @@ type ResponseStats struct {
 	RejectedResponses int64 `json:"rejected_responses"`
 }
 
-func NewResponseRepository(db *gorm.DB) ResponseRepository {
-	return &ResponseRepositoryImpl{db: db}
+// ✅ Конструктор не принимает db
+func NewResponseRepository() ResponseRepository {
+	return &ResponseRepositoryImpl{}
 }
 
 // CastingResponse operations
 
-func (r *ResponseRepositoryImpl) CreateResponse(response *models.CastingResponse) error {
+func (r *ResponseRepositoryImpl) CreateResponse(db *gorm.DB, response *models.CastingResponse) error {
 	// Check if response already exists
 	var existing models.CastingResponse
-	if err := r.db.Where("casting_id = ? AND model_id = ?",
+	// ✅ Используем 'db' из параметра
+	if err := db.Where("casting_id = ? AND model_id = ?",
 		response.CastingID, response.ModelID).First(&existing).Error; err == nil {
 		return ErrResponseAlreadyExists
 	}
-
-	return r.db.Create(response).Error
+	// ✅ Используем 'db' из параметра
+	return db.Create(response).Error
 }
 
-func (r *ResponseRepositoryImpl) FindResponseByID(id string) (*models.CastingResponse, error) {
+func (r *ResponseRepositoryImpl) FindResponseByID(db *gorm.DB, id string) (*models.CastingResponse, error) {
 	var response models.CastingResponse
-	err := r.db.Preload("Casting").Preload("Casting.Employer").Preload("Model").
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Casting").Preload("Casting.Employer").Preload("Model").
 		First(&response, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -68,9 +71,10 @@ func (r *ResponseRepositoryImpl) FindResponseByID(id string) (*models.CastingRes
 	return &response, nil
 }
 
-func (r *ResponseRepositoryImpl) FindResponseByCastingAndModel(castingID, modelID string) (*models.CastingResponse, error) {
+func (r *ResponseRepositoryImpl) FindResponseByCastingAndModel(db *gorm.DB, castingID, modelID string) (*models.CastingResponse, error) {
 	var response models.CastingResponse
-	err := r.db.Preload("Casting").Preload("Model").
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Casting").Preload("Model").
 		Where("casting_id = ? AND model_id = ?", castingID, modelID).
 		First(&response).Error
 	if err != nil {
@@ -82,9 +86,10 @@ func (r *ResponseRepositoryImpl) FindResponseByCastingAndModel(castingID, modelI
 	return &response, nil
 }
 
-func (r *ResponseRepositoryImpl) FindResponsesByCasting(castingID string) ([]models.CastingResponse, error) {
+func (r *ResponseRepositoryImpl) FindResponsesByCasting(db *gorm.DB, castingID string) ([]models.CastingResponse, error) {
 	var responses []models.CastingResponse
-	err := r.db.Preload("Model").Preload("Model.PortfolioItems", func(db *gorm.DB) *gorm.DB {
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Model").Preload("Model.PortfolioItems", func(db *gorm.DB) *gorm.DB {
 		return db.Order("order_index ASC").Limit(2).Preload("Upload")
 	}).Where("casting_id = ?", castingID).
 		Order("created_at DESC").
@@ -92,17 +97,19 @@ func (r *ResponseRepositoryImpl) FindResponsesByCasting(castingID string) ([]mod
 	return responses, err
 }
 
-func (r *ResponseRepositoryImpl) FindResponsesByModel(modelID string) ([]models.CastingResponse, error) {
+func (r *ResponseRepositoryImpl) FindResponsesByModel(db *gorm.DB, modelID string) ([]models.CastingResponse, error) {
 	var responses []models.CastingResponse
-	err := r.db.Preload("Casting").Preload("Casting.Employer").
+	// ✅ Используем 'db' из параметра
+	err := db.Preload("Casting").Preload("Casting.Employer").
 		Where("model_id = ?", modelID).
 		Order("created_at DESC").
 		Find(&responses).Error
 	return responses, err
 }
 
-func (r *ResponseRepositoryImpl) UpdateResponseStatus(id string, status models.ResponseStatus) error {
-	result := r.db.Model(&models.CastingResponse{}).Where("id = ?", id).Updates(map[string]interface{}{
+func (r *ResponseRepositoryImpl) UpdateResponseStatus(db *gorm.DB, id string, status models.ResponseStatus) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&models.CastingResponse{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"status":     status,
 		"updated_at": time.Now(),
 	})
@@ -116,8 +123,9 @@ func (r *ResponseRepositoryImpl) UpdateResponseStatus(id string, status models.R
 	return nil
 }
 
-func (r *ResponseRepositoryImpl) MarkResponseAsViewed(responseID string) error {
-	result := r.db.Model(&models.CastingResponse{}).Where("id = ?", responseID).Updates(map[string]interface{}{
+func (r *ResponseRepositoryImpl) MarkResponseAsViewed(db *gorm.DB, responseID string) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&models.CastingResponse{}).Where("id = ?", responseID).Updates(map[string]interface{}{
 		"employer_viewed": true,
 		"updated_at":      time.Now(),
 	})
@@ -131,8 +139,9 @@ func (r *ResponseRepositoryImpl) MarkResponseAsViewed(responseID string) error {
 	return nil
 }
 
-func (r *ResponseRepositoryImpl) UpdateResponseViewedByEmployer(responseID string, viewed bool) error {
-	result := r.db.Model(&models.CastingResponse{}).Where("id = ?", responseID).Update("employer_viewed", viewed)
+func (r *ResponseRepositoryImpl) UpdateResponseViewedByEmployer(db *gorm.DB, responseID string, viewed bool) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Model(&models.CastingResponse{}).Where("id = ?", responseID).Update("employer_viewed", viewed)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -142,8 +151,9 @@ func (r *ResponseRepositoryImpl) UpdateResponseViewedByEmployer(responseID strin
 	return nil
 }
 
-func (r *ResponseRepositoryImpl) DeleteResponse(id string) error {
-	result := r.db.Where("id = ?", id).Delete(&models.CastingResponse{})
+func (r *ResponseRepositoryImpl) DeleteResponse(db *gorm.DB, id string) error {
+	// ✅ Используем 'db' из параметра
+	result := db.Where("id = ?", id).Delete(&models.CastingResponse{})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -153,29 +163,33 @@ func (r *ResponseRepositoryImpl) DeleteResponse(id string) error {
 	return nil
 }
 
-func (r *ResponseRepositoryImpl) GetResponseStats(castingID string) (*ResponseStats, error) {
+func (r *ResponseRepositoryImpl) GetResponseStats(db *gorm.DB, castingID string) (*ResponseStats, error) {
 	var stats ResponseStats
 
 	// Total responses
-	if err := r.db.Model(&models.CastingResponse{}).Where("casting_id = ?", castingID).
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.CastingResponse{}).Where("casting_id = ?", castingID).
 		Count(&stats.TotalResponses).Error; err != nil {
 		return nil, err
 	}
 
 	// Pending responses
-	if err := r.db.Model(&models.CastingResponse{}).Where("casting_id = ? AND status = ?",
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.CastingResponse{}).Where("casting_id = ? AND status = ?",
 		castingID, models.ResponseStatusPending).Count(&stats.PendingResponses).Error; err != nil {
 		return nil, err
 	}
 
 	// Accepted responses
-	if err := r.db.Model(&models.CastingResponse{}).Where("casting_id = ? AND status = ?",
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.CastingResponse{}).Where("casting_id = ? AND status = ?",
 		castingID, models.ResponseStatusAccepted).Count(&stats.AcceptedResponses).Error; err != nil {
 		return nil, err
 	}
 
 	// Rejected responses
-	if err := r.db.Model(&models.CastingResponse{}).Where("casting_id = ? AND status = ?",
+	// ✅ Используем 'db' из параметра
+	if err := db.Model(&models.CastingResponse{}).Where("casting_id = ? AND status = ?",
 		castingID, models.ResponseStatusRejected).Count(&stats.RejectedResponses).Error; err != nil {
 		return nil, err
 	}

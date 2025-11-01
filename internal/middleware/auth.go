@@ -1,10 +1,10 @@
 package middleware
 
 import (
-	"mwork_backend/internal/appErrors" // <-- 1. ДОБАВЛЕН ИМПОРТ
 	"mwork_backend/internal/auth"
 	"mwork_backend/internal/logger" // <-- 2. ДОБАВЛЕН ИМПОРТ
 	"mwork_backend/internal/models"
+	"mwork_backend/pkg/apperrors" // <-- 1. ДОБАВЛЕН ИМПОРТ
 	// "net/http" // <-- Больше не нужен
 	"strings"
 
@@ -17,7 +17,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
 			// 3. Стандартизируем ошибку
-			appErrors.HandleError(c, appErrors.NewUnauthorizedError("Authorization header missing or invalid"))
+			apperrors.HandleError(c, apperrors.NewUnauthorizedError("Authorization header missing or invalid"))
 			c.Abort() // Abort, т.к. HandleError не прерывает
 			return
 		}
@@ -26,7 +26,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		claims, err := auth.ParseToken(tokenStr)
 		if err != nil {
 			// 3. Стандартизируем ошибку
-			appErrors.HandleError(c, appErrors.NewUnauthorizedError("Invalid token"))
+			apperrors.HandleError(c, apperrors.NewUnauthorizedError("Invalid token"))
 			c.Abort()
 			return
 		}
@@ -53,7 +53,7 @@ func RoleMiddleware(requiredRole models.UserRole) gin.HandlerFunc {
 		roleVal, exists := c.Get("role")
 		if !exists {
 			// 3. Стандартизируем ошибку
-			appErrors.HandleError(c, appErrors.NewForbiddenError("Access denied: no role"))
+			apperrors.HandleError(c, apperrors.NewForbiddenError("Access denied: no role"))
 			c.Abort()
 			return
 		}
@@ -63,7 +63,7 @@ func RoleMiddleware(requiredRole models.UserRole) gin.HandlerFunc {
 			// Попытка преобразовать из string, если роль сохранена как строка
 			roleStr, isString := roleVal.(string)
 			if !isString {
-				appErrors.HandleError(c, appErrors.NewForbiddenError("Access denied: invalid role type"))
+				apperrors.HandleError(c, apperrors.NewForbiddenError("Access denied: invalid role type"))
 				c.Abort()
 				return
 			}
@@ -71,7 +71,7 @@ func RoleMiddleware(requiredRole models.UserRole) gin.HandlerFunc {
 		}
 
 		if role != requiredRole {
-			appErrors.HandleError(c, appErrors.NewForbiddenError("Access denied: insufficient permissions"))
+			apperrors.HandleError(c, apperrors.NewForbiddenError("Access denied: insufficient permissions"))
 			c.Abort()
 			return
 		}
@@ -90,7 +90,7 @@ func RequireRoles(roles ...models.UserRole) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		roleVal, exists := c.Get("role")
 		if !exists {
-			appErrors.HandleError(c, appErrors.NewForbiddenError("Access denied: no role"))
+			apperrors.HandleError(c, apperrors.NewForbiddenError("Access denied: no role"))
 			c.Abort()
 			return
 		}
@@ -99,7 +99,7 @@ func RequireRoles(roles ...models.UserRole) gin.HandlerFunc {
 		if !ok {
 			roleStr, isString := roleVal.(string)
 			if !isString {
-				appErrors.HandleError(c, appErrors.NewForbiddenError("Access denied: invalid role type"))
+				apperrors.HandleError(c, apperrors.NewForbiddenError("Access denied: invalid role type"))
 				c.Abort()
 				return
 			}
@@ -107,7 +107,7 @@ func RequireRoles(roles ...models.UserRole) gin.HandlerFunc {
 		}
 
 		if !roleSet[role] {
-			appErrors.HandleError(c, appErrors.NewForbiddenError("Access denied: insufficient role"))
+			apperrors.HandleError(c, apperrors.NewForbiddenError("Access denied: insufficient role"))
 			c.Abort()
 			return
 		}

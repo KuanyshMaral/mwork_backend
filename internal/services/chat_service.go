@@ -3,75 +3,84 @@ package services
 import (
 	"errors"
 	"fmt"
+	"gorm.io/gorm"
 	"log"
 	"mime/multipart"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"mwork_backend/internal/appErrors"
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/models/chat"
 	"mwork_backend/internal/repositories"
 	"mwork_backend/internal/services/dto"
+	"mwork_backend/pkg/apperrors"
 )
 
+// =======================
+// 1. ИНТЕРФЕЙС ОБНОВЛЕН
+// =======================
+// Все методы теперь принимают 'db *gorm.DB'
 type ChatService interface {
 	// Dialog operations
-	CreateDialog(userID string, req *dto.CreateDialogRequest) (*dto.DialogResponse, error)
-	CreateCastingDialog(castingID, employerID, modelID string) (*dto.DialogResponse, error)
-	GetDialog(dialogID, userID string) (*dto.DialogResponse, error)
-	GetUserDialogs(userID string) ([]*dto.DialogResponse, error)
-	GetDialogBetweenUsers(user1ID, user2ID string) (*dto.DialogResponse, error)
-	UpdateDialog(userID, dialogID string, req *dto.UpdateDialogRequest) error
-	DeleteDialog(userID, dialogID string) error
-	LeaveDialog(userID, dialogID string) error
+	CreateDialog(db *gorm.DB, userID string, req *dto.CreateDialogRequest) (*dto.DialogResponse, error)
+	CreateCastingDialog(db *gorm.DB, castingID, employerID, modelID string) (*dto.DialogResponse, error)
+	GetDialog(db *gorm.DB, dialogID, userID string) (*dto.DialogResponse, error)
+	GetUserDialogs(db *gorm.DB, userID string) ([]*dto.DialogResponse, error)
+	GetDialogBetweenUsers(db *gorm.DB, user1ID, user2ID string) (*dto.DialogResponse, error)
+	UpdateDialog(db *gorm.DB, userID, dialogID string, req *dto.UpdateDialogRequest) error
+	DeleteDialog(db *gorm.DB, userID, dialogID string) error
+	LeaveDialog(db *gorm.DB, userID, dialogID string) error
 
 	// Participant operations
-	AddParticipants(userID, dialogID string, participantIDs []string) error
-	RemoveParticipant(userID, dialogID, targetUserID string) error
-	UpdateParticipantRole(userID, dialogID, targetUserID, role string) error
-	MuteDialog(userID, dialogID string, muted bool) error
-	UpdateLastSeen(userID, dialogID string) error
-	SetTyping(userID, dialogID string, typing bool) error
+	AddParticipants(db *gorm.DB, userID, dialogID string, participantIDs []string) error
+	RemoveParticipant(db *gorm.DB, userID, dialogID, targetUserID string) error
+	UpdateParticipantRole(db *gorm.DB, userID, dialogID, targetUserID, role string) error
+	MuteDialog(db *gorm.DB, userID, dialogID string, muted bool) error
+	UpdateLastSeen(db *gorm.DB, userID, dialogID string) error
+	SetTyping(db *gorm.DB, userID, dialogID string, typing bool) error
 
 	// Message operations
-	SendMessage(userID string, req *dto.SendMessageRequest) (*dto.MessageResponse, error)
-	SendMessageWithAttachments(userID string, req *dto.SendMessageRequest, files []*multipart.FileHeader) (*dto.MessageResponse, error)
-	GetMessages(dialogID, userID string, criteria dto.MessageCriteria) (*dto.MessageListResponse, error)
-	GetMessage(messageID, userID string) (*dto.MessageResponse, error)
-	UpdateMessage(userID, messageID string, req *dto.UpdateMessageRequest) error
-	DeleteMessage(userID, messageID string) error
-	ForwardMessage(userID string, req *dto.ForwardMessageRequest) (*dto.MessageResponse, error)
+	SendMessage(db *gorm.DB, userID string, req *dto.SendMessageRequest) (*dto.MessageResponse, error)
+	SendMessageWithAttachments(db *gorm.DB, userID string, req *dto.SendMessageRequest, files []*multipart.FileHeader) (*dto.MessageResponse, error)
+	GetMessages(db *gorm.DB, dialogID, userID string, criteria dto.MessageCriteria) (*dto.MessageListResponse, error)
+	GetMessage(db *gorm.DB, messageID, userID string) (*dto.MessageResponse, error)
+	UpdateMessage(db *gorm.DB, userID, messageID string, req *dto.UpdateMessageRequest) error
+	DeleteMessage(db *gorm.DB, userID, messageID string) error
+	ForwardMessage(db *gorm.DB, userID string, req *dto.ForwardMessageRequest) (*dto.MessageResponse, error)
 
 	// Attachment operations
-	UploadAttachment(userID string, file *multipart.FileHeader) (*dto.AttachmentResponse, error)
-	GetMessageAttachments(messageID, userID string) ([]*dto.AttachmentResponse, error)
-	GetDialogAttachments(dialogID, userID string) ([]*dto.AttachmentResponse, error)
-	DeleteAttachment(userID, attachmentID string) error
+	UploadAttachment(db *gorm.DB, userID string, file *multipart.FileHeader) (*dto.AttachmentResponse, error)
+	GetMessageAttachments(db *gorm.DB, messageID, userID string) ([]*dto.AttachmentResponse, error)
+	GetDialogAttachments(db *gorm.DB, dialogID, userID string) ([]*dto.AttachmentResponse, error)
+	DeleteAttachment(db *gorm.DB, userID, attachmentID string) error
 
 	// Reaction operations
-	AddReaction(userID, messageID, emoji string) error
-	RemoveReaction(userID, messageID string) error
-	GetMessageReactions(messageID, userID string) ([]*dto.ReactionResponse, error)
+	AddReaction(db *gorm.DB, userID, messageID, emoji string) error
+	RemoveReaction(db *gorm.DB, userID, messageID string) error
+	GetMessageReactions(db *gorm.DB, messageID, userID string) ([]*dto.ReactionResponse, error)
 
 	// Read receipts
-	MarkMessagesAsRead(userID, dialogID string) error
-	GetUnreadCount(dialogID, userID string) (int64, error)
-	GetReadReceipts(messageID, userID string) ([]*dto.ReadReceiptResponse, error)
+	MarkMessagesAsRead(db *gorm.DB, userID, dialogID string) error
+	GetUnreadCount(db *gorm.DB, dialogID, userID string) (int64, error)
+	GetReadReceipts(db *gorm.DB, messageID, userID string) ([]*dto.ReadReceiptResponse, error)
 
 	// Combined operations
-	GetDialogWithMessages(dialogID, userID string, criteria dto.MessageCriteria) (*dto.DialogWithMessagesResponse, error)
-	SearchMessages(userID, dialogID, query string) ([]*dto.MessageResponse, error)
+	GetDialogWithMessages(db *gorm.DB, dialogID, userID string, criteria dto.MessageCriteria) (*dto.DialogWithMessagesResponse, error)
+	SearchMessages(db *gorm.DB, userID, dialogID, query string) ([]*dto.MessageResponse, error)
 
 	// Admin operations
-	GetAllDialogs(criteria dto.DialogCriteria) (*dto.DialogListResponse, error)
-	GetChatStats() (*repositories.ChatStats, error)
-	CleanOldMessages(days int) error
-	DeleteUserMessages(adminID, userID string) error
+	GetAllDialogs(db *gorm.DB, criteria dto.DialogCriteria) (*dto.DialogListResponse, error)
+	GetChatStats(db *gorm.DB) (*repositories.ChatStats, error)
+	CleanOldMessages(db *gorm.DB, days int) error
+	DeleteUserMessages(db *gorm.DB, adminID, dialogID string, userID string) error
 }
 
+// =======================
+// 2. РЕАЛИЗАЦИЯ ОБНОВЛЕНА
+// =======================
 type chatService struct {
+	// ❌ 'db *gorm.DB' УДАЛЕНО ОТСЮДА
 	chatRepo         repositories.ChatRepository
 	userRepo         repositories.UserRepository
 	castingRepo      repositories.CastingRepository
@@ -80,19 +89,24 @@ type chatService struct {
 	notificationRepo repositories.NotificationRepository
 }
 
+// ✅ Конструктор обновлен (db убран)
 func NewChatService(
+	// ❌ 'db *gorm.DB,' УДАЛЕНО
 	chatRepo repositories.ChatRepository,
 	userRepo repositories.UserRepository,
 	castingRepo repositories.CastingRepository,
 	profileRepo repositories.ProfileRepository,
 	notificationRepo repositories.NotificationRepository,
+	responseRepo repositories.ResponseRepository,
 ) ChatService {
 	return &chatService{
+		// ❌ 'db: db,' УДАЛЕНО
 		chatRepo:         chatRepo,
 		userRepo:         userRepo,
 		castingRepo:      castingRepo,
 		profileRepo:      profileRepo,
 		notificationRepo: notificationRepo,
+		responseRepo:     responseRepo,
 	}
 }
 
@@ -109,19 +123,25 @@ var FileConfig = dto.FileConfig{
 
 // Dialog operations
 
-func (s *chatService) CreateDialog(userID string, req *dto.CreateDialogRequest) (*dto.DialogResponse, error) {
-	// Validate users exist
+// CreateDialog - 'db' добавлен
+func (s *chatService) CreateDialog(db *gorm.DB, userID string, req *dto.CreateDialogRequest) (*dto.DialogResponse, error) {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return nil, apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
 	for _, participantID := range req.UserIDs {
-		if _, err := s.userRepo.FindByID(participantID); err != nil {
+		// ✅ Передаем tx
+		if _, err := s.userRepo.FindByID(tx, participantID); err != nil {
 			return nil, fmt.Errorf("user not found: %s", participantID)
 		}
 	}
 
-	// Ensure creator is in participants
 	participants := append([]string{userID}, req.UserIDs...)
 	uniqueParticipants := removeDuplicates(participants)
 
-	// Create dialog
 	dialog := &chat.Dialog{
 		IsGroup:   req.IsGroup,
 		Title:     req.Title,
@@ -129,18 +149,17 @@ func (s *chatService) CreateDialog(userID string, req *dto.CreateDialogRequest) 
 		CastingID: req.CastingID,
 	}
 
-	if err := s.chatRepo.CreateDialog(dialog); err != nil {
-		return nil, err
+	// ✅ Передаем tx
+	if err := s.chatRepo.CreateDialog(tx, dialog); err != nil {
+		return nil, apperrors.InternalError(err)
 	}
 
-	// Add participants
 	var chatParticipants []*chat.DialogParticipant
 	for i, participantID := range uniqueParticipants {
 		role := "member"
-		if i == 0 { // Creator is owner
+		if i == 0 {
 			role = "owner"
 		}
-
 		chatParticipants = append(chatParticipants, &chat.DialogParticipant{
 			DialogID: dialog.ID,
 			UserID:   participantID,
@@ -149,29 +168,41 @@ func (s *chatService) CreateDialog(userID string, req *dto.CreateDialogRequest) 
 		})
 	}
 
-	if err := s.chatRepo.AddParticipants(chatParticipants); err != nil {
-		// Clean up dialog if participants fail
-		s.chatRepo.DeleteDialog(dialog.ID)
-		return nil, err
+	// ✅ Передаем tx
+	if err := s.chatRepo.AddParticipants(tx, chatParticipants); err != nil {
+		return nil, apperrors.InternalError(err)
 	}
 
-	return s.buildDialogResponse(dialog, userID)
+	// ✅ Коммитим транзакцию
+	if err := tx.Commit().Error; err != nil {
+		return nil, apperrors.InternalError(err)
+	}
+
+	// ✅ Строим ответ *вне* транзакции (read-only), передаем 'db' (пул)
+	return s.buildDialogResponse(db, dialog, userID)
 }
 
-func (s *chatService) CreateCastingDialog(castingID, employerID, modelID string) (*dto.DialogResponse, error) {
-	// Get casting details
-	casting, err := s.castingRepo.FindCastingByID(castingID)
+// CreateCastingDialog - 'db' добавлен
+func (s *chatService) CreateCastingDialog(db *gorm.DB, castingID, employerID, modelID string) (*dto.DialogResponse, error) {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return nil, apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	casting, err := s.castingRepo.FindCastingByID(tx, castingID)
 	if err != nil {
-		return nil, appErrors.ErrDialogNotFound
+		return nil, apperrors.ErrDialogNotFound // (или handleCastingError)
 	}
 
-	// Create dialog through repository
-	dialog, err := s.chatRepo.CreateCastingDialog(casting, employerID, modelID)
+	// ✅ Передаем tx
+	dialog, err := s.chatRepo.CreateCastingDialog(tx, casting, employerID, modelID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
-	// Send system message
 	systemMessage := &chat.Message{
 		DialogID: dialog.ID,
 		SenderID: "system",
@@ -180,43 +211,55 @@ func (s *chatService) CreateCastingDialog(castingID, employerID, modelID string)
 		Status:   "sent",
 	}
 
-	if err := s.chatRepo.CreateMessage(systemMessage); err != nil {
-		// Log error but don't fail
+	// ✅ Передаем tx
+	if err := s.chatRepo.CreateMessage(tx, systemMessage); err != nil {
 		fmt.Printf("Failed to create system message: %v\n", err)
 	}
 
-	return s.buildDialogResponse(dialog, employerID)
+	// ✅ Коммитим транзакцию
+	if err := tx.Commit().Error; err != nil {
+		return nil, apperrors.InternalError(err)
+	}
+
+	// ✅ Строим ответ *вне* транзакции (read-only), передаем 'db' (пул)
+	return s.buildDialogResponse(db, dialog, employerID)
 }
 
-func (s *chatService) GetDialog(dialogID, userID string) (*dto.DialogResponse, error) {
-	// Check access
-	hasAccess, err := s.chatRepo.IsUserInDialog(dialogID, userID)
+// GetDialog - 'db' добавлен
+func (s *chatService) GetDialog(db *gorm.DB, dialogID, userID string) (*dto.DialogResponse, error) {
+	// ✅ Используем 'db' из параметра
+	hasAccess, err := s.chatRepo.IsUserInDialog(db, dialogID, userID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 	if !hasAccess {
-		return nil, appErrors.ErrDialogAccessDenied
+		return nil, apperrors.ErrDialogAccessDenied
 	}
 
-	dialog, err := s.chatRepo.FindDialogByID(dialogID)
+	// ✅ Используем 'db' из параметра
+	dialog, err := s.chatRepo.FindDialogByID(db, dialogID)
 	if err != nil {
-		return nil, err
+		return nil, handleChatError(err)
 	}
 
-	return s.buildDialogResponse(dialog, userID)
+	// ✅ Используем 'db' из параметра
+	return s.buildDialogResponse(db, dialog, userID)
 }
 
-func (s *chatService) GetUserDialogs(userID string) ([]*dto.DialogResponse, error) {
-	dialogs, err := s.chatRepo.FindUserDialogs(userID)
+// GetUserDialogs - 'db' добавлен
+func (s *chatService) GetUserDialogs(db *gorm.DB, userID string) ([]*dto.DialogResponse, error) {
+	// ✅ Используем 'db' из параметра
+	dialogs, err := s.chatRepo.FindUserDialogs(db, userID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	var responses []*dto.DialogResponse
 	for _, dialog := range dialogs {
-		response, err := s.buildDialogResponse(&dialog, userID)
+		// ✅ Используем 'db' из параметра
+		response, err := s.buildDialogResponse(db, &dialog, userID)
 		if err != nil {
-			continue // Skip problematic dialogs
+			continue
 		}
 		responses = append(responses, response)
 	}
@@ -224,35 +267,43 @@ func (s *chatService) GetUserDialogs(userID string) ([]*dto.DialogResponse, erro
 	return responses, nil
 }
 
-func (s *chatService) GetDialogBetweenUsers(user1ID, user2ID string) (*dto.DialogResponse, error) {
-	dialog, err := s.chatRepo.FindDialogBetweenUsers(user1ID, user2ID)
+// GetDialogBetweenUsers - 'db' добавлен
+func (s *chatService) GetDialogBetweenUsers(db *gorm.DB, user1ID, user2ID string) (*dto.DialogResponse, error) {
+	// ✅ Используем 'db' из параметра
+	dialog, err := s.chatRepo.FindDialogBetweenUsers(db, user1ID, user2ID)
 	if err != nil {
-		if errors.Is(err, repositories.ErrDialogNotFound) {
-			return nil, appErrors.ErrDialogNotFound
-		}
-		return nil, err
+		return nil, handleChatError(err)
 	}
 
-	return s.buildDialogResponse(dialog, user1ID)
+	// ✅ Используем 'db' из параметра
+	return s.buildDialogResponse(db, dialog, user1ID)
 }
 
-func (s *chatService) UpdateDialog(userID, dialogID string, req *dto.UpdateDialogRequest) error {
-	// Check permissions
-	participant, err := s.chatRepo.FindParticipant(dialogID, userID)
+// UpdateDialog - 'db' добавлен
+func (s *chatService) UpdateDialog(db *gorm.DB, userID, dialogID string, req *dto.UpdateDialogRequest) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	participant, err := s.chatRepo.FindParticipant(tx, dialogID, userID)
 	if err != nil {
-		return appErrors.ErrDialogAccessDenied
+		return apperrors.ErrDialogAccessDenied
 	}
 
 	if participant.Role != "owner" && participant.Role != "admin" {
 		return errors.New("insufficient permissions")
 	}
 
-	dialog, err := s.chatRepo.FindDialogByID(dialogID)
+	// ✅ Передаем tx
+	dialog, err := s.chatRepo.FindDialogByID(tx, dialogID)
 	if err != nil {
-		return err
+		return handleChatError(err)
 	}
 
-	// Update fields
 	if req.Title != nil {
 		dialog.Title = req.Title
 	}
@@ -260,48 +311,81 @@ func (s *chatService) UpdateDialog(userID, dialogID string, req *dto.UpdateDialo
 		dialog.ImageURL = req.ImageURL
 	}
 
-	return s.chatRepo.UpdateDialog(dialog)
+	// ✅ Передаем tx
+	if err := s.chatRepo.UpdateDialog(tx, dialog); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *chatService) DeleteDialog(userID, dialogID string) error {
-	// Check permissions
-	participant, err := s.chatRepo.FindParticipant(dialogID, userID)
-	if err != nil {
-		return appErrors.ErrDialogAccessDenied
+// DeleteDialog - 'db' добавлен
+func (s *chatService) DeleteDialog(db *gorm.DB, userID, dialogID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
 	}
+	defer tx.Rollback()
 
+	// ✅ Передаем tx
+	participant, err := s.chatRepo.FindParticipant(tx, dialogID, userID)
+	if err != nil {
+		return apperrors.ErrDialogAccessDenied
+	}
 	if participant.Role != "owner" {
 		return errors.New("only dialog owner can delete dialog")
 	}
 
-	return s.chatRepo.DeleteDialog(dialogID)
+	// ✅ Передаем tx
+	if err := s.chatRepo.DeleteDialog(tx, dialogID); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *chatService) LeaveDialog(userID, dialogID string) error {
-	return s.chatRepo.RemoveParticipant(dialogID, userID)
+// LeaveDialog - 'db' добавлен
+func (s *chatService) LeaveDialog(db *gorm.DB, userID, dialogID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	if err := s.chatRepo.RemoveParticipant(tx, dialogID, userID); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
 // Participant operations
 
-func (s *chatService) AddParticipants(userID, dialogID string, participantIDs []string) error {
-	// Check permissions
-	participant, err := s.chatRepo.FindParticipant(dialogID, userID)
-	if err != nil {
-		return appErrors.ErrDialogAccessDenied
+// AddParticipants - 'db' добавлен
+func (s *chatService) AddParticipants(db *gorm.DB, userID, dialogID string, participantIDs []string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
 	}
+	defer tx.Rollback()
 
+	// ✅ Передаем tx
+	participant, err := s.chatRepo.FindParticipant(tx, dialogID, userID)
+	if err != nil {
+		return apperrors.ErrDialogAccessDenied
+	}
 	if participant.Role != "owner" && participant.Role != "admin" {
 		return errors.New("insufficient permissions")
 	}
 
-	// Validate users
 	for _, participantID := range participantIDs {
-		if _, err := s.userRepo.FindByID(participantID); err != nil {
+		// ✅ Передаем tx
+		if _, err := s.userRepo.FindByID(tx, participantID); err != nil {
 			return fmt.Errorf("user not found: %s", participantID)
 		}
 	}
 
-	// Add participants
 	var participants []*chat.DialogParticipant
 	for _, participantID := range participantIDs {
 		participants = append(participants, &chat.DialogParticipant{
@@ -312,22 +396,33 @@ func (s *chatService) AddParticipants(userID, dialogID string, participantIDs []
 		})
 	}
 
-	return s.chatRepo.AddParticipants(participants)
+	// ✅ Передаем tx
+	if err := s.chatRepo.AddParticipants(tx, participants); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *chatService) RemoveParticipant(userID, dialogID, targetUserID string) error {
-	// Check permissions
-	participant, err := s.chatRepo.FindParticipant(dialogID, userID)
+// RemoveParticipant - 'db' добавлен
+func (s *chatService) RemoveParticipant(db *gorm.DB, userID, dialogID, targetUserID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	participant, err := s.chatRepo.FindParticipant(tx, dialogID, userID)
 	if err != nil {
-		return appErrors.ErrDialogAccessDenied
+		return apperrors.ErrDialogAccessDenied
+	}
+	// ✅ Передаем tx
+	targetParticipant, err := s.chatRepo.FindParticipant(tx, dialogID, targetUserID)
+	if err != nil {
+		return apperrors.ErrParticipantNotFound
 	}
 
-	targetParticipant, err := s.chatRepo.FindParticipant(dialogID, targetUserID)
-	if err != nil {
-		return appErrors.ErrParticipantNotFound
-	}
-
-	// Only owner/admin can remove, and cannot remove owner
 	if participant.Role != "owner" && participant.Role != "admin" {
 		return errors.New("insufficient permissions")
 	}
@@ -335,77 +430,137 @@ func (s *chatService) RemoveParticipant(userID, dialogID, targetUserID string) e
 		return errors.New("cannot remove dialog owner")
 	}
 
-	return s.chatRepo.RemoveParticipant(dialogID, targetUserID)
+	// ✅ Передаем tx
+	if err := s.chatRepo.RemoveParticipant(tx, dialogID, targetUserID); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *chatService) UpdateParticipantRole(userID, dialogID, targetUserID, role string) error {
-	// Check permissions
-	participant, err := s.chatRepo.FindParticipant(dialogID, userID)
-	if err != nil {
-		return appErrors.ErrDialogAccessDenied
+// UpdateParticipantRole - 'db' добавлен
+func (s *chatService) UpdateParticipantRole(db *gorm.DB, userID, dialogID, targetUserID, role string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
 	}
+	defer tx.Rollback()
 
+	// ✅ Передаем tx
+	participant, err := s.chatRepo.FindParticipant(tx, dialogID, userID)
+	if err != nil {
+		return apperrors.ErrDialogAccessDenied
+	}
 	if participant.Role != "owner" {
 		return errors.New("only owner can update roles")
 	}
 
-	targetParticipant, err := s.chatRepo.FindParticipant(dialogID, targetUserID)
+	// ✅ Передаем tx
+	targetParticipant, err := s.chatRepo.FindParticipant(tx, dialogID, targetUserID)
 	if err != nil {
-		return appErrors.ErrParticipantNotFound
+		return apperrors.ErrParticipantNotFound
 	}
 
 	targetParticipant.Role = role
-	return s.chatRepo.UpdateParticipant(targetParticipant)
+	// ✅ Передаем tx
+	if err := s.chatRepo.UpdateParticipant(tx, targetParticipant); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *chatService) MuteDialog(userID, dialogID string, muted bool) error {
-	participant, err := s.chatRepo.FindParticipant(dialogID, userID)
+// MuteDialog - 'db' добавлен
+func (s *chatService) MuteDialog(db *gorm.DB, userID, dialogID string, muted bool) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	participant, err := s.chatRepo.FindParticipant(tx, dialogID, userID)
 	if err != nil {
-		return appErrors.ErrDialogAccessDenied
+		return apperrors.ErrDialogAccessDenied
 	}
 
 	participant.IsMuted = muted
-	return s.chatRepo.UpdateParticipant(participant)
+	// ✅ Передаем tx
+	if err := s.chatRepo.UpdateParticipant(tx, participant); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *chatService) UpdateLastSeen(userID, dialogID string) error {
-	return s.chatRepo.UpdateLastSeen(dialogID, userID, time.Now())
+// UpdateLastSeen - 'db' добавлен
+func (s *chatService) UpdateLastSeen(db *gorm.DB, userID, dialogID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	if err := s.chatRepo.UpdateLastSeen(tx, dialogID, userID, time.Now()); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *chatService) SetTyping(userID, dialogID string, typing bool) error {
-	participant, err := s.chatRepo.FindParticipant(dialogID, userID)
+// SetTyping - 'db' добавлен
+func (s *chatService) SetTyping(db *gorm.DB, userID, dialogID string, typing bool) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	participant, err := s.chatRepo.FindParticipant(tx, dialogID, userID)
 	if err != nil {
-		return appErrors.ErrDialogAccessDenied
+		return apperrors.ErrDialogAccessDenied
 	}
 
 	if typing {
-		typingUntil := time.Now().Add(10 * time.Second) // Typing indicator lasts 10 seconds
+		typingUntil := time.Now().Add(10 * time.Second)
 		participant.TypingUntil = &typingUntil
 	} else {
 		participant.TypingUntil = nil
 	}
 
-	return s.chatRepo.UpdateParticipant(participant)
+	// ✅ Передаем tx
+	if err := s.chatRepo.UpdateParticipant(tx, participant); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
 // Message operations
 
-func (s *chatService) SendMessage(userID string, req *dto.SendMessageRequest) (*dto.MessageResponse, error) {
-	// Check access
-	hasAccess, err := s.chatRepo.IsUserInDialog(req.DialogID, userID)
+// SendMessage - 'db' добавлен
+func (s *chatService) SendMessage(db *gorm.DB, userID string, req *dto.SendMessageRequest) (*dto.MessageResponse, error) {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return nil, apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	hasAccess, err := s.chatRepo.IsUserInDialog(tx, req.DialogID, userID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 	if !hasAccess {
-		return nil, appErrors.ErrDialogAccessDenied
+		return nil, apperrors.ErrDialogAccessDenied
 	}
 
-	// Validate message type
 	if !isValidMessageType(req.Type) {
-		return nil, appErrors.ErrInvalidMessageType
+		return nil, apperrors.ErrInvalidMessageType
 	}
 
-	// Create message
 	message := &chat.Message{
 		DialogID:      req.DialogID,
 		SenderID:      userID,
@@ -416,151 +571,236 @@ func (s *chatService) SendMessage(userID string, req *dto.SendMessageRequest) (*
 		Status:        "sent",
 	}
 
-	if err := s.chatRepo.CreateMessage(message); err != nil {
-		return nil, err
+	// ✅ Передаем tx
+	if err := s.chatRepo.CreateMessage(tx, message); err != nil {
+		return nil, apperrors.InternalError(err)
 	}
 
-	// Send notifications to other participants
-	go s.notifyNewMessage(req.DialogID, userID, message.ID)
+	// ✅ Коммитим транзакцию
+	if err := tx.Commit().Error; err != nil {
+		return nil, apperrors.InternalError(err)
+	}
 
-	return s.buildMessageResponse(message)
+	// ✅ Уведомляем *после* коммита, передаем 'db' (пул)
+	go s.notifyNewMessage(db, req.DialogID, userID, message.ID)
+
+	// ✅ Строим ответ *вне* транзакции (read-only), передаем 'db' (пул)
+	return s.buildMessageResponse(db, message)
 }
 
-func (s *chatService) SendMessageWithAttachments(userID string, req *dto.SendMessageRequest, files []*multipart.FileHeader) (*dto.MessageResponse, error) {
-	// First create the message
-	message, err := s.SendMessage(userID, req)
+// SendMessageWithAttachments - 'db' добавлен
+func (s *chatService) SendMessageWithAttachments(db *gorm.DB, userID string, req *dto.SendMessageRequest, files []*multipart.FileHeader) (*dto.MessageResponse, error) {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return nil, apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	hasAccess, err := s.chatRepo.IsUserInDialog(tx, req.DialogID, userID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
+	}
+	if !hasAccess {
+		return nil, apperrors.ErrDialogAccessDenied
+	}
+	if !isValidMessageType(req.Type) {
+		return nil, apperrors.ErrInvalidMessageType
 	}
 
-	// Process and attach files
+	message := &chat.Message{
+		DialogID:      req.DialogID,
+		SenderID:      userID,
+		Type:          req.Type,
+		Content:       req.Content,
+		ReplyToID:     req.ReplyToID,
+		ForwardFromID: req.ForwardFromID,
+		Status:        "sent",
+	}
+
+	// ✅ Передаем tx
+	if err := s.chatRepo.CreateMessage(tx, message); err != nil {
+		return nil, apperrors.InternalError(err)
+	}
+
 	var attachments []*chat.MessageAttachment
 	for _, file := range files {
 		attachment, err := s.processAttachment(userID, file)
 		if err != nil {
-			continue // Skip problematic files
+			log.Printf("Skipping problematic attachment: %v", err)
+			continue
 		}
 		attachment.MessageID = message.ID
 		attachments = append(attachments, attachment)
 	}
 
-	// Save attachments
 	for _, attachment := range attachments {
-		if err := s.chatRepo.CreateAttachment(attachment); err != nil {
-			// Log error but don't fail the whole operation
-			fmt.Printf("Failed to create attachment: %v\n", err)
+		// ✅ Передаем tx
+		if err := s.chatRepo.CreateAttachment(tx, attachment); err != nil {
+			log.Printf("Failed to create attachment: %v\n", err)
+			return nil, apperrors.InternalError(err)
 		}
 	}
 
-	// Reload message with attachments
-	return s.GetMessage(message.ID, userID)
+	// ✅ Коммитим транзакцию
+	if err := tx.Commit().Error; err != nil {
+		return nil, apperrors.InternalError(err)
+	}
+
+	// ✅ Уведомляем *после* коммита, передаем 'db' (пул)
+	go s.notifyNewMessage(db, req.DialogID, userID, message.ID)
+
+	// ✅ Получаем сообщение *вне* транзакции (read-only), передаем 'db' (пул)
+	return s.GetMessage(db, message.ID, userID)
 }
 
-func (s *chatService) GetMessages(dialogID, userID string, criteria dto.MessageCriteria) (*dto.MessageListResponse, error) {
-	// Check access
-	hasAccess, err := s.chatRepo.IsUserInDialog(dialogID, userID)
+// GetMessages - 'db' добавлен
+func (s *chatService) GetMessages(db *gorm.DB, dialogID, userID string, criteria dto.MessageCriteria) (*dto.MessageListResponse, error) {
+	// ✅ Используем 'db' из параметра
+	hasAccess, err := s.chatRepo.IsUserInDialog(db, dialogID, userID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 	if !hasAccess {
-		return nil, appErrors.ErrDialogAccessDenied
+		return nil, apperrors.ErrDialogAccessDenied
 	}
 
-	messages, total, err := s.chatRepo.FindMessagesByDialog(dialogID, criteria)
+	// ✅ Используем 'db' из параметра
+	messages, total, err := s.chatRepo.FindMessagesByDialog(db, dialogID, criteria)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	var messageResponses []*dto.MessageResponse
 	for _, message := range messages {
-		messageResponse, err := s.buildMessageResponse(&message)
+		// ✅ Используем 'db' из параметра
+		messageResponse, err := s.buildMessageResponse(db, &message)
 		if err != nil {
-			// Обработайте ошибку - пропустите сообщение, верните ошибку, или используйте логирование
-			continue // или return nil, err
+			continue
 		}
 		messageResponses = append(messageResponses, messageResponse)
+	}
+
+	pageSize := criteria.Limit
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+	page := 1
+	if criteria.Offset > 0 && pageSize > 0 {
+		page = (criteria.Offset / pageSize) + 1
+	}
+	totalPages := 0
+	if pageSize > 0 {
+		totalPages = calculateTotalPages(total, pageSize)
+	} else if total > 0 {
+		totalPages = 1
 	}
 
 	return &dto.MessageListResponse{
 		Messages:   messageResponses,
 		Total:      total,
-		Page:       dto.CriteriaPage{}.Page,                                 // 0
-		PageSize:   dto.CriteriaPage{}.PageSize,                             // 0
-		TotalPages: calculateTotalPages(total, dto.CriteriaPage{}.PageSize), // 0
+		Page:       page,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
 		HasMore:    int64(criteria.Offset+len(messages)) < total,
 	}, nil
 }
 
-func (s *chatService) GetMessage(messageID, userID string) (*dto.MessageResponse, error) {
-	message, err := s.chatRepo.FindMessageByID(messageID)
+// GetMessage - 'db' добавлен
+func (s *chatService) GetMessage(db *gorm.DB, messageID, userID string) (*dto.MessageResponse, error) {
+	// ✅ Используем 'db' из параметра
+	message, err := s.chatRepo.FindMessageByID(db, messageID)
 	if err != nil {
-		return nil, err
+		return nil, handleChatError(err)
 	}
 
-	// Check access to dialog
-	hasAccess, err := s.chatRepo.IsUserInDialog(message.DialogID, userID)
+	// ✅ Используем 'db' из параметра
+	hasAccess, err := s.chatRepo.IsUserInDialog(db, message.DialogID, userID)
 	if err != nil || !hasAccess {
-		return nil, appErrors.ErrDialogAccessDenied
+		return nil, apperrors.ErrDialogAccessDenied
 	}
 
-	return s.buildMessageResponse(message)
+	// ✅ Используем 'db' из параметра
+	return s.buildMessageResponse(db, message)
 }
 
-func (s *chatService) UpdateMessage(userID, messageID string, req *dto.UpdateMessageRequest) error {
-	message, err := s.chatRepo.FindMessageByID(messageID)
+// UpdateMessage - 'db' добавлен
+func (s *chatService) UpdateMessage(db *gorm.DB, userID, messageID string, req *dto.UpdateMessageRequest) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	message, err := s.chatRepo.FindMessageByID(tx, messageID)
 	if err != nil {
-		return err
+		return handleChatError(err)
 	}
 
-	// Check ownership
 	if message.SenderID != userID {
 		return errors.New("can only edit own messages")
 	}
-
-	// Check if message can be edited (within time limit)
 	if time.Since(message.CreatedAt) > 15*time.Minute {
 		return errors.New("message can only be edited within 15 minutes")
 	}
 
 	message.Content = req.Content
-	// This would require an UpdateMessage method in repository
-	// For now, we'll implement basic update
-	return s.chatRepo.UpdateMessageStatus(messageID, "edited")
+	// ✅ Передаем tx
+	if err := s.chatRepo.UpdateMessage(tx, message); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *chatService) DeleteMessage(userID, messageID string) error {
-	message, err := s.chatRepo.FindMessageByID(messageID)
+// DeleteMessage - 'db' добавлен
+func (s *chatService) DeleteMessage(db *gorm.DB, userID, messageID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	message, err := s.chatRepo.FindMessageByID(tx, messageID)
 	if err != nil {
-		return err
+		return handleChatError(err)
 	}
 
-	// Check ownership or admin rights
-	participant, err := s.chatRepo.FindParticipant(message.DialogID, userID)
+	// ✅ Передаем tx
+	participant, err := s.chatRepo.FindParticipant(tx, message.DialogID, userID)
 	if err != nil {
-		return appErrors.ErrDialogAccessDenied
+		return apperrors.ErrDialogAccessDenied
 	}
 
 	if message.SenderID != userID && participant.Role != "owner" && participant.Role != "admin" {
-		return appErrors.ErrCannotDeleteMessage
+		return apperrors.ErrCannotDeleteMessage
 	}
 
-	return s.chatRepo.DeleteMessage(messageID)
+	// ✅ Передаем tx
+	if err := s.chatRepo.DeleteMessage(tx, messageID); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *chatService) ForwardMessage(userID string, req *dto.ForwardMessageRequest) (*dto.MessageResponse, error) {
-	// Get original message
-	originalMessage, err := s.chatRepo.FindMessageByID(req.MessageID)
+// ForwardMessage - 'db' добавлен
+func (s *chatService) ForwardMessage(db *gorm.DB, userID string, req *dto.ForwardMessageRequest) (*dto.MessageResponse, error) {
+	// ✅ Используем 'db' из параметра
+	originalMessage, err := s.chatRepo.FindMessageByID(db, req.MessageID)
 	if err != nil {
-		return nil, err
+		return nil, handleChatError(err)
 	}
 
-	// Forward to each dialog
 	var forwardedMessage *dto.MessageResponse
 	for _, dialogID := range req.DialogIDs {
-		// Check access to each dialog
-		hasAccess, err := s.chatRepo.IsUserInDialog(dialogID, userID)
+		// ✅ Используем 'db' из параметра
+		hasAccess, err := s.chatRepo.IsUserInDialog(db, dialogID, userID)
 		if err != nil || !hasAccess {
-			continue // Skip inaccessible dialogs
+			continue
 		}
 
 		forwardReq := &dto.SendMessageRequest{
@@ -570,9 +810,9 @@ func (s *chatService) ForwardMessage(userID string, req *dto.ForwardMessageReque
 			ForwardFromID: &originalMessage.ID,
 		}
 
-		forwardedMessage, err = s.SendMessage(userID, forwardReq)
+		// ✅ Передаем 'db'
+		forwardedMessage, err = s.SendMessage(db, userID, forwardReq)
 		if err != nil {
-			// Log but continue with other dialogs
 			fmt.Printf("Failed to forward message to dialog %s: %v\n", dialogID, err)
 		}
 	}
@@ -582,30 +822,51 @@ func (s *chatService) ForwardMessage(userID string, req *dto.ForwardMessageReque
 
 // Attachment operations
 
-func (s *chatService) UploadAttachment(userID string, file *multipart.FileHeader) (*dto.AttachmentResponse, error) {
+// UploadAttachment - 'db' добавлен
+func (s *chatService) UploadAttachment(db *gorm.DB, userID string, file *multipart.FileHeader) (*dto.AttachmentResponse, error) {
 	attachment, err := s.processAttachment(userID, file)
 	if err != nil {
 		return nil, err
 	}
 
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return nil, apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	if err := s.chatRepo.CreateAttachment(tx, attachment); err != nil {
+		return nil, apperrors.InternalError(err)
+	}
+
+	// ✅ Коммитим транзакцию
+	if err := tx.Commit().Error; err != nil {
+		return nil, apperrors.InternalError(err)
+	}
+
 	return s.buildAttachmentResponse(attachment), nil
 }
 
-func (s *chatService) GetMessageAttachments(messageID, userID string) ([]*dto.AttachmentResponse, error) {
-	message, err := s.chatRepo.FindMessageByID(messageID)
+// GetMessageAttachments - 'db' добавлен
+func (s *chatService) GetMessageAttachments(db *gorm.DB, messageID, userID string) ([]*dto.AttachmentResponse, error) {
+	// ✅ Используем 'db' из параметра
+	message, err := s.chatRepo.FindMessageByID(db, messageID)
 	if err != nil {
-		return nil, err
+		return nil, handleChatError(err)
 	}
 
-	// Check access
-	hasAccess, err := s.chatRepo.IsUserInDialog(message.DialogID, userID)
+	// ✅ Используем 'db' из параметра
+	hasAccess, err := s.chatRepo.IsUserInDialog(db, message.DialogID, userID)
 	if err != nil || !hasAccess {
-		return nil, appErrors.ErrDialogAccessDenied
+		return nil, apperrors.ErrDialogAccessDenied
 	}
 
-	attachments, err := s.chatRepo.FindAttachmentsByMessage(messageID)
+	// ✅ Используем 'db' из параметра
+	attachments, err := s.chatRepo.FindAttachmentsByMessage(db, messageID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	var responses []*dto.AttachmentResponse
@@ -616,16 +877,18 @@ func (s *chatService) GetMessageAttachments(messageID, userID string) ([]*dto.At
 	return responses, nil
 }
 
-func (s *chatService) GetDialogAttachments(dialogID, userID string) ([]*dto.AttachmentResponse, error) {
-	// Check access
-	hasAccess, err := s.chatRepo.IsUserInDialog(dialogID, userID)
+// GetDialogAttachments - 'db' добавлен
+func (s *chatService) GetDialogAttachments(db *gorm.DB, dialogID, userID string) ([]*dto.AttachmentResponse, error) {
+	// ✅ Используем 'db' из параметра
+	hasAccess, err := s.chatRepo.IsUserInDialog(db, dialogID, userID)
 	if err != nil || !hasAccess {
-		return nil, appErrors.ErrDialogAccessDenied
+		return nil, apperrors.ErrDialogAccessDenied
 	}
 
-	attachments, err := s.chatRepo.FindAttachmentsByDialog(dialogID)
+	// ✅ Используем 'db' из параметра
+	attachments, err := s.chatRepo.FindAttachmentsByDialog(db, dialogID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	var responses []*dto.AttachmentResponse
@@ -636,23 +899,45 @@ func (s *chatService) GetDialogAttachments(dialogID, userID string) ([]*dto.Atta
 	return responses, nil
 }
 
-func (s *chatService) DeleteAttachment(userID, attachmentID string) error {
-	// This would require additional checks in a real implementation
-	return s.chatRepo.DeleteAttachment(attachmentID)
+// DeleteAttachment - 'db' добавлен
+func (s *chatService) DeleteAttachment(db *gorm.DB, userID, attachmentID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// TODO: Добавить проверку прав
+
+	// ✅ Передаем tx
+	if err := s.chatRepo.DeleteAttachment(tx, attachmentID); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
 // Reaction operations
 
-func (s *chatService) AddReaction(userID, messageID, emoji string) error {
-	message, err := s.chatRepo.FindMessageByID(messageID)
+// AddReaction - 'db' добавлен
+func (s *chatService) AddReaction(db *gorm.DB, userID, messageID, emoji string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	message, err := s.chatRepo.FindMessageByID(tx, messageID)
 	if err != nil {
-		return err
+		return handleChatError(err)
 	}
 
-	// Check access
-	hasAccess, err := s.chatRepo.IsUserInDialog(message.DialogID, userID)
+	// ✅ Передаем tx
+	hasAccess, err := s.chatRepo.IsUserInDialog(tx, message.DialogID, userID)
 	if err != nil || !hasAccess {
-		return appErrors.ErrDialogAccessDenied
+		return apperrors.ErrDialogAccessDenied
 	}
 
 	reaction := &chat.MessageReaction{
@@ -661,33 +946,53 @@ func (s *chatService) AddReaction(userID, messageID, emoji string) error {
 		Emoji:     emoji,
 	}
 
-	return s.chatRepo.AddReaction(reaction)
+	// ✅ Передаем tx
+	if err := s.chatRepo.AddReaction(tx, reaction); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *chatService) RemoveReaction(userID, messageID string) error {
-	return s.chatRepo.RemoveReaction(messageID, userID)
+// RemoveReaction - 'db' добавлен
+func (s *chatService) RemoveReaction(db *gorm.DB, userID, messageID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	if err := s.chatRepo.RemoveReaction(tx, messageID, userID); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *chatService) GetMessageReactions(messageID, userID string) ([]*dto.ReactionResponse, error) {
-	message, err := s.chatRepo.FindMessageByID(messageID)
+// GetMessageReactions - 'db' добавлен
+func (s *chatService) GetMessageReactions(db *gorm.DB, messageID, userID string) ([]*dto.ReactionResponse, error) {
+	// ✅ Используем 'db' из параметра
+	message, err := s.chatRepo.FindMessageByID(db, messageID)
 	if err != nil {
-		return nil, err
+		return nil, handleChatError(err)
 	}
 
-	// Check access
-	hasAccess, err := s.chatRepo.IsUserInDialog(message.DialogID, userID)
+	// ✅ Используем 'db' из параметра
+	hasAccess, err := s.chatRepo.IsUserInDialog(db, message.DialogID, userID)
 	if err != nil || !hasAccess {
-		return nil, appErrors.ErrDialogAccessDenied
+		return nil, apperrors.ErrDialogAccessDenied
 	}
 
-	reactions, err := s.chatRepo.FindReactionsByMessage(messageID)
+	// ✅ Используем 'db' из параметра
+	reactions, err := s.chatRepo.FindReactionsByMessage(db, messageID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	var responses []*dto.ReactionResponse
 	for _, reaction := range reactions {
-		user, err := s.userRepo.FindByID(reaction.UserID)
+		// ✅ Используем 'db' из параметра
+		user, err := s.userRepo.FindByID(db, reaction.UserID)
 		if err != nil {
 			continue
 		}
@@ -695,7 +1000,7 @@ func (s *chatService) GetMessageReactions(messageID, userID string) ([]*dto.Reac
 		responses = append(responses, &dto.ReactionResponse{
 			ID:        reaction.ID,
 			UserID:    reaction.UserID,
-			UserName:  user.Email, // Or user name if available
+			UserName:  user.Email,
 			Emoji:     reaction.Emoji,
 			CreatedAt: reaction.CreatedAt,
 		})
@@ -706,46 +1011,64 @@ func (s *chatService) GetMessageReactions(messageID, userID string) ([]*dto.Reac
 
 // Read receipts
 
-func (s *chatService) MarkMessagesAsRead(userID, dialogID string) error {
-	// Check access
-	hasAccess, err := s.chatRepo.IsUserInDialog(dialogID, userID)
+// MarkMessagesAsRead - 'db' добавлен
+func (s *chatService) MarkMessagesAsRead(db *gorm.DB, userID, dialogID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	hasAccess, err := s.chatRepo.IsUserInDialog(tx, dialogID, userID)
 	if err != nil || !hasAccess {
-		return appErrors.ErrDialogAccessDenied
+		return apperrors.ErrDialogAccessDenied
 	}
 
-	return s.chatRepo.MarkMessagesAsRead(dialogID, userID)
+	// ✅ Передаем tx
+	if err := s.chatRepo.MarkMessagesAsRead(tx, dialogID, userID); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
-func (s *chatService) GetUnreadCount(dialogID, userID string) (int64, error) {
-	// Check access
-	hasAccess, err := s.chatRepo.IsUserInDialog(dialogID, userID)
+// GetUnreadCount - 'db' добавлен
+func (s *chatService) GetUnreadCount(db *gorm.DB, dialogID, userID string) (int64, error) {
+	// ✅ Используем 'db' из параметра
+	hasAccess, err := s.chatRepo.IsUserInDialog(db, dialogID, userID)
 	if err != nil || !hasAccess {
-		return 0, appErrors.ErrDialogAccessDenied
+		return 0, apperrors.ErrDialogAccessDenied
 	}
 
-	return s.chatRepo.GetUnreadCount(dialogID, userID)
+	// ✅ Используем 'db' из параметра
+	return s.chatRepo.GetUnreadCount(db, dialogID, userID)
 }
 
-func (s *chatService) GetReadReceipts(messageID, userID string) ([]*dto.ReadReceiptResponse, error) {
-	message, err := s.chatRepo.FindMessageByID(messageID)
+// GetReadReceipts - 'db' добавлен
+func (s *chatService) GetReadReceipts(db *gorm.DB, messageID, userID string) ([]*dto.ReadReceiptResponse, error) {
+	// ✅ Используем 'db' из параметра
+	message, err := s.chatRepo.FindMessageByID(db, messageID)
 	if err != nil {
-		return nil, err
+		return nil, handleChatError(err)
 	}
 
-	// Check access
-	hasAccess, err := s.chatRepo.IsUserInDialog(message.DialogID, userID)
+	// ✅ Используем 'db' из параметра
+	hasAccess, err := s.chatRepo.IsUserInDialog(db, message.DialogID, userID)
 	if err != nil || !hasAccess {
-		return nil, appErrors.ErrDialogAccessDenied
+		return nil, apperrors.ErrDialogAccessDenied
 	}
 
-	receipts, err := s.chatRepo.FindReadReceiptsByMessage(messageID)
+	// ✅ Используем 'db' из параметра
+	receipts, err := s.chatRepo.FindReadReceiptsByMessage(db, messageID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	var responses []*dto.ReadReceiptResponse
 	for _, receipt := range receipts {
-		user, err := s.userRepo.FindByID(receipt.UserID)
+		// ✅ Используем 'db' из параметра
+		user, err := s.userRepo.FindByID(db, receipt.UserID)
 		if err != nil {
 			continue
 		}
@@ -762,75 +1085,109 @@ func (s *chatService) GetReadReceipts(messageID, userID string) ([]*dto.ReadRece
 
 // Combined operations
 
-func (s *chatService) GetDialogWithMessages(dialogID, userID string, criteria dto.MessageCriteria) (*dto.DialogWithMessagesResponse, error) {
-	// Check access
-	hasAccess, err := s.chatRepo.IsUserInDialog(dialogID, userID)
+// GetDialogWithMessages - 'db' добавлен
+func (s *chatService) GetDialogWithMessages(db *gorm.DB, dialogID, userID string, criteria dto.MessageCriteria) (*dto.DialogWithMessagesResponse, error) {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return nil, apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	hasAccess, err := s.chatRepo.IsUserInDialog(tx, dialogID, userID)
 	if err != nil || !hasAccess {
-		return nil, appErrors.ErrDialogAccessDenied
+		return nil, apperrors.ErrDialogAccessDenied
 	}
 
-	dialog, err := s.chatRepo.FindDialogByID(dialogID)
+	// ✅ Передаем tx
+	dialog, err := s.chatRepo.FindDialogByID(tx, dialogID)
 	if err != nil {
-		return nil, err
+		return nil, handleChatError(err)
 	}
 
-	messages, total, err := s.chatRepo.FindMessagesByDialog(dialogID, criteria)
+	// ✅ Передаем tx
+	messages, total, err := s.chatRepo.FindMessagesByDialog(tx, dialogID, criteria)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
-	// Mark as read
-	if err := s.MarkMessagesAsRead(userID, dialogID); err != nil {
-		return nil, err
+	// ✅ Передаем tx
+	if err := s.chatRepo.MarkMessagesAsRead(tx, dialogID, userID); err != nil {
+		return nil, apperrors.InternalError(err)
 	}
 
-	dialogResponse, err := s.buildDialogResponse(dialog, userID)
+	// ✅ Передаем tx
+	dialogResponse, err := s.buildDialogResponse(tx, dialog, userID)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	var messageResponses []*dto.MessageResponse
 	for _, message := range messages {
-		messageResponse, err := s.buildMessageResponse(&message)
+		// ✅ Передаем tx
+		messageResponse, err := s.buildMessageResponse(tx, &message)
 		if err != nil {
-			// Обработайте ошибку - пропустите сообщение, верните ошибку, или используйте логирование
-			continue // или return nil, err
+			continue
 		}
 		messageResponses = append(messageResponses, messageResponse)
 	}
 
+	// ✅ Коммитим транзакцию
+	if err := tx.Commit().Error; err != nil {
+		return nil, apperrors.InternalError(err)
+	}
+
+	pageSize := criteria.Limit
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+	page := 1
+	if criteria.Offset > 0 && pageSize > 0 {
+		page = (criteria.Offset / pageSize) + 1
+	}
+	totalPages := 0
+	if pageSize > 0 {
+		totalPages = calculateTotalPages(total, pageSize)
+	} else if total > 0 {
+		totalPages = 1
+	}
+
 	return &dto.DialogWithMessagesResponse{
-		Dialog:   dialogResponse,
-		Messages: messageResponses,
-		Total:    total,
-		HasMore:  int64(criteria.Offset+len(messages)) < total,
+		Dialog:     dialogResponse,
+		Messages:   messageResponses,
+		Total:      total,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
+		HasMore:    int64(criteria.Offset+len(messages)) < total,
 	}, nil
 }
 
-func (s *chatService) SearchMessages(userID, dialogID, query string) ([]*dto.MessageResponse, error) {
-	// Check access
-	hasAccess, err := s.chatRepo.IsUserInDialog(dialogID, userID)
+// SearchMessages - 'db' добавлен
+func (s *chatService) SearchMessages(db *gorm.DB, userID, dialogID, query string) ([]*dto.MessageResponse, error) {
+	// ✅ Используем 'db' из параметра
+	hasAccess, err := s.chatRepo.IsUserInDialog(db, dialogID, userID)
 	if err != nil || !hasAccess {
-		return nil, appErrors.ErrDialogAccessDenied
+		return nil, apperrors.ErrDialogAccessDenied
 	}
 
-	// This would require a search method in repository
-	// For now, implement basic search by loading all messages and filtering
 	criteria := dto.MessageCriteria{
-		Limit: 1000, // Large limit for search
+		Limit: 1000,
 	}
 
-	messages, _, err := s.chatRepo.FindMessagesByDialog(dialogID, criteria)
+	// ✅ Используем 'db' из параметра
+	messages, _, err := s.chatRepo.FindMessagesByDialog(db, dialogID, criteria)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	var results []*dto.MessageResponse
 	for _, message := range messages {
 		if strings.Contains(strings.ToLower(message.Content), strings.ToLower(query)) {
-			messageResponse, err := s.buildMessageResponse(&message)
+			// ✅ Используем 'db' из параметра
+			messageResponse, err := s.buildMessageResponse(db, &message)
 			if err != nil {
-				// Пропускаем сообщения с ошибками преобразования
 				log.Printf("Failed to build message response for message %s: %v", message.ID, err)
 				continue
 			}
@@ -843,15 +1200,16 @@ func (s *chatService) SearchMessages(userID, dialogID, query string) ([]*dto.Mes
 
 // Admin operations
 
-func (s *chatService) GetAllDialogs(criteria dto.DialogCriteria) (*dto.DialogListResponse, error) {
-	dialogs, total, err := s.chatRepo.FindAllDialogs(criteria)
+// GetAllDialogs - 'db' добавлен
+func (s *chatService) GetAllDialogs(db *gorm.DB, criteria dto.DialogCriteria) (*dto.DialogListResponse, error) {
+	// ✅ Используем 'db' из параметра
+	dialogs, total, err := s.chatRepo.FindAllDialogs(db, criteria)
 	if err != nil {
-		return nil, err
+		return nil, apperrors.InternalError(err)
 	}
 
 	var responses []*dto.DialogResponse
 	for _, dialog := range dialogs {
-		// For admin, we don't need to build full dialog with user-specific data
 		response := &dto.DialogResponse{
 			ID:        dialog.ID,
 			IsGroup:   dialog.IsGroup,
@@ -864,42 +1222,81 @@ func (s *chatService) GetAllDialogs(criteria dto.DialogCriteria) (*dto.DialogLis
 		responses = append(responses, response)
 	}
 
+	pageSize := criteria.PageSize
+	page := criteria.Page
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+	totalPages := 0
+	if pageSize > 0 {
+		totalPages = calculateTotalPages(total, pageSize)
+	} else if total > 0 {
+		totalPages = 1
+	}
+
 	return &dto.DialogListResponse{
 		Dialogs:    responses,
 		Total:      total,
-		Page:       criteria.Page,
-		PageSize:   criteria.PageSize,
-		TotalPages: calculateTotalPages(total, criteria.PageSize),
+		Page:       page,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
 	}, nil
 }
 
-func (s *chatService) GetChatStats() (*repositories.ChatStats, error) {
-	return s.chatRepo.GetChatStats()
+// GetChatStats - 'db' добавлен
+func (s *chatService) GetChatStats(db *gorm.DB) (*repositories.ChatStats, error) {
+	// ✅ Используем 'db' из параметра
+	return s.chatRepo.GetChatStats(db)
 }
 
-func (s *chatService) CleanOldMessages(days int) error {
-	return s.chatRepo.CleanOldMessages(days)
-}
-
-func (s *chatService) DeleteUserMessages(adminID, userID string) error {
-	// Verify admin permissions
-	admin, err := s.userRepo.FindByID(adminID)
-	if err != nil {
-		return err
+// CleanOldMessages - 'db' добавлен
+func (s *chatService) CleanOldMessages(db *gorm.DB, days int) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
 	}
+	defer tx.Rollback()
 
+	// ✅ Передаем tx
+	if err := s.chatRepo.CleanOldMessages(tx, days); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
+}
+
+// DeleteUserMessages - 'db' добавлен
+func (s *chatService) DeleteUserMessages(db *gorm.DB, adminID, dialogID string, userID string) error {
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// ✅ Передаем tx
+	admin, err := s.userRepo.FindByID(tx, adminID)
+	if err != nil {
+		return handleChatError(err)
+	}
 	if admin.Role != models.UserRoleAdmin {
 		return errors.New("insufficient permissions")
 	}
 
-	// This would require additional implementation
-	// For now, return not implemented
-	return errors.New("not implemented")
+	// ✅ Передаем tx
+	if err := s.chatRepo.DeleteUserMessages(tx, dialogID, userID); err != nil {
+		return apperrors.InternalError(err)
+	}
+	return tx.Commit().Error
 }
 
 // Helper methods
 
-func (s *chatService) buildDialogResponse(dialog *chat.Dialog, userID string) (*dto.DialogResponse, error) {
+// buildDialogResponse - 'db' добавлен
+func (s *chatService) buildDialogResponse(db *gorm.DB, dialog *chat.Dialog, userID string) (*dto.DialogResponse, error) {
 	response := &dto.DialogResponse{
 		ID:        dialog.ID,
 		IsGroup:   dialog.IsGroup,
@@ -910,40 +1307,38 @@ func (s *chatService) buildDialogResponse(dialog *chat.Dialog, userID string) (*
 		UpdatedAt: dialog.UpdatedAt,
 	}
 
-	// Build participants
 	var participantResponses []*dto.ParticipantResponse
 	for _, participant := range dialog.Participants {
-		user, err := s.userRepo.FindByID(participant.UserID)
+		// ✅ Используем 'db' из параметра
+		user, err := s.userRepo.FindByID(db, participant.UserID)
 		if err != nil {
 			continue
 		}
-
 		participantResponses = append(participantResponses, &dto.ParticipantResponse{
 			UserID:     participant.UserID,
-			UserName:   user.Email, // Or user name if available
+			UserName:   user.Email,
 			Role:       participant.Role,
 			LastSeenAt: participant.LastSeenAt,
 			IsMuted:    participant.IsMuted,
-			IsOnline:   false, // Would require online status tracking
+			IsOnline:   false,
 		})
 	}
 	response.Participants = participantResponses
 
-	// Build last message
 	if dialog.LastMessage != nil {
-		lastMessage, err := s.buildMessageResponse(dialog.LastMessage)
+		// ✅ Используем 'db' из параметра
+		lastMessage, err := s.buildMessageResponse(db, dialog.LastMessage)
 		if err == nil {
 			response.LastMessage = lastMessage
 		}
 	}
 
-	// Get unread count
-	unreadCount, err := s.GetUnreadCount(dialog.ID, userID)
+	// ✅ Используем 'db' из параметра
+	unreadCount, err := s.chatRepo.GetUnreadCount(db, dialog.ID, userID)
 	if err == nil {
 		response.UnreadCount = unreadCount
 	}
 
-	// Get muted status for current user
 	for _, participant := range dialog.Participants {
 		if participant.UserID == userID {
 			response.IsMuted = participant.IsMuted
@@ -954,7 +1349,8 @@ func (s *chatService) buildDialogResponse(dialog *chat.Dialog, userID string) (*
 	return response, nil
 }
 
-func (s *chatService) buildMessageResponse(message *chat.Message) (*dto.MessageResponse, error) {
+// buildMessageResponse - 'db' добавлен
+func (s *chatService) buildMessageResponse(db *gorm.DB, message *chat.Message) (*dto.MessageResponse, error) {
 	response := &dto.MessageResponse{
 		ID:             message.ID,
 		DialogID:       message.DialogID,
@@ -967,36 +1363,35 @@ func (s *chatService) buildMessageResponse(message *chat.Message) (*dto.MessageR
 		CreatedAt:      message.CreatedAt,
 	}
 
-	// Get sender name
-	sender, err := s.userRepo.FindByID(message.SenderID)
+	// ✅ Используем 'db' из параметра
+	sender, err := s.userRepo.FindByID(db, message.SenderID)
 	if err == nil {
-		response.SenderName = sender.Email // Or user name if available
+		response.SenderName = sender.Email
 	}
 
-	// Build reply to message
 	if message.ReplyTo != nil {
-		replyTo, err := s.buildMessageResponse(message.ReplyTo)
+		// ✅ Используем 'db' из параметра
+		replyTo, err := s.buildMessageResponse(db, message.ReplyTo)
 		if err == nil {
 			response.ReplyTo = replyTo
 		}
 	}
 
-	// Build forward from message
 	if message.ForwardFrom != nil {
-		forwardFrom, err := s.buildMessageResponse(message.ForwardFrom)
+		// ✅ Используем 'db' из параметра
+		forwardFrom, err := s.buildMessageResponse(db, message.ForwardFrom)
 		if err == nil {
 			response.ForwardFrom = forwardFrom
 		}
 	}
 
-	// Build reactions
 	var reactionResponses []*dto.ReactionResponse
 	for _, reaction := range message.Reactions {
-		user, err := s.userRepo.FindByID(reaction.UserID)
+		// ✅ Используем 'db' из параметра
+		user, err := s.userRepo.FindByID(db, reaction.UserID)
 		if err != nil {
 			continue
 		}
-
 		reactionResponses = append(reactionResponses, &dto.ReactionResponse{
 			ID:        reaction.ID,
 			UserID:    reaction.UserID,
@@ -1007,15 +1402,13 @@ func (s *chatService) buildMessageResponse(message *chat.Message) (*dto.MessageR
 	}
 	response.Reactions = reactionResponses
 
-	// Build attachments
 	var attachmentResponses []*dto.AttachmentResponse
 	for _, attachment := range message.Attachments {
-		att := attachment // Создаем локальную копию
+		att := attachment
 		attachmentResponses = append(attachmentResponses, s.buildAttachmentResponse(&att))
 	}
 	response.Attachments = attachmentResponses
 
-	// Build read receipts
 	var readBy []string
 	for _, receipt := range message.ReadReceipts {
 		readBy = append(readBy, receipt.UserID)
@@ -1025,6 +1418,7 @@ func (s *chatService) buildMessageResponse(message *chat.Message) (*dto.MessageR
 	return response, nil
 }
 
+// (buildAttachmentResponse - чистая функция, без изменений)
 func (s *chatService) buildAttachmentResponse(attachment *chat.MessageAttachment) *dto.AttachmentResponse {
 	return &dto.AttachmentResponse{
 		ID:        attachment.ID,
@@ -1038,24 +1432,20 @@ func (s *chatService) buildAttachmentResponse(attachment *chat.MessageAttachment
 	}
 }
 
+// (processAttachment - чистая функция, без изменений)
 func (s *chatService) processAttachment(userID string, file *multipart.FileHeader) (*chat.MessageAttachment, error) {
-	// Validate file size
 	if file.Size > FileConfig.MaxSize {
-		return nil, appErrors.ErrFileTooLarge
+		return nil, apperrors.ErrFileTooLarge
 	}
-
-	// Validate file type
 	if !isValidFileType(file.Header.Get("Content-Type")) {
-		return nil, appErrors.ErrInvalidFileType
+		return nil, apperrors.ErrInvalidFileType
 	}
 
-	// Generate file path
 	fileExt := filepath.Ext(file.Filename)
 	fileName := fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), generateRandomString(8), fileExt)
 	filePath := filepath.Join(FileConfig.StoragePath, fileName)
 
-	// In real implementation, save the file
-	// For now, create attachment record
+	// TODO: Логика сохранения файла
 
 	return &chat.MessageAttachment{
 		UploaderID: userID,
@@ -1067,24 +1457,27 @@ func (s *chatService) processAttachment(userID string, file *multipart.FileHeade
 	}, nil
 }
 
-func (s *chatService) notifyNewMessage(dialogID, senderID, messageID string) {
-	// Get dialog participants
-	participants, err := s.chatRepo.FindParticipantsByDialog(dialogID)
+// notifyNewMessage - 'db' добавлен
+func (s *chatService) notifyNewMessage(db *gorm.DB, dialogID, senderID, messageID string) {
+	// ✅ Используем 'db' из параметра
+	participants, err := s.chatRepo.FindParticipantsByDialog(db, dialogID)
 	if err != nil {
+		log.Printf("notifyNewMessage: failed to find participants: %v", err)
 		return
 	}
 
-	// Send notifications to participants except sender
 	for _, participant := range participants {
 		if participant.UserID != senderID && !participant.IsMuted {
-			// Get sender info for notification
-			sender, err := s.userRepo.FindByID(senderID)
+			// ✅ Используем 'db' из параметра
+			sender, err := s.userRepo.FindByID(db, senderID)
 			if err != nil {
+				log.Printf("notifyNewMessage: failed to find sender: %v", err)
 				continue
 			}
 
-			// Send notification
+			// ✅ Используем 'db' из параметра
 			s.notificationRepo.CreateNewMessageNotification(
+				db,
 				participant.UserID,
 				sender.Email,
 				dialogID,
@@ -1093,20 +1486,15 @@ func (s *chatService) notifyNewMessage(dialogID, senderID, messageID string) {
 	}
 }
 
-// Utility functions
-
+// (isValidMessageType - чистая функция, без изменений)
 func isValidMessageType(messageType string) bool {
 	validTypes := map[string]bool{
-		"text":    true,
-		"image":   true,
-		"video":   true,
-		"file":    true,
-		"system":  true,
-		"forward": true,
+		"text": true, "image": true, "video": true, "file": true, "system": true, "forward": true,
 	}
 	return validTypes[messageType]
 }
 
+// (isValidFileType - чистая функция, без изменений)
 func isValidFileType(mimeType string) bool {
 	for _, allowedType := range FileConfig.AllowedTypes {
 		if mimeType == allowedType {
@@ -1116,6 +1504,7 @@ func isValidFileType(mimeType string) bool {
 	return false
 }
 
+// (getFileTypeFromMIME - чистая функция, без изменений)
 func getFileTypeFromMIME(mimeType string) string {
 	if strings.HasPrefix(mimeType, "image/") {
 		return "image"
@@ -1126,6 +1515,7 @@ func getFileTypeFromMIME(mimeType string) string {
 	}
 }
 
+// (removeDuplicates - чистая функция, без изменений)
 func removeDuplicates(slice []string) []string {
 	keys := make(map[string]bool)
 	var result []string
@@ -1138,25 +1528,26 @@ func removeDuplicates(slice []string) []string {
 	return result
 }
 
-func calculateTotalPages(total int64, pageSize int) int {
-	if pageSize == 0 {
-		return 0
-	}
-	pages := int(total) / pageSize
-	if int(total)%pageSize != 0 {
-		pages++
-	}
-	return pages
-}
-
+// (generateRandomString - чистая функция, без изменений)
 func generateRandomString(length int) string {
-	// Implementation for generating random string
-	// For now, return a placeholder
 	const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
 	result := make([]byte, length)
 	for i := range result {
-		// In real implementation, use crypto/rand
 		result[i] = chars[i%len(chars)]
 	}
 	return string(result)
+}
+
+// (handleChatError - хелпер, без изменений)
+func handleChatError(err error) error {
+	if errors.Is(err, gorm.ErrRecordNotFound) ||
+		errors.Is(err, repositories.ErrDialogNotFound) ||
+		errors.Is(err, repositories.ErrMessageNotFound) ||
+		errors.Is(err, repositories.ErrParticipantNotFound) {
+		return apperrors.ErrNotFound(err)
+	}
+	if errors.Is(err, repositories.ErrUserNotFound) {
+		return apperrors.ErrNotFound(err)
+	}
+	return apperrors.InternalError(err)
 }

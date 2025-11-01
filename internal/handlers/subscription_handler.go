@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 	// "strconv" // <-- Больше не нужен
-	"mwork_backend/internal/appErrors" // <-- Добавлен импорт
+	"mwork_backend/pkg/apperrors" // <-- Добавлен импорт
 
 	"mwork_backend/internal/middleware" // <-- Все еще нужен для RegisterRoutes
 	"mwork_backend/internal/models"
@@ -96,7 +96,8 @@ func (h *SubscriptionHandler) GetPlans(c *gin.Context) {
 		role = models.UserRoleModel // Default to model plans
 	}
 
-	plans, err := h.subscriptionService.GetPlans(role)
+	// ✅ DB: Используем h.GetDB(c)
+	plans, err := h.subscriptionService.GetPlans(h.GetDB(c), role)
 	if err != nil {
 		h.HandleServiceError(c, err) // <-- 4. Используем HandleServiceError
 		return
@@ -111,7 +112,8 @@ func (h *SubscriptionHandler) GetPlans(c *gin.Context) {
 func (h *SubscriptionHandler) GetPlan(c *gin.Context) {
 	planID := c.Param("planId")
 
-	plan, err := h.subscriptionService.GetPlan(planID)
+	// ✅ DB: Используем h.GetDB(c)
+	plan, err := h.subscriptionService.GetPlan(h.GetDB(c), planID)
 	if err != nil {
 		h.HandleServiceError(c, err) // <-- 4. Используем HandleServiceError
 		return
@@ -133,7 +135,8 @@ func (h *SubscriptionHandler) CreatePlan(c *gin.Context) {
 		return
 	}
 
-	if err := h.subscriptionService.CreatePlan(adminID, &req); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.subscriptionService.CreatePlan(h.GetDB(c), adminID, &req); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -153,7 +156,8 @@ func (h *SubscriptionHandler) UpdatePlan(c *gin.Context) {
 		return
 	}
 
-	if err := h.subscriptionService.UpdatePlan(adminID, planID, &req); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.subscriptionService.UpdatePlan(h.GetDB(c), adminID, planID, &req); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -168,7 +172,8 @@ func (h *SubscriptionHandler) DeletePlan(c *gin.Context) {
 	}
 	planID := c.Param("planId")
 
-	if err := h.subscriptionService.DeletePlan(adminID, planID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.subscriptionService.DeletePlan(h.GetDB(c), adminID, planID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -184,7 +189,8 @@ func (h *SubscriptionHandler) GetUserSubscription(c *gin.Context) {
 		return
 	}
 
-	subscription, err := h.subscriptionService.GetUserSubscription(userID)
+	// ✅ DB: Используем h.GetDB(c)
+	subscription, err := h.subscriptionService.GetUserSubscription(h.GetDB(c), userID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -199,7 +205,8 @@ func (h *SubscriptionHandler) GetUserSubscriptionStats(c *gin.Context) {
 		return
 	}
 
-	stats, err := h.subscriptionService.GetUserSubscriptionStats(userID)
+	// ✅ DB: Используем h.GetDB(c)
+	stats, err := h.subscriptionService.GetUserSubscriptionStats(h.GetDB(c), userID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -222,7 +229,8 @@ func (h *SubscriptionHandler) CreateSubscription(c *gin.Context) {
 		return
 	}
 
-	subscription, err := h.subscriptionService.CreateSubscription(userID, req.PlanID)
+	// ✅ DB: Используем h.GetDB(c)
+	subscription, err := h.subscriptionService.CreateSubscription(h.GetDB(c), userID, req.PlanID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -237,7 +245,8 @@ func (h *SubscriptionHandler) CancelSubscription(c *gin.Context) {
 		return
 	}
 
-	if err := h.subscriptionService.CancelSubscription(userID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.subscriptionService.CancelSubscription(h.GetDB(c), userID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -259,7 +268,8 @@ func (h *SubscriptionHandler) RenewSubscription(c *gin.Context) {
 		return
 	}
 
-	if err := h.subscriptionService.RenewSubscription(userID, req.PlanID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.subscriptionService.RenewSubscription(h.GetDB(c), userID, req.PlanID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -275,11 +285,12 @@ func (h *SubscriptionHandler) CheckSubscriptionLimit(c *gin.Context) {
 	feature := c.Query("feature")
 
 	if feature == "" {
-		appErrors.HandleError(c, appErrors.NewBadRequestError("feature parameter is required"))
+		apperrors.HandleError(c, apperrors.NewBadRequestError("feature parameter is required"))
 		return
 	}
 
-	canUse, err := h.subscriptionService.CheckSubscriptionLimit(userID, feature)
+	// ✅ DB: Используем h.GetDB(c)
+	canUse, err := h.subscriptionService.CheckSubscriptionLimit(h.GetDB(c), userID, feature)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -305,7 +316,8 @@ func (h *SubscriptionHandler) IncrementUsage(c *gin.Context) {
 		return
 	}
 
-	if err := h.subscriptionService.IncrementUsage(userID, req.Feature); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.subscriptionService.IncrementUsage(h.GetDB(c), userID, req.Feature); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -319,7 +331,8 @@ func (h *SubscriptionHandler) ResetUsage(c *gin.Context) {
 		return
 	}
 
-	if err := h.subscriptionService.ResetUsage(userID); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.subscriptionService.ResetUsage(h.GetDB(c), userID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -343,7 +356,8 @@ func (h *SubscriptionHandler) CreatePayment(c *gin.Context) {
 		return
 	}
 
-	payment, err := h.subscriptionService.CreatePayment(userID, req.PlanID)
+	// ✅ DB: Используем h.GetDB(c)
+	payment, err := h.subscriptionService.CreatePayment(h.GetDB(c), userID, req.PlanID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -358,7 +372,8 @@ func (h *SubscriptionHandler) GetPaymentHistory(c *gin.Context) {
 		return
 	}
 
-	payments, err := h.subscriptionService.GetPaymentHistory(userID)
+	// ✅ DB: Используем h.GetDB(c)
+	payments, err := h.subscriptionService.GetPaymentHistory(h.GetDB(c), userID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -378,7 +393,8 @@ func (h *SubscriptionHandler) GetPaymentStatus(c *gin.Context) {
 	}
 	paymentID := c.Param("paymentId")
 
-	payment, err := h.subscriptionService.GetPaymentStatus(paymentID)
+	// ✅ DB: Используем h.GetDB(c)
+	payment, err := h.subscriptionService.GetPaymentStatus(h.GetDB(c), paymentID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -403,7 +419,8 @@ func (h *SubscriptionHandler) InitRobokassaPayment(c *gin.Context) {
 		return
 	}
 
-	response, err := h.subscriptionService.InitRobokassaPayment(userID, req.PlanID)
+	// ✅ DB: Используем h.GetDB(c)
+	response, err := h.subscriptionService.InitRobokassaPayment(h.GetDB(c), userID, req.PlanID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -421,7 +438,8 @@ func (h *SubscriptionHandler) ProcessRobokassaCallback(c *gin.Context) {
 		return
 	}
 
-	if err := h.subscriptionService.ProcessRobokassaCallback(&data); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.subscriptionService.ProcessRobokassaCallback(h.GetDB(c), &data); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -435,7 +453,8 @@ func (h *SubscriptionHandler) CheckRobokassaPayment(c *gin.Context) {
 	}
 	paymentID := c.Param("paymentId")
 
-	response, err := h.subscriptionService.CheckRobokassaPayment(paymentID)
+	// ✅ DB: Используем h.GetDB(c)
+	response, err := h.subscriptionService.CheckRobokassaPayment(h.GetDB(c), paymentID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -451,7 +470,8 @@ func (h *SubscriptionHandler) GetPlatformSubscriptionStats(c *gin.Context) {
 		return
 	}
 
-	stats, err := h.subscriptionService.GetPlatformSubscriptionStats()
+	// ✅ DB: Используем h.GetDB(c)
+	stats, err := h.subscriptionService.GetPlatformSubscriptionStats(h.GetDB(c))
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -471,7 +491,8 @@ func (h *SubscriptionHandler) GetRevenueStats(c *gin.Context) {
 		days = 30
 	}
 
-	stats, err := h.subscriptionService.GetRevenueStats(days)
+	// ✅ DB: Используем h.GetDB(c)
+	stats, err := h.subscriptionService.GetRevenueStats(h.GetDB(c), days)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -490,7 +511,8 @@ func (h *SubscriptionHandler) GetExpiringSubscriptions(c *gin.Context) {
 		days = 7
 	}
 
-	subscriptions, err := h.subscriptionService.GetExpiringSubscriptions(days)
+	// ✅ DB: Используем h.GetDB(c)
+	subscriptions, err := h.subscriptionService.GetExpiringSubscriptions(h.GetDB(c), days)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -508,7 +530,8 @@ func (h *SubscriptionHandler) GetExpiredSubscriptions(c *gin.Context) {
 		return
 	}
 
-	subscriptions, err := h.subscriptionService.GetExpiredSubscriptions()
+	// ✅ DB: Используем h.GetDB(c)
+	subscriptions, err := h.subscriptionService.GetExpiredSubscriptions(h.GetDB(c))
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -525,7 +548,8 @@ func (h *SubscriptionHandler) ProcessExpiredSubscriptions(c *gin.Context) {
 		return
 	}
 
-	if err := h.subscriptionService.ProcessExpiredSubscriptions(); err != nil {
+	// ✅ DB: Используем h.GetDB(c)
+	if err := h.subscriptionService.ProcessExpiredSubscriptions(h.GetDB(c)); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}

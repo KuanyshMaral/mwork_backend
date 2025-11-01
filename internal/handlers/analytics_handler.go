@@ -3,9 +3,10 @@ package handlers
 import (
 	"net/http"
 
-	"mwork_backend/internal/appErrors" // <-- Added import
+	"mwork_backend/internal/middleware" // <-- Import middleware
 	"mwork_backend/internal/services"
 	"mwork_backend/internal/services/dto"
+	"mwork_backend/pkg/apperrors" // <-- Added import
 
 	"github.com/gin-gonic/gin"
 )
@@ -27,6 +28,9 @@ func NewAnalyticsHandler(base *BaseHandler, analyticsService services.AnalyticsS
 func (h *AnalyticsHandler) RegisterRoutes(r *gin.RouterGroup) {
 	// All analytics routes will be under /api/v1/analytics
 	analytics := r.Group("/analytics")
+	// ✅ DB: Все маршруты здесь должны быть защищены как минимум AuthMiddleware
+	// (Предполагая, что аналитика не является публичной)
+	analytics.Use(middleware.AuthMiddleware())
 	{
 		// Platform overview
 		analytics.GET("/platform/overview", h.GetPlatformOverview)
@@ -66,11 +70,9 @@ func (h *AnalyticsHandler) RegisterRoutes(r *gin.RouterGroup) {
 		analytics.GET("/system/health", h.GetSystemHealthMetrics)
 
 		// Admin dashboard
-		// TODO: Add authentication/authorization middleware for this route
 		analytics.GET("/admin/dashboard", h.GetAdminDashboard)
 
 		// Custom reports
-		// TODO: Add authentication/authorization middleware for this route
 		analytics.POST("/reports/custom", h.GenerateCustomReport)
 		analytics.GET("/reports/predefined", h.GetPredefinedReports)
 	}
@@ -79,6 +81,10 @@ func (h *AnalyticsHandler) RegisterRoutes(r *gin.RouterGroup) {
 // --- Handler Functions ---
 
 func (h *AnalyticsHandler) GetPlatformOverview(c *gin.Context) {
+	// ✅ DB: Получаем DB и Context
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
+
 	// 4. Use BaseHandler parsers
 	dateFrom, dateTo, err := ParseQueryDateRange(c, 30) // 30-day default
 	if err != nil {
@@ -86,7 +92,8 @@ func (h *AnalyticsHandler) GetPlatformOverview(c *gin.Context) {
 		return
 	}
 
-	overview, err := h.analyticsService.GetPlatformOverview(dateFrom, dateTo)
+	// ✅ DB: Передаем db и ctx
+	overview, err := h.analyticsService.GetPlatformOverview(db, ctx, dateFrom, dateTo)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -96,9 +103,12 @@ func (h *AnalyticsHandler) GetPlatformOverview(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetPlatformGrowthMetrics(c *gin.Context) {
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
 	days := ParseQueryInt(c, "days", 30) // 4. Use BaseHandler parser
 
-	metrics, err := h.analyticsService.GetPlatformGrowthMetrics(days)
+	// ✅ DB: Передаем db и ctx
+	metrics, err := h.analyticsService.GetPlatformGrowthMetrics(db, ctx, days)
 	if err != nil {
 		h.HandleServiceError(c, err) // 5. Use HandleServiceError
 		return
@@ -108,13 +118,16 @@ func (h *AnalyticsHandler) GetPlatformGrowthMetrics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetUserAnalytics(c *gin.Context) {
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
 	dateFrom, dateTo, err := ParseQueryDateRange(c, 30)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
 
-	analytics, err := h.analyticsService.GetUserAnalytics(dateFrom, dateTo)
+	// ✅ DB: Передаем db и ctx
+	analytics, err := h.analyticsService.GetUserAnalytics(db, ctx, dateFrom, dateTo)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -124,13 +137,16 @@ func (h *AnalyticsHandler) GetUserAnalytics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetUserAcquisitionMetrics(c *gin.Context) {
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
 	dateFrom, dateTo, err := ParseQueryDateRange(c, 30)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
 
-	metrics, err := h.analyticsService.GetUserAcquisitionMetrics(dateFrom, dateTo)
+	// ✅ DB: Передаем db и ctx
+	metrics, err := h.analyticsService.GetUserAcquisitionMetrics(db, ctx, dateFrom, dateTo)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -140,9 +156,12 @@ func (h *AnalyticsHandler) GetUserAcquisitionMetrics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetUserRetentionMetrics(c *gin.Context) {
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
 	days := ParseQueryInt(c, "days", 30)
 
-	metrics, err := h.analyticsService.GetUserRetentionMetrics(days)
+	// ✅ DB: Передаем db и ctx
+	metrics, err := h.analyticsService.GetUserRetentionMetrics(db, ctx, days)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -152,13 +171,16 @@ func (h *AnalyticsHandler) GetUserRetentionMetrics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetCastingAnalytics(c *gin.Context) {
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
 	dateFrom, dateTo, err := ParseQueryDateRange(c, 30)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
 
-	analytics, err := h.analyticsService.GetCastingAnalytics(dateFrom, dateTo)
+	// ✅ DB: Передаем db и ctx
+	analytics, err := h.analyticsService.GetCastingAnalytics(db, ctx, dateFrom, dateTo)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -168,9 +190,11 @@ func (h *AnalyticsHandler) GetCastingAnalytics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetCastingPerformanceMetrics(c *gin.Context) {
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
 	employerID := c.Param("employer_id")
 	if employerID == "" {
-		appErrors.HandleError(c, appErrors.NewBadRequestError("employer_id is required"))
+		apperrors.HandleError(c, apperrors.NewBadRequestError("employer_id is required"))
 		return
 	}
 
@@ -180,7 +204,8 @@ func (h *AnalyticsHandler) GetCastingPerformanceMetrics(c *gin.Context) {
 		return
 	}
 
-	metrics, err := h.analyticsService.GetCastingPerformanceMetrics(employerID, dateFrom, dateTo)
+	// ✅ DB: Передаем db и ctx
+	metrics, err := h.analyticsService.GetCastingPerformanceMetrics(db, ctx, employerID, dateFrom, dateTo)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -190,13 +215,16 @@ func (h *AnalyticsHandler) GetCastingPerformanceMetrics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetMatchingAnalytics(c *gin.Context) {
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
 	dateFrom, dateTo, err := ParseQueryDateRange(c, 30)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
 
-	analytics, err := h.analyticsService.GetMatchingAnalytics(dateFrom, dateTo)
+	// ✅ DB: Передаем db и ctx
+	analytics, err := h.analyticsService.GetMatchingAnalytics(db, ctx, dateFrom, dateTo)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -206,9 +234,12 @@ func (h *AnalyticsHandler) GetMatchingAnalytics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetMatchingEfficiencyMetrics(c *gin.Context) {
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
 	days := ParseQueryInt(c, "days", 30)
 
-	metrics, err := h.analyticsService.GetMatchingEfficiencyMetrics(days)
+	// ✅ DB: Передаем db и ctx
+	metrics, err := h.analyticsService.GetMatchingEfficiencyMetrics(db, ctx, days)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -218,13 +249,16 @@ func (h *AnalyticsHandler) GetMatchingEfficiencyMetrics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetFinancialAnalytics(c *gin.Context) {
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
 	dateFrom, dateTo, err := ParseQueryDateRange(c, 30)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
 
-	analytics, err := h.analyticsService.GetFinancialAnalytics(dateFrom, dateTo)
+	// ✅ DB: Передаем db и ctx
+	analytics, err := h.analyticsService.GetFinancialAnalytics(db, ctx, dateFrom, dateTo)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -234,7 +268,11 @@ func (h *AnalyticsHandler) GetFinancialAnalytics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetGeographicAnalytics(c *gin.Context) {
-	analytics, err := h.analyticsService.GetGeographicAnalytics()
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
+
+	// ✅ DB: Передаем db и ctx
+	analytics, err := h.analyticsService.GetGeographicAnalytics(db, ctx)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -244,9 +282,12 @@ func (h *AnalyticsHandler) GetGeographicAnalytics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetCityPerformanceMetrics(c *gin.Context) {
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
 	topN := ParseQueryInt(c, "top_n", 10)
 
-	metrics, err := h.analyticsService.GetCityPerformanceMetrics(topN)
+	// ✅ DB: Передаем db и ctx
+	metrics, err := h.analyticsService.GetCityPerformanceMetrics(db, ctx, topN)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -256,7 +297,11 @@ func (h *AnalyticsHandler) GetCityPerformanceMetrics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetCategoryAnalytics(c *gin.Context) {
-	analytics, err := h.analyticsService.GetCategoryAnalytics()
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
+
+	// ✅ DB: Передаем db и ctx
+	analytics, err := h.analyticsService.GetCategoryAnalytics(db, ctx)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -266,10 +311,13 @@ func (h *AnalyticsHandler) GetCategoryAnalytics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetPopularCategories(c *gin.Context) {
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
 	days := ParseQueryInt(c, "days", 30)
 	limit := ParseQueryInt(c, "limit", 10)
 
-	categories, err := h.analyticsService.GetPopularCategories(days, limit)
+	// ✅ DB: Передаем db и ctx
+	categories, err := h.analyticsService.GetPopularCategories(db, ctx, days, limit)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -279,13 +327,16 @@ func (h *AnalyticsHandler) GetPopularCategories(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetPerformanceMetrics(c *gin.Context) {
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
 	dateFrom, dateTo, err := ParseQueryDateRange(c, 30)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
 
-	metrics, err := h.analyticsService.GetPerformanceMetrics(dateFrom, dateTo)
+	// ✅ DB: Передаем db и ctx
+	metrics, err := h.analyticsService.GetPerformanceMetrics(db, ctx, dateFrom, dateTo)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -295,7 +346,11 @@ func (h *AnalyticsHandler) GetPerformanceMetrics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetPlatformHealthMetrics(c *gin.Context) {
-	metrics, err := h.analyticsService.GetPlatformHealthMetrics()
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
+
+	// ✅ DB: Передаем db и ctx
+	metrics, err := h.analyticsService.GetPlatformHealthMetrics(db, ctx)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -305,7 +360,11 @@ func (h *AnalyticsHandler) GetPlatformHealthMetrics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetRealTimeMetrics(c *gin.Context) {
-	metrics, err := h.analyticsService.GetRealTimeMetrics()
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
+
+	// ✅ DB: Передаем db и ctx
+	metrics, err := h.analyticsService.GetRealTimeMetrics(db, ctx)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -315,7 +374,11 @@ func (h *AnalyticsHandler) GetRealTimeMetrics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetActiveUsersCount(c *gin.Context) {
-	count, err := h.analyticsService.GetActiveUsersCount()
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
+
+	// ✅ DB: Передаем db и ctx
+	count, err := h.analyticsService.GetActiveUsersCount(db, ctx)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -325,13 +388,16 @@ func (h *AnalyticsHandler) GetActiveUsersCount(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetAdminDashboard(c *gin.Context) {
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
 	// 6. Use GetAndAuthorizeUserID
 	adminID, ok := h.GetAndAuthorizeUserID(c)
 	if !ok {
 		return
 	}
 
-	dashboard, err := h.analyticsService.GetAdminDashboard(adminID)
+	// ✅ DB: Передаем db и ctx
+	dashboard, err := h.analyticsService.GetAdminDashboard(db, ctx, adminID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -341,7 +407,11 @@ func (h *AnalyticsHandler) GetAdminDashboard(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetSystemHealthMetrics(c *gin.Context) {
-	metrics, err := h.analyticsService.GetSystemHealthMetrics()
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
+
+	// ✅ DB: Передаем db и ctx
+	metrics, err := h.analyticsService.GetSystemHealthMetrics(db, ctx)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -351,6 +421,8 @@ func (h *AnalyticsHandler) GetSystemHealthMetrics(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GenerateCustomReport(c *gin.Context) {
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
 	// 6. Use GetAndAuthorizeUserID (as per TODO)
 	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
 		return
@@ -362,7 +434,8 @@ func (h *AnalyticsHandler) GenerateCustomReport(c *gin.Context) {
 		return
 	}
 
-	report, err := h.analyticsService.GenerateCustomReport(&req)
+	// ✅ DB: Передаем db и ctx
+	report, err := h.analyticsService.GenerateCustomReport(db, ctx, &req)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -372,12 +445,15 @@ func (h *AnalyticsHandler) GenerateCustomReport(c *gin.Context) {
 }
 
 func (h *AnalyticsHandler) GetPredefinedReports(c *gin.Context) {
+	db := h.GetDB(c)
+	ctx := c.Request.Context()
 	// 6. Use GetAndAuthorizeUserID (as per TODO)
 	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
 		return
 	}
 
-	reports, err := h.analyticsService.GetPredefinedReports()
+	// ✅ DB: Передаем db и ctx
+	reports, err := h.analyticsService.GetPredefinedReports(db, ctx)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return

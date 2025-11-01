@@ -2,10 +2,12 @@ package integration_test
 
 import (
 	"bytes"
+	"context" // ❗️ ДОБАВЛЕН ИМПОРТ
 	"encoding/json"
 	"io"
 	"mime/multipart"
 	"mwork_backend/internal/models"
+	"mwork_backend/pkg/contextkeys" // ❗️ ДОБАВЛЕН ИМПОРТ
 	"mwork_backend/test/helpers"
 	"net/http"
 	"os"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"gorm.io/gorm" // ❗️ ДОБАВЛЕН ИМПОРТ
 )
 
 // createDummyFile — локальный хелпер для создания временного файла для тестов загрузки
@@ -37,7 +40,8 @@ func createDummyFile(t *testing.T, content string) (*os.File, func()) {
 
 // CreateTestPortfolioItem — локальный хелпер для создания элемента портфолио через API
 // (Использует multipart/form-data)
-func CreateTestPortfolioItem(t *testing.T, ts *helpers.TestServer, modelToken string, title string) models.PortfolioItem {
+// ❗️ Добавлен 'tx *gorm.DB'
+func CreateTestPortfolioItem(t *testing.T, ts *helpers.TestServer, tx *gorm.DB, modelToken string, title string) models.PortfolioItem {
 	t.Helper()
 
 	body := new(bytes.Buffer)
@@ -64,6 +68,10 @@ func CreateTestPortfolioItem(t *testing.T, ts *helpers.TestServer, modelToken st
 	url := ts.Server.URL + "/api/v1/portfolio"
 	req, err := http.NewRequest(http.MethodPost, url, body)
 	assert.NoError(t, err, "Failed to create multipart request")
+
+	// ❗️ Внедряем транзакцию в контекст
+	ctx := context.WithValue(req.Context(), contextkeys.DBContextKey, tx)
+	req = req.WithContext(ctx)
 
 	req.Header.Set("Authorization", "Bearer "+modelToken)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -111,8 +119,9 @@ func TestPortfolioAndUploads(t *testing.T) {
 
 	t.Run("POST /portfolio - Create Item", func(t *testing.T) {
 		// 1. Успешное создание (тестируется через хелпер)
-		item1 = CreateTestPortfolioItem(t, ts, modelToken, "Item One")
-		item2 = CreateTestPortfolioItem(t, ts, modelToken, "Item Two")
+		// ❗️ Добавлен 'tx'
+		item1 = CreateTestPortfolioItem(t, ts, tx, modelToken, "Item One")
+		item2 = CreateTestPortfolioItem(t, ts, tx, modelToken, "Item Two")
 		assert.NotEmpty(t, item1.ID)
 		assert.NotEmpty(t, item2.ID)
 
@@ -128,6 +137,11 @@ func TestPortfolioAndUploads(t *testing.T) {
 
 		url := ts.Server.URL + "/api/v1/portfolio"
 		req, _ := http.NewRequest(http.MethodPost, url, body)
+
+		// ❗️ Внедряем транзакцию в контекст
+		ctx := context.WithValue(req.Context(), contextkeys.DBContextKey, tx)
+		req = req.WithContext(ctx)
+
 		req.Header.Set("Authorization", "Bearer "+empToken) // Токен Работодателя
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 
@@ -139,67 +153,79 @@ func TestPortfolioAndUploads(t *testing.T) {
 
 		// 3. Ошибка: Нет файла (400 Bad Request)
 		// (Используем SendRequest, который отправляет JSON, что вызовет ошибку 'File is required')
-		res, bodyStr := ts.SendRequest(t, http.MethodPost, "/api/v1/portfolio", modelToken, gin.H{"title": "no file"})
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodPost, "/api/v1/portfolio", modelToken, gin.H{"title": "no file"})
 		assert.Equal(t, http.StatusBadRequest, res.StatusCode)
 		assert.Contains(t, bodyStr, "File is required", "Error message should state that file is required")
 	})
 
 	t.Run("GET /portfolio - Public Retrieval", func(t *testing.T) {
 		// 1. GET /:itemId (Успешно)
-		res, bodyStr := ts.SendRequest(t, http.MethodGet, "/api/v1/portfolio/"+item1.ID, "", nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, "/api/v1/portfolio/"+item1.ID, "", nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Contains(t, bodyStr, item1.Title, "Response should contain item title")
 		assert.Contains(t, bodyStr, item1.UploadID, "Response should contain upload ID")
 
 		// 2. GET /:itemId (Не найдено)
-		res, _ = ts.SendRequest(t, http.MethodGet, "/api/v1/portfolio/non-existent-uuid", "", nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/portfolio/non-existent-uuid", "", nil)
 		assert.Equal(t, http.StatusNotFound, res.StatusCode)
 
 		// 3. GET /model/:modelId (Успешно)
-		res, bodyStr = ts.SendRequest(t, http.MethodGet, "/api/v1/portfolio/model/"+modelProfile.ID, "", nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/portfolio/model/"+modelProfile.ID, "", nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Contains(t, bodyStr, `"total":2`, "Should find 2 portfolio items for this model")
 		assert.Contains(t, bodyStr, item1.ID)
 		assert.Contains(t, bodyStr, item2.ID)
 
 		// 4. GET /featured & /recent (Просто проверяем 200 OK)
-		res, _ = ts.SendRequest(t, http.MethodGet, "/api/v1/portfolio/featured?limit=5", "", nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/portfolio/featured?limit=5", "", nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
-		res, _ = ts.SendRequest(t, http.MethodGet, "/api/v1/portfolio/recent?limit=5", "", nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/portfolio/recent?limit=5", "", nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 	})
 
 	t.Run("PUT /portfolio - Protected Management", func(t *testing.T) {
 		// 1. PUT /:itemId (Update)
 		updateBody := gin.H{"title": "Updated Title", "description": "Updated Desc"}
-		res, bodyStr := ts.SendRequest(t, http.MethodPut, "/api/v1/portfolio/"+item1.ID, modelToken, updateBody)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodPut, "/api/v1/portfolio/"+item1.ID, modelToken, updateBody)
 		assert.Equal(t, http.StatusOK, res.StatusCode, "Failed to update. Body: "+bodyStr)
 
 		// 2. PUT /:itemId (Ошибка: не владелец)
-		res, _ = ts.SendRequest(t, http.MethodPut, "/api/v1/portfolio/"+item1.ID, empToken, updateBody)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodPut, "/api/v1/portfolio/"+item1.ID, empToken, updateBody)
 		assert.Equal(t, http.StatusForbidden, res.StatusCode, "Employer should not update other's item")
 
 		// 3. PUT /reorder
 		// Меняем порядок item1 и item2
 		reorderBody := gin.H{"ordered_ids": []string{item2.ID, item1.ID}}
-		res, _ = ts.SendRequest(t, http.MethodPut, "/api/v1/portfolio/reorder", modelToken, reorderBody)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodPut, "/api/v1/portfolio/reorder", modelToken, reorderBody)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 
 		// 4. PUT /:itemId/visibility (Скрыть)
 		visBody := gin.H{"is_public": false}
-		res, _ = ts.SendRequest(t, http.MethodPut, "/api/v1/portfolio/"+item1.ID+"/visibility", modelToken, visBody)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodPut, "/api/v1/portfolio/"+item1.ID+"/visibility", modelToken, visBody)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 	})
 
 	t.Run("GET /portfolio/stats/:modelId", func(t *testing.T) {
 		// 1. Успешно (с токеном)
-		res, bodyStr := ts.SendRequest(t, http.MethodGet, "/api/v1/portfolio/stats/"+modelProfile.ID, modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, "/api/v1/portfolio/stats/"+modelProfile.ID, modelToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode, "Failed to get stats. Body: "+bodyStr)
 		assert.Contains(t, bodyStr, "total_items", "Stats response missing keys")
 		assert.Contains(t, bodyStr, "total_views", "Stats response missing keys")
 
 		// 2. Ошибка: без токена
-		res, _ = ts.SendRequest(t, http.MethodGet, "/api/v1/portfolio/stats/"+modelProfile.ID, "", nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/portfolio/stats/"+modelProfile.ID, "", nil)
 		assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	})
 
@@ -222,6 +248,11 @@ func TestPortfolioAndUploads(t *testing.T) {
 
 		url := ts.Server.URL + "/api/v1/uploads"
 		req, _ := http.NewRequest(http.MethodPost, url, body)
+
+		// ❗️ Внедряем транзакцию в контекст
+		ctx := context.WithValue(req.Context(), contextkeys.DBContextKey, tx)
+		req = req.WithContext(ctx)
+
 		req.Header.Set("Authorization", "Bearer "+modelToken)
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 
@@ -238,13 +269,15 @@ func TestPortfolioAndUploads(t *testing.T) {
 
 	t.Run("GET/DELETE /uploads - Protected Upload Management", func(t *testing.T) {
 		// 1. GET /:uploadId
-		res, bodyStr := ts.SendRequest(t, http.MethodGet, "/api/v1/uploads/"+generalUpload.ID, modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, "/api/v1/uploads/"+generalUpload.ID, modelToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Contains(t, bodyStr, generalUpload.ID)
 		assert.Contains(t, bodyStr, "avatar") // Проверяем 'usage'
 
 		// 2. GET /user/me
-		res, bodyStr = ts.SendRequest(t, http.MethodGet, "/api/v1/uploads/user/me", modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/uploads/user/me", modelToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		// Должны найти 3 файла: 2 портфолио + 1 аватар
 		assert.Contains(t, bodyStr, item1.UploadID)
@@ -252,39 +285,46 @@ func TestPortfolioAndUploads(t *testing.T) {
 		assert.Contains(t, bodyStr, generalUpload.ID)
 
 		// 3. GET /storage/usage
-		res, bodyStr = ts.SendRequest(t, http.MethodGet, "/api/v1/uploads/storage/usage", modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/uploads/storage/usage", modelToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Contains(t, bodyStr, "total_usage_bytes")
 		assert.Contains(t, bodyStr, "total_files")
 
 		// 4. DELETE /:uploadId
-		res, _ = ts.SendRequest(t, http.MethodDelete, "/api/v1/uploads/"+generalUpload.ID, modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodDelete, "/api/v1/uploads/"+generalUpload.ID, modelToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 
 		// 5. DELETE /:uploadId (Ошибка: не владелец)
 		// (item1.UploadID принадлежит modelUser)
-		res, _ = ts.SendRequest(t, http.MethodDelete, "/api/v1/uploads/"+item1.UploadID, empToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodDelete, "/api/v1/uploads/"+item1.UploadID, empToken, nil)
 		assert.Equal(t, http.StatusForbidden, res.StatusCode)
 	})
 
 	// --- Тесты /admin/uploads ---
 	t.Run("/admin/uploads - Admin Functions", func(t *testing.T) {
 		// 1. POST /clean-orphaned (As Admin)
-		res, _ := ts.SendRequest(t, http.MethodPost, "/api/v1/admin/uploads/clean-orphaned", adminToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ := ts.SendRequest(t, tx, http.MethodPost, "/api/v1/admin/uploads/clean-orphaned", adminToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 
 		// 2. POST /clean-orphaned (As Model - 403)
-		res, _ = ts.SendRequest(t, http.MethodPost, "/api/v1/admin/uploads/clean-orphaned", modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodPost, "/api/v1/admin/uploads/clean-orphaned", modelToken, nil)
 		assert.Equal(t, http.StatusForbidden, res.StatusCode, "RoleMiddleware should block non-admins")
 
 		// 3. GET /stats (As Admin)
-		res, bodyStr := ts.SendRequest(t, http.MethodGet, "/api/v1/admin/uploads/stats", adminToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, bodyStr := ts.SendRequest(t, tx, http.MethodGet, "/api/v1/admin/uploads/stats", adminToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Contains(t, bodyStr, "total_files", "Admin stats missing keys")
 		assert.Contains(t, bodyStr, "total_storage_gb", "Admin stats missing keys")
 
 		// 4. GET /stats (As Model - 403)
-		res, _ = ts.SendRequest(t, http.MethodGet, "/api/v1/admin/uploads/stats", modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/admin/uploads/stats", modelToken, nil)
 		assert.Equal(t, http.StatusForbidden, res.StatusCode, "RoleMiddleware should block non-admins")
 	})
 
@@ -292,7 +332,8 @@ func TestPortfolioAndUploads(t *testing.T) {
 	t.Run("DELETE /portfolio - Cleanup", func(t *testing.T) {
 		// item1 был удален в 'PUT/DELETE /portfolio'
 		// Удаляем item2
-		res, _ := ts.SendRequest(t, http.MethodDelete, "/api/v1/portfolio/"+item2.ID, modelToken, nil)
+		// ❗️ Добавлен 'tx'
+		res, _ := ts.SendRequest(t, tx, http.MethodDelete, "/api/v1/portfolio/"+item2.ID, modelToken, nil)
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 	})
 }
@@ -309,15 +350,18 @@ func TestPortfolio_CreateAndDelete(t *testing.T) {
 	modelToken, _, _ := helpers.CreateAndLoginModel(t, ts, tx)
 
 	// Создаем портфолио
-	item := CreateTestPortfolioItem(t, ts, modelToken, "Isolated Test Item")
+	// ❗️ Добавлен 'tx'
+	item := CreateTestPortfolioItem(t, ts, tx, modelToken, "Isolated Test Item")
 	assert.NotEmpty(t, item.ID)
 
 	// Удаляем портфолио
-	res, _ := ts.SendRequest(t, http.MethodDelete, "/api/v1/portfolio/"+item.ID, modelToken, nil)
+	// ❗️ Добавлен 'tx'
+	res, _ := ts.SendRequest(t, tx, http.MethodDelete, "/api/v1/portfolio/"+item.ID, modelToken, nil)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	// Проверяем, что удалено
-	res, _ = ts.SendRequest(t, http.MethodGet, "/api/v1/portfolio/"+item.ID, "", nil)
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/portfolio/"+item.ID, "", nil)
 	assert.Equal(t, http.StatusNotFound, res.StatusCode)
 }
 
@@ -333,18 +377,22 @@ func TestPortfolio_Security(t *testing.T) {
 	modelToken2, _, _ := helpers.CreateAndLoginModel(t, ts, tx)
 
 	// Модель 1 создает портфолио
-	item := CreateTestPortfolioItem(t, ts, modelToken1, "Security Test Item")
+	// ❗️ Добавлен 'tx'
+	item := CreateTestPortfolioItem(t, ts, tx, modelToken1, "Security Test Item")
 
 	// Модель 2 пытается изменить портфолио модели 1
 	updateBody := gin.H{"title": "Hacked Title"}
-	res, _ := ts.SendRequest(t, http.MethodPut, "/api/v1/portfolio/"+item.ID, modelToken2, updateBody)
+	// ❗️ Добавлен 'tx'
+	res, _ := ts.SendRequest(t, tx, http.MethodPut, "/api/v1/portfolio/"+item.ID, modelToken2, updateBody)
 	assert.Equal(t, http.StatusForbidden, res.StatusCode)
 
 	// Модель 2 пытается удалить портфолио модели 1
-	res, _ = ts.SendRequest(t, http.MethodDelete, "/api/v1/portfolio/"+item.ID, modelToken2, nil)
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, http.MethodDelete, "/api/v1/portfolio/"+item.ID, modelToken2, nil)
 	assert.Equal(t, http.StatusForbidden, res.StatusCode)
 
 	// Модель 2 пытается получить приватную статистику модели 1
-	res, _ = ts.SendRequest(t, http.MethodGet, "/api/v1/portfolio/stats/"+model1.ID, modelToken2, nil)
+	// ❗️ Добавлен 'tx'
+	res, _ = ts.SendRequest(t, tx, http.MethodGet, "/api/v1/portfolio/stats/"+model1.ID, modelToken2, nil)
 	assert.Equal(t, http.StatusForbidden, res.StatusCode)
 }

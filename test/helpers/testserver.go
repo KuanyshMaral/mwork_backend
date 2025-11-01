@@ -2,11 +2,15 @@ package helpers
 
 import (
 	"bytes"
+	"context" // 👈 1. ДОБАВЛЕН ИМПОРТ
 	"encoding/json"
 	"io"
 	"log"
+
 	"mwork_backend/internal/app"
 	"mwork_backend/internal/config"
+	"mwork_backend/pkg/contextkeys" // 👈 2. ИСПРАВЛЕН ИМПОРТ
+
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -76,8 +80,9 @@ func (ts *TestServer) RollbackTransaction(t *testing.T, tx *gorm.DB) {
 	tx.Rollback()
 }
 
-// SendRequest остается без изменений
-func (ts *TestServer) SendRequest(t *testing.T, method, path, token string, body interface{}) (*http.Response, string) {
+// ⭐️ 3. SendRequest ИЗМЕНЕН ⭐️
+// Теперь он принимает 'tx *gorm.DB'
+func (ts *TestServer) SendRequest(t *testing.T, tx *gorm.DB, method, path, token string, body interface{}) (*http.Response, string) {
 	url := ts.Server.URL + path
 
 	var reqBody io.Reader = nil
@@ -93,6 +98,14 @@ func (ts *TestServer) SendRequest(t *testing.T, method, path, token string, body
 	if err != nil {
 		t.Fatalf("Ошибка создания HTTP-запроса: %v", err)
 	}
+
+	// ❗️ 4. РЕШЕНИЕ: ВНЕДРЯЕМ ТРАНЗАКЦИЮ В КОНТЕКСТ
+	if tx != nil {
+		// Используем наш ключ из internal/pkg/contextkeys
+		ctx := context.WithValue(req.Context(), contextkeys.DBContextKey, tx)
+		req = req.WithContext(ctx)
+	}
+	// ❗️ КОНЕЦ ИЗМЕНЕНИЙ
 
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
