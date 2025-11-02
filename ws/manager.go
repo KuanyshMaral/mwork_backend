@@ -61,11 +61,14 @@ func (manager *WebSocketManager) Run() {
 	}
 }
 
+// ▼▼▼ ИЗМЕНЕНО: Добавлен broadcasterID ▼▼▼
 // BroadcastToDialog отправляет сообщение всем участникам диалога
-// (Принимает context)
-func (manager *WebSocketManager) BroadcastToDialog(ctx context.Context, dialogID string, message any) {
+func (manager *WebSocketManager) BroadcastToDialog(ctx context.Context, broadcasterID string, dialogID string, message any) {
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	// Получаем участников диалога из ChatService
-	participants, err := manager.getDialogParticipants(ctx, dialogID) // Передаем context
+	// ▼▼▼ ИЗМЕНЕНО: Передаем broadcasterID ▼▼▼
+	participants, err := manager.getDialogParticipants(ctx, broadcasterID, dialogID)
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	if err != nil {
 		log.Printf("Failed to get dialog participants: %v", err)
 		return
@@ -82,20 +85,31 @@ func (manager *WebSocketManager) BroadcastToDialog(ctx context.Context, dialogID
 			default:
 				// Канал заполнен, клиент отключается
 				go func(clientID string) {
-					manager.unregister <- manager.clients[clientID]
+					// ▼▼▼ ИСПРАВЛЕНИЕ: Нужен RLock для чтения manager.clients ▼▼▼
+					manager.mu.RLock()
+					clientToUnregister := manager.clients[clientID]
+					manager.mu.RUnlock()
+					if clientToUnregister != nil {
+						manager.unregister <- clientToUnregister
+					}
+					// ▲▲▲ ИСПРАВЛЕНИЕ ▲▲▲
 				}(participantID)
 			}
 		}
 	}
 }
 
-// getDialogParticipants - вспомогательный метод (Принимает context)
-func (manager *WebSocketManager) getDialogParticipants(ctx context.Context, dialogID string) ([]string, error) {
+// ▼▼▼ ИЗМЕНЕНО: Добавлен userID ▼▼▼
+// getDialogParticipants - вспомогательный метод
+func (manager *WebSocketManager) getDialogParticipants(ctx context.Context, userID string, dialogID string) ([]string, error) {
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	// Создаем DB сессию для этого запроса
 	db := manager.getDB(ctx)
 
-	// Передаем 'db' в сервис
-	dialog, err := manager.chatService.GetDialog(db, dialogID, "")
+	// ▼▼▼ ИЗМЕНЕНО: Передаем ctx и userID ▼▼▼
+	// GetDialog требует userID для проверки прав доступа
+	dialog, err := manager.chatService.GetDialog(ctx, db, dialogID, userID)
+	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 	if err != nil {
 		return nil, err
 	}
@@ -119,9 +133,9 @@ func (manager *WebSocketManager) broadcastMessage(message any) {
 			// Сообщение отправлено
 		default:
 			// Канал заполнен, клиент отключается
-			go func() {
-				manager.unregister <- client
-			}()
+			go func(c *Client) { // <-- Передаем *Client
+				manager.unregister <- c
+			}(client) // <-- Передаем *Client
 			log.Printf("Client %s disconnected due to full send channel", clientID)
 		}
 	}
@@ -136,9 +150,9 @@ func (manager *WebSocketManager) BroadcastToClient(clientID string, message any)
 		select {
 		case client.Send <- message:
 		default:
-			go func() {
-				manager.unregister <- client
-			}()
+			go func(c *Client) { // <-- Передаем *Client
+				manager.unregister <- c
+			}(client) // <-- Передаем *Client
 		}
 	}
 }

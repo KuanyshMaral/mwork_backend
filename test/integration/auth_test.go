@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // TestAuthFlow - проверяет регистрацию и ОЖИДАЕМЫЙ провал логина
@@ -47,7 +46,7 @@ func TestAuthFlow(t *testing.T) {
 	logRes, logBodyStr := ts.SendRequest(t, tx, "POST", "/api/v1/auth/login", "", loginBody)
 
 	assert.Equal(t, http.StatusForbidden, logRes.StatusCode)
-	assert.Contains(t, logBodyStr, "User not verified")
+	assert.Contains(t, logBodyStr, "Please verify your email address")
 	t.Logf("ЛОГИН (НЕВЕРИФ.): Успешно провалился (403). Ответ: %s", logBodyStr)
 }
 
@@ -147,32 +146,32 @@ func TestLogin_Success(t *testing.T) {
 	tx := ts.BeginTransaction(t)
 	defer ts.RollbackTransaction(t, tx)
 
-	// ✅ Уникальный email
 	email := fmt.Sprintf("success_%d@test.com", time.Now().UnixNano())
 	password := "correct-password"
 
-	// ✅ Вручную хешируем пароль для ясности
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	assert.NoError(t, err)
+	// ❗️ 1. НЕ ХЕШИРУЙТЕ ПАРОЛЬ ЗДЕСЬ
+	// hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	// assert.NoError(t, err)
 
 	user := &models.User{
 		Name:         "Test User",
 		Email:        email,
-		PasswordHash: string(hashedPassword), // ✅ Хеш
+		PasswordHash: password, // ❗️ 2. ПЕРЕДАЙТЕ СЫРОЙ ПАРОЛЬ (хелпер сам его захеширует)
 		Role:         models.UserRoleModel,
 		IsVerified:   true, // ✅ Обязательно
 		Status:       models.UserStatusActive,
 	}
 
-	result := tx.Create(user)
-	assert.NoError(t, result.Error)
+	// ❗️ 3. ИСПОЛЬЗУЙТЕ ХЕЛПЕР (как в TestLogin_BadPassword)
+	err := helpers.CreateUser(t, tx, user)
+	assert.NoError(t, err)
 
 	// Логин с правильным паролем
 	loginBody := map[string]interface{}{
 		"email":    email,
 		"password": password, // ✅ Сырой пароль
 	}
-	// ❗️ Добавлен 'tx'
+
 	logRes, logBodyStr := ts.SendRequest(t, tx, "POST", "/api/v1/auth/login", "", loginBody)
 
 	assert.Equal(t, http.StatusOK, logRes.StatusCode)

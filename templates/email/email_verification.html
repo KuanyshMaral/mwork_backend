@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Подтверждение Email</title>
+</head>
+<body>
+<h1>Добро пожаловать в mwork!</h1>
+<p>Пожалуйста, подтвердите ваш email, перейдя по ссылке:</p>
+<a href="{{ .VerifyURL }}">Подтвердить email</a>
+
+<p>Если ссылка не работает, используйте этот токен: {{ .Token }}</p>
+</body>
+</html>

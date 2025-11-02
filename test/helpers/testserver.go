@@ -29,29 +29,31 @@ type TestServer struct {
 
 // NewTestServer создает тестовый сервер БЕЗ AutoMigrate
 func NewTestServer(t *testing.T) *TestServer {
-	config.LoadConfig()
-	cfg := config.GetConfig()
-	dsn := cfg.Database.DSN
+	config.LoadConfig()       //
+	cfg := config.GetConfig() //
+	dsn := cfg.Database.DSN   //
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("Не удалось подключиться к тестовой БД (%s): %v", dsn, err)
 	}
 
-	// УБИРАЕМ AutoMigrate - используем реальные миграции
+	// ❗️ 1. ОШИБКА 'sqlDB' ИСПРАВЛЕНА
+	// Получаем *sql.DB из GORM
 	sqlDB, err := db.DB()
 	if err != nil {
 		t.Fatalf("Не удалось получить *sql.DB из GORM: %v", err)
 	}
 
-	router := app.SetupRouter(cfg, db, sqlDB)
-	server := httptest.NewServer(router)
+	// Теперь router получит 'cfg' с ПРАВИЛЬНЫМ путем к шаблонам
+	router := app.SetupRouter(cfg, db, sqlDB) //
+	server := httptest.NewServer(router)      //
 
 	log.Printf("✅ Тестовый сервер запущен (транзакционный режим), БД: %s", dsn)
 
-	return &TestServer{
-		Server: server,
-		DB:     db,
+	return &TestServer{ //
+		Server: server, //
+		DB:     db,     //
 	}
 }
 

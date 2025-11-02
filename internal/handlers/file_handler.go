@@ -18,19 +18,22 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ▼▼▼ ИЗМЕНЕНО (Проблема 1) ▼▼▼
 type FileHandler struct {
 	*BaseHandler
-	storage       storage.Storage
-	portfolioRepo repositories.PortfolioRepository
+	storage    storage.Storage
+	uploadRepo repositories.UploadRepository // Изменено с portfolioRepo
 }
 
-func NewFileHandler(base *BaseHandler, storage storage.Storage, portfolioRepo repositories.PortfolioRepository) *FileHandler {
+func NewFileHandler(base *BaseHandler, storage storage.Storage, uploadRepo repositories.UploadRepository) *FileHandler {
 	return &FileHandler{
-		BaseHandler:   base,
-		storage:       storage,
-		portfolioRepo: portfolioRepo,
+		BaseHandler: base,
+		storage:     storage,
+		uploadRepo:  uploadRepo, // Изменено с portfolioRepo
 	}
 }
+
+// ▲▲▲ ИЗМЕНЕНО (Проблема 1) ▲▲▲
 
 func (h *FileHandler) RegisterRoutes(r *gin.RouterGroup) {
 	files := r.Group("/files")
@@ -50,9 +53,9 @@ func (h *FileHandler) ServeFile(c *gin.Context) {
 	uploadID := c.Param("uploadId")
 
 	// Get upload metadata from database
-	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
-	upload, err := h.portfolioRepo.FindUploadByID(h.GetDB(c), uploadID)
-	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
+	// ▼▼▼ ИЗМЕНЕНО (Проблема 1) ▼▼▼
+	upload, err := h.uploadRepo.FindByID(h.GetDB(c), uploadID)
+	// ▲▲▲ ИЗМЕНЕНО (Проблема 1) ▲▲▲
 	if err != nil {
 		apperrors.HandleError(c, apperrors.NewNotFoundError("File not found"))
 		return
@@ -119,9 +122,9 @@ func (h *FileHandler) ServeResizedImage(c *gin.Context) {
 	}
 
 	// Get upload metadata
-	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
-	upload, err := h.portfolioRepo.FindUploadByID(h.GetDB(c), uploadID)
-	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
+	// ▼▼▼ ИЗМЕНЕНО (Проблема 1) ▼▼▼
+	upload, err := h.uploadRepo.FindByID(h.GetDB(c), uploadID)
+	// ▲▲▲ ИЗМЕНЕНО (Проблема 1) ▲▲▲
 	if err != nil {
 		apperrors.HandleError(c, apperrors.NewNotFoundError("File not found"))
 		return
@@ -189,9 +192,9 @@ func (h *FileHandler) GetSignedURL(c *gin.Context) {
 	uploadID := c.Param("uploadId")
 
 	// Get upload metadata
-	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
-	upload, err := h.portfolioRepo.FindUploadByID(h.GetDB(c), uploadID)
-	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
+	// ▼▼▼ ИЗМЕНЕНО (Проблема 1) ▼▼▼
+	upload, err := h.uploadRepo.FindByID(h.GetDB(c), uploadID)
+	// ▲▲▲ ИЗМЕНЕНО (Проблема 1) ▲▲▲
 	if err != nil {
 		apperrors.HandleError(c, apperrors.NewNotFoundError("File not found"))
 		return
@@ -231,9 +234,9 @@ func (h *FileHandler) CheckFileExists(c *gin.Context) {
 	uploadID := c.Param("uploadId")
 
 	// Get upload metadata
-	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
-	upload, err := h.portfolioRepo.FindUploadByID(h.GetDB(c), uploadID)
-	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
+	// ▼▼▼ ИЗМЕНЕНО (Проблема 1) ▼▼▼
+	upload, err := h.uploadRepo.FindByID(h.GetDB(c), uploadID)
+	// ▲▲▲ ИЗМЕНЕНО (Проблема 1) ▼▼▼
 	if err != nil {
 		c.Status(http.StatusNotFound)
 		return

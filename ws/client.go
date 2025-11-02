@@ -102,8 +102,9 @@ func (c *Client) handleMessage(msg IncomingWSMessage) {
 			return
 		}
 
-		// Передаем транзакцию (tx) в сервис
-		createdMsg, err := c.Manager.chatService.SendMessage(tx, c.ID, req)
+		// ▼▼▼ ИЗМЕНЕНО: Добавлены c.Ctx и tx ▼▼▼
+		createdMsg, err := c.Manager.chatService.SendMessage(c.Ctx, tx, c.ID, req)
+		// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 		if err != nil {
 			tx.Rollback() // <-- Откат
 			log.Println("Failed to send message:", err)
@@ -117,11 +118,12 @@ func (c *Client) handleMessage(msg IncomingWSMessage) {
 			return
 		}
 
-		// Передаем context для широковещания
-		c.Manager.BroadcastToDialog(c.Ctx, input.DialogID, map[string]interface{}{
+		// ▼▼▼ ИЗМЕНЕНО: Добавлен c.ID (ID отправителя) для GetDialog ▼▼▼
+		c.Manager.BroadcastToDialog(c.Ctx, c.ID, input.DialogID, map[string]interface{}{
 			"action": "new_message",
 			"data":   createdMsg,
 		})
+		// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 
 	case "typing_start":
 		var input struct {
@@ -132,14 +134,15 @@ func (c *Client) handleMessage(msg IncomingWSMessage) {
 			return
 		}
 
-		// Передаем 'db' (транзакция не обязательна для typing)
-		if err := c.Manager.chatService.SetTyping(db, c.ID, input.DialogID, true); err != nil {
+		// ▼▼▼ ИЗМЕНЕНО: Добавлены c.Ctx и db ▼▼▼
+		if err := c.Manager.chatService.SetTyping(c.Ctx, db, c.ID, input.DialogID, true); err != nil {
 			log.Println("Failed to set typing:", err)
 			return
 		}
+		// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 
-		// Передаем context
-		c.Manager.BroadcastToDialog(c.Ctx, input.DialogID, map[string]interface{}{
+		// ▼▼▼ ИЗМЕНЕНО: Добавлен c.ID (ID отправителя) для GetDialog ▼▼▼
+		c.Manager.BroadcastToDialog(c.Ctx, c.ID, input.DialogID, map[string]interface{}{
 			"action": "user_typing",
 			"data": map[string]interface{}{
 				"user_id":   c.ID,
@@ -147,6 +150,7 @@ func (c *Client) handleMessage(msg IncomingWSMessage) {
 				"typing":    true,
 			},
 		})
+		// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 
 	case "typing_stop":
 		var input struct {
@@ -157,11 +161,12 @@ func (c *Client) handleMessage(msg IncomingWSMessage) {
 			return
 		}
 
-		// Передаем 'db'
-		if err := c.Manager.chatService.SetTyping(db, c.ID, input.DialogID, false); err != nil {
+		// ▼▼▼ ИЗМЕНЕНО: Добавлены c.Ctx и db ▼▼▼
+		if err := c.Manager.chatService.SetTyping(c.Ctx, db, c.ID, input.DialogID, false); err != nil {
 			log.Println("Failed to stop typing:", err)
 			return
 		}
+		// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 
 	case "mark_as_read":
 		var input struct {
@@ -179,12 +184,13 @@ func (c *Client) handleMessage(msg IncomingWSMessage) {
 			return
 		}
 
-		// Передаем 'tx'
-		if err := c.Manager.chatService.MarkMessagesAsRead(tx, c.ID, input.DialogID); err != nil {
+		// ▼▼▼ ИЗМЕНЕНО: Добавлены c.Ctx и tx ▼▼▼
+		if err := c.Manager.chatService.MarkMessagesAsRead(c.Ctx, tx, c.ID, input.DialogID); err != nil {
 			tx.Rollback()
 			log.Println("Failed to mark as read:", err)
 			return
 		}
+		// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 
 		if err := tx.Commit().Error; err != nil {
 			log.Println("Failed to commit transaction:", err)

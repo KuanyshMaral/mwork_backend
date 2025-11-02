@@ -3,9 +3,10 @@ package services
 import (
 	"errors"
 	"fmt"
-	"gorm.io/gorm"
 	"mwork_backend/internal/email"
 	"time"
+
+	"gorm.io/gorm"
 
 	"mwork_backend/internal/auth"
 	"mwork_backend/internal/models"
@@ -17,9 +18,8 @@ import (
 )
 
 // =======================
-// 1. ИНТЕРФЕЙС ОБНОВЛЕН
+// 1. ИНТЕРФЕЙС (БЕЗ 'ctx')
 // =======================
-// Все методы теперь принимают 'db *gorm.DB'
 type AuthService interface {
 	Register(db *gorm.DB, req *dto.RegisterRequest) error
 	Login(db *gorm.DB, req *dto.LoginRequest) (*dto.AuthResponse, error)
@@ -32,10 +32,9 @@ type AuthService interface {
 }
 
 // =======================
-// 2. РЕАЛИЗАЦИЯ ОБНОВЛЕНА
+// 2. РЕАЛИЗАЦИЯ (Stateless)
 // =======================
 type AuthServiceImpl struct {
-	// ❌ 'db *gorm.DB' УДАЛЕНО ОТСЮДА
 	userRepo         repositories.UserRepository
 	profileRepo      repositories.ProfileRepository
 	subscriptionRepo repositories.SubscriptionRepository
@@ -43,9 +42,8 @@ type AuthServiceImpl struct {
 	refreshTokenRepo repositories.RefreshTokenRepository
 }
 
-// ✅ Конструктор обновлен (db убран)
+// ✅ Конструктор (без изменений)
 func NewAuthService(
-	// ❌ 'db *gorm.DB,' УДАЛЕНО
 	userRepo repositories.UserRepository,
 	profileRepo repositories.ProfileRepository,
 	subscriptionRepo repositories.SubscriptionRepository,
@@ -53,7 +51,6 @@ func NewAuthService(
 	refreshTokenRepo repositories.RefreshTokenRepository,
 ) AuthService {
 	return &AuthServiceImpl{
-		// ❌ 'db: db,' УДАЛЕНО
 		userRepo:         userRepo,
 		profileRepo:      profileRepo,
 		subscriptionRepo: subscriptionRepo,
@@ -62,8 +59,9 @@ func NewAuthService(
 	}
 }
 
-// Register - 'db' добавлен
+// Register - (Атомарная операция, 'db.Begin()' - ПРАВИЛЬНО)
 func (s *AuthServiceImpl) Register(db *gorm.DB, req *dto.RegisterRequest) error {
+	// ... (Твои проверки 'len(req.Password)', 'req.Role', 'validateRegisterRequest') ...
 	if len(req.Password) < 6 {
 		return apperrors.ErrWeakPassword
 	}
@@ -89,14 +87,14 @@ func (s *AuthServiceImpl) Register(db *gorm.DB, req *dto.RegisterRequest) error 
 		VerificationToken: verificationToken,
 	}
 
-	// ✅ Начинаем транзакцию из переданного 'db'
+	// ✅ Начинаем транзакцию
 	tx := db.Begin()
 	if tx.Error != nil {
 		return apperrors.InternalError(tx.Error)
 	}
 	defer tx.Rollback()
 
-	// ✅ Передаем tx
+	// ✅ Передаем tx (БЕЗ 'ctx')
 	if err := s.userRepo.Create(tx, user); err != nil {
 		if errors.Is(err, repositories.ErrUserAlreadyExists) {
 			return apperrors.ErrEmailAlreadyExists
@@ -104,33 +102,44 @@ func (s *AuthServiceImpl) Register(db *gorm.DB, req *dto.RegisterRequest) error 
 		return apperrors.InternalError(err)
 	}
 
-	// ✅ Передаем tx
+	// ✅ Передаем tx (БЕЗ 'ctx')
 	if err := s.createUserProfile(tx, user, req); err != nil {
 		return apperrors.InternalError(err)
 	}
 
-	// ✅ Передаем tx
+	// ✅ Передаем tx (БЕЗ 'ctx')
 	if err := s.assignFreeSubscription(tx, user.ID); err != nil {
 		fmt.Printf("Failed to create free subscription: %v\n", err)
 	}
 
-	// ✅ Коммитим транзакцию
+	// ✅ Коммитим
 	if err := tx.Commit().Error; err != nil {
 		return apperrors.InternalError(err)
 	}
 
-	s.sendVerificationEmail(user.Email, verificationToken)
+	if err := s.sendVerificationEmail(user.Email, verificationToken); err != nil {
+		return apperrors.InternalError(fmt.Errorf("registration successful, but failed to send verification email: %w", err))
+	}
+
 	return nil
 }
 
-// Login - 'db' добавлен
+// Login - ❗️❗️❗️ ГЛАВНОЕ ИСПРАВЛЕНИЕ (ДЛЯ 401) ❗️❗️❗️
 func (s *AuthServiceImpl) Login(db *gorm.DB, req *dto.LoginRequest) (*dto.AuthResponse, error) {
-	// ✅ Используем 'db' из параметра
+
+	// 1. ❌ БОЛЬШЕ НЕТ 'tx := db.Begin()' ЗДЕСЬ
+
+	// 2. ✅ СНАЧАЛА ищем пользователя, используя 'db' (который в тесте = 'tx1')
+	//    (БЕЗ 'ctx')
 	user, err := s.userRepo.FindByEmail(db, req.Email)
 	if err != nil {
+		if errors.Is(err, repositories.ErrUserNotFound) || errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrInvalidCredentials
+		}
 		return nil, handleRepositoryError(err)
 	}
 
+	// 3. ✅ Проверяем пароль и статус
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		return nil, apperrors.ErrInvalidCredentials
 	}
@@ -144,20 +153,20 @@ func (s *AuthServiceImpl) Login(db *gorm.DB, req *dto.LoginRequest) (*dto.AuthRe
 		return nil, apperrors.InternalError(err)
 	}
 
-	// ✅ Начинаем транзакцию из переданного 'db'
+	// 4. ✅ ТЕПЕРЬ запускаем транзакцию ТОЛЬКО для создания токена
 	tx := db.Begin()
 	if tx.Error != nil {
 		return nil, apperrors.InternalError(tx.Error)
 	}
 	defer tx.Rollback()
 
-	// ✅ Передаем tx
+	// 5. ✅ Передаем 'tx' (БЕЗ 'ctx')
 	refreshToken, err := s.createRefreshToken(tx, user.ID)
 	if err != nil {
 		return nil, apperrors.InternalError(err)
 	}
 
-	// ✅ Коммитим транзакцию
+	// 6. ✅ Коммитим 'tx'
 	if err := tx.Commit().Error; err != nil {
 		return nil, apperrors.InternalError(err)
 	}
@@ -171,28 +180,26 @@ func (s *AuthServiceImpl) Login(db *gorm.DB, req *dto.LoginRequest) (*dto.AuthRe
 	}, nil
 }
 
-// RefreshToken - 'db' добавлен
+// RefreshToken - (Атомарная операция, 'db.Begin()' - ПРАВИЛЬНО)
 func (s *AuthServiceImpl) RefreshToken(db *gorm.DB, refreshToken string) (*dto.AuthResponse, error) {
-	// ✅ Начинаем транзакцию из переданного 'db'
 	tx := db.Begin()
 	if tx.Error != nil {
 		return nil, apperrors.InternalError(tx.Error)
 	}
 	defer tx.Rollback()
 
-	// ✅ Передаем tx
+	// ✅ Передаем tx (БЕЗ 'ctx')
 	token, err := s.refreshTokenRepo.FindByToken(tx, refreshToken)
 	if err != nil {
 		return nil, apperrors.ErrInvalidToken
 	}
 
 	if time.Now().After(token.ExpiresAt) {
-		// ✅ Передаем tx
-		s.refreshTokenRepo.DeleteByToken(tx, refreshToken)
+		s.refreshTokenRepo.DeleteByToken(tx, refreshToken) // ✅ (БЕЗ 'ctx')
 		return nil, apperrors.ErrInvalidToken
 	}
 
-	// ✅ Передаем tx
+	// ✅ Передаем tx (БЕЗ 'ctx')
 	user, err := s.userRepo.FindByID(tx, token.UserID)
 	if err != nil {
 		return nil, apperrors.ErrInvalidToken
@@ -207,13 +214,12 @@ func (s *AuthServiceImpl) RefreshToken(db *gorm.DB, refreshToken string) (*dto.A
 		return nil, apperrors.InternalError(err)
 	}
 
-	// ✅ Передаем tx
+	// ✅ Передаем tx (БЕЗ 'ctx')
 	newRefreshToken, err := s.rotateRefreshToken(tx, token.UserID, refreshToken)
 	if err != nil {
 		return nil, apperrors.InternalError(err)
 	}
 
-	// ✅ Коммитим транзакцию
 	if err := tx.Commit().Error; err != nil {
 		return nil, apperrors.InternalError(err)
 	}
@@ -227,16 +233,15 @@ func (s *AuthServiceImpl) RefreshToken(db *gorm.DB, refreshToken string) (*dto.A
 	}, nil
 }
 
-// Logout - 'db' добавлен
+// Logout - (Атомарная операция, 'db.Begin()' - ПРАВИЛЬНО)
 func (s *AuthServiceImpl) Logout(db *gorm.DB, refreshToken string) error {
-	// ✅ Начинаем транзакцию из переданного 'db'
 	tx := db.Begin()
 	if tx.Error != nil {
 		return apperrors.InternalError(tx.Error)
 	}
 	defer tx.Rollback()
 
-	// ✅ Передаем tx
+	// ✅ Передаем tx (БЕЗ 'ctx')
 	if err := s.refreshTokenRepo.DeleteByToken(tx, refreshToken); err != nil {
 		if errors.Is(err, repositories.ErrRefreshTokenNotFound) {
 			return tx.Commit().Error
@@ -246,38 +251,36 @@ func (s *AuthServiceImpl) Logout(db *gorm.DB, refreshToken string) error {
 	return tx.Commit().Error
 }
 
-// VerifyEmail - 'db' добавлен
+// VerifyEmail - (Атомарная операция, 'db.Begin()' - ПРАВИЛЬНО)
 func (s *AuthServiceImpl) VerifyEmail(db *gorm.DB, token string) error {
-	// ✅ Начинаем транзакцию из переданного 'db'
 	tx := db.Begin()
 	if tx.Error != nil {
 		return apperrors.InternalError(tx.Error)
 	}
 	defer tx.Rollback()
 
-	// ✅ Передаем tx
+	// ✅ Передаем tx (БЕЗ 'ctx')
 	user, err := s.userRepo.FindByVerificationToken(tx, token)
 	if err != nil {
 		return apperrors.ErrInvalidToken
 	}
 
-	// ✅ Передаем tx
+	// ✅ Передаем tx (БЕЗ 'ctx')
 	if err := s.userRepo.VerifyUser(tx, user.ID); err != nil {
 		return apperrors.InternalError(err)
 	}
 	return tx.Commit().Error
 }
 
-// RequestPasswordReset - 'db' добавлен
+// RequestPasswordReset - (Атомарная операция, 'db.Begin()' - ПРАВИЛЬНО)
 func (s *AuthServiceImpl) RequestPasswordReset(db *gorm.DB, email string) error {
-	// ✅ Начинаем транзакцию из переданного 'db'
 	tx := db.Begin()
 	if tx.Error != nil {
 		return apperrors.InternalError(tx.Error)
 	}
 	defer tx.Rollback()
 
-	// ✅ Передаем tx
+	// ✅ Передаем tx (БЕЗ 'ctx')
 	user, err := s.userRepo.FindByEmail(tx, email)
 	if err != nil {
 		tx.Rollback()
@@ -289,12 +292,11 @@ func (s *AuthServiceImpl) RequestPasswordReset(db *gorm.DB, email string) error 
 	user.ResetToken = resetToken
 	user.ResetTokenExp = &resetTokenExp
 
-	// ✅ Передаем tx
+	// ✅ Передаем tx (БЕЗ 'ctx')
 	if err := s.userRepo.Update(tx, user); err != nil {
 		return apperrors.InternalError(err)
 	}
 
-	// ✅ Коммитим транзакцию
 	if err := tx.Commit().Error; err != nil {
 		return apperrors.InternalError(err)
 	}
@@ -303,20 +305,19 @@ func (s *AuthServiceImpl) RequestPasswordReset(db *gorm.DB, email string) error 
 	return nil
 }
 
-// ResetPassword - 'db' добавлен
+// ResetPassword - (Атомарная операция, 'db.Begin()' - ПРАВИЛЬНО)
 func (s *AuthServiceImpl) ResetPassword(db *gorm.DB, token, newPassword string) error {
 	if len(newPassword) < 6 {
 		return apperrors.ErrWeakPassword
 	}
 
-	// ✅ Начинаем транзакцию из переданного 'db'
 	tx := db.Begin()
 	if tx.Error != nil {
 		return apperrors.InternalError(tx.Error)
 	}
 	defer tx.Rollback()
 
-	// ✅ Передаем tx
+	// ✅ Передаем tx (БЕЗ 'ctx')
 	user, err := s.userRepo.FindByResetToken(tx, token)
 	if err != nil {
 		return apperrors.ErrInvalidToken
@@ -331,32 +332,31 @@ func (s *AuthServiceImpl) ResetPassword(db *gorm.DB, token, newPassword string) 
 	user.ResetToken = ""
 	user.ResetTokenExp = nil
 
-	// ✅ Передаем tx
+	// ✅ Передаем tx (БЕЗ 'ctx')
 	if err := s.userRepo.Update(tx, user); err != nil {
 		return apperrors.InternalError(err)
 	}
 
-	// ✅ Передаем tx
+	// ✅ Передаем tx (БЕЗ 'ctx')
 	if err := s.refreshTokenRepo.DeleteByUserID(tx, user.ID); err != nil {
 		fmt.Printf("Failed to delete refresh tokens on reset password: %v\n", err)
 	}
 	return tx.Commit().Error
 }
 
-// ChangePassword - 'db' добавлен
+// ChangePassword - (Атомарная операция, 'db.Begin()' - ПРАВИЛЬНО)
 func (s *AuthServiceImpl) ChangePassword(db *gorm.DB, userID, currentPassword, newPassword string) error {
 	if len(newPassword) < 6 {
 		return apperrors.ErrWeakPassword
 	}
 
-	// ✅ Начинаем транзакцию из переданного 'db'
 	tx := db.Begin()
 	if tx.Error != nil {
 		return apperrors.InternalError(tx.Error)
 	}
 	defer tx.Rollback()
 
-	// ✅ Передаем tx
+	// ✅ Передаем tx (БЕЗ 'ctx')
 	user, err := s.userRepo.FindByID(tx, userID)
 	if err != nil {
 		return handleRepositoryError(err)
@@ -373,7 +373,7 @@ func (s *AuthServiceImpl) ChangePassword(db *gorm.DB, userID, currentPassword, n
 
 	user.PasswordHash = string(hashedPassword)
 
-	// ✅ Передаем tx
+	// ✅ Передаем tx (БЕЗ 'ctx')
 	if err := s.userRepo.Update(tx, user); err != nil {
 		return apperrors.InternalError(err)
 	}
@@ -381,8 +381,8 @@ func (s *AuthServiceImpl) ChangePassword(db *gorm.DB, userID, currentPassword, n
 }
 
 // --- Helper functions ---
+// (Хелперы БЕЗ 'ctx')
 
-// (createUserProfile - 'db' уже был)
 func (s *AuthServiceImpl) createUserProfile(db *gorm.DB, user *models.User, req *dto.RegisterRequest) error {
 	if user.Role == models.UserRoleModel {
 		profile := &models.ModelProfile{
@@ -392,7 +392,7 @@ func (s *AuthServiceImpl) createUserProfile(db *gorm.DB, user *models.User, req 
 			Age:      0,
 			IsPublic: true,
 		}
-		// ✅ Передаем db
+		// ✅ Передаем db (БЕЗ 'ctx')
 		return s.profileRepo.CreateModelProfile(db, profile)
 	} else if user.Role == models.UserRoleEmployer {
 		profile := &models.EmployerProfile{
@@ -401,15 +401,14 @@ func (s *AuthServiceImpl) createUserProfile(db *gorm.DB, user *models.User, req 
 			City:        req.City,
 			IsVerified:  false,
 		}
-		// ✅ Передаем db
+		// ✅ Передаем db (БЕЗ 'ctx')
 		return s.profileRepo.CreateEmployerProfile(db, profile)
 	}
 	return nil
 }
 
-// (assignFreeSubscription - 'db' уже был)
 func (s *AuthServiceImpl) assignFreeSubscription(db *gorm.DB, userID string) error {
-	// ✅ Передаем db
+	// ✅ Передаем db (БЕЗ 'ctx')
 	freePlan, err := s.subscriptionRepo.FindPlanByName(db, "Free")
 	if err != nil || freePlan == nil {
 		return fmt.Errorf("free plan not found: %w", err)
@@ -419,16 +418,16 @@ func (s *AuthServiceImpl) assignFreeSubscription(db *gorm.DB, userID string) err
 		UserID:    userID,
 		PlanID:    freePlan.ID,
 		Status:    models.SubscriptionStatusActive,
+		InvID:     userID,
 		StartDate: time.Now(),
 		EndDate:   time.Now().AddDate(100, 0, 0),
 		AutoRenew: false,
 	}
 
-	// ✅ Передаем db
+	// ✅ Передаем db (БЕЗ 'ctx')
 	return s.subscriptionRepo.CreateUserSubscription(db, subscription)
 }
 
-// (createRefreshToken - 'db' уже был)
 func (s *AuthServiceImpl) createRefreshToken(db *gorm.DB, userID string) (string, error) {
 	refreshToken := generateRandomToken()
 	refreshTokenExp := time.Now().Add(7 * 24 * time.Hour)
@@ -439,7 +438,7 @@ func (s *AuthServiceImpl) createRefreshToken(db *gorm.DB, userID string) (string
 		ExpiresAt: refreshTokenExp,
 	}
 
-	// ✅ Передаем db
+	// ✅ Передаем db (БЕЗ 'ctx')
 	if err := s.refreshTokenRepo.Create(db, refreshTokenModel); err != nil {
 		return "", err
 	}
@@ -447,17 +446,17 @@ func (s *AuthServiceImpl) createRefreshToken(db *gorm.DB, userID string) (string
 	return refreshToken, nil
 }
 
-// (rotateRefreshToken - 'db' уже был)
 func (s *AuthServiceImpl) rotateRefreshToken(db *gorm.DB, userID, oldToken string) (string, error) {
-	// ✅ Передаем db
+	// ✅ Передаем db (БЕЗ 'ctx')
 	if err := s.refreshTokenRepo.DeleteByToken(db, oldToken); err != nil {
 		return "", err
 	}
-	// ✅ Передаем db
+	// ✅ Передаем db (БЕЗ 'ctx')
 	return s.createRefreshToken(db, userID)
 }
 
-// (checkUserStatus - чистая функция, без изменений)
+// --- (Остальные хелперы без изменений) ---
+
 func (s *AuthServiceImpl) checkUserStatus(user *models.User) error {
 	switch user.Status {
 	case models.UserStatusSuspended:
@@ -472,7 +471,6 @@ func (s *AuthServiceImpl) checkUserStatus(user *models.User) error {
 	return nil
 }
 
-// (buildUserDTO - чистая функция, без изменений)
 func buildUserDTO(user *models.User) *dto.UserDTO {
 	return &dto.UserDTO{
 		ID:         user.ID,
@@ -484,34 +482,23 @@ func buildUserDTO(user *models.User) *dto.UserDTO {
 	}
 }
 
-// (sendVerificationEmail - чистая функция, без изменений)
-func (s *AuthServiceImpl) sendVerificationEmail(email, token string) {
+func (s *AuthServiceImpl) sendVerificationEmail(email, token string) error {
 	if s.emailProvider == nil {
-		return
+		return nil
 	}
-	go func() {
-		if err := s.emailProvider.SendVerification(email, token); err != nil {
-			fmt.Printf("Failed to send verification email: %v\n", err)
-		}
-	}()
+	return s.emailProvider.SendVerification(email, token)
 }
 
-// (sendPasswordResetEmail - чистая функция, без изменений)
-func (s *AuthServiceImpl) sendPasswordResetEmail(email, token string) {
+func (s *AuthServiceImpl) sendPasswordResetEmail(email, token string) error {
 	if s.emailProvider == nil {
-		return
+		return nil
 	}
-	go func() {
-		data := map[string]interface{}{
-			"ResetURL": fmt.Sprintf("https://mwork.ru/reset-password?token=%s", token),
-		}
-		if err := s.emailProvider.SendTemplate([]string{email}, "Сброс пароля", "password_reset", data); err != nil {
-			fmt.Printf("Failed to send password reset email: %v\n", err)
-		}
-	}()
+	data := map[string]interface{}{
+		"ResetURL": fmt.Sprintf("https://mwork.ru/reset-password?token=%s", token),
+	}
+	return s.emailProvider.SendTemplate([]string{email}, "Сброс пароля", "password_reset", data)
 }
 
-// (validateRegisterRequest - чистая функция, без изменений)
 func (s *AuthServiceImpl) validateRegisterRequest(req *dto.RegisterRequest) error {
 	if req.Role == models.UserRoleModel {
 		if req.Name == "" {
@@ -531,7 +518,6 @@ func (s *AuthServiceImpl) validateRegisterRequest(req *dto.RegisterRequest) erro
 	return nil
 }
 
-// (generateRandomToken - чистая функция, без изменений)
 func generateRandomToken() string {
 	return fmt.Sprintf("%x", time.Now().UnixNano())
 }

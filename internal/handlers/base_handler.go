@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 
@@ -164,6 +165,20 @@ func (h *BaseHandler) GetAndAuthorizeUserID(c *gin.Context) (string, bool) {
 	}
 
 	return userIDStr, true
+}
+
+// HandleValidationError обрабатывает ошибки, возвращаемые кастомным валидатором.
+func (h *BaseHandler) HandleValidationError(c *gin.Context, err error) {
+	verr, ok := err.(*validator.ValidationError)
+	if !ok {
+		// Если это не ошибка валидации, обрабатываем как внутреннюю ошибку
+		log.Printf("ERROR: HandleValidationError received non-validation error: %v", err)
+		apperrors.HandleError(c, apperrors.NewInternalServerError("An unexpected error occurred: "+err.Error()))
+		return
+	}
+
+	// Это ошибка валидации, возвращаем 400 с картой ошибок
+	apperrors.HandleError(c, apperrors.ValidationError(verr.Errors))
 }
 
 // ============================================================================

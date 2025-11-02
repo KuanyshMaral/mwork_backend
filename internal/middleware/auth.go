@@ -80,6 +80,13 @@ func RoleMiddleware(requiredRole models.UserRole) gin.HandlerFunc {
 	}
 }
 
+// AdminMiddleware — это псевдоним для RoleMiddleware,
+// который требует роль администратора.
+func AdminMiddleware() gin.HandlerFunc {
+	// Убедитесь, что 'models.UserRoleAdmin' - это правильная константа для роли админа
+	return RoleMiddleware(models.UserRoleAdmin)
+}
+
 // RequireRoles - middleware для проверки нескольких возможных ролей (альтернативный вариант)
 func RequireRoles(roles ...models.UserRole) gin.HandlerFunc {
 	roleSet := make(map[models.UserRole]bool)

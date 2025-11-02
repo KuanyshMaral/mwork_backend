@@ -3,8 +3,8 @@ package handlers
 import (
 	"net/http"
 
-	"mwork_backend/internal/middleware" // <-- Все еще нужен для RegisterRoutes
-	"mwork_backend/internal/models"
+	"mwork_backend/internal/middleware"
+	// "mwork_backend/internal/models" // (Больше не нужен, т.к. admin middleware ушло)
 	"mwork_backend/internal/services"
 	"mwork_backend/internal/services/dto"
 	"mwork_backend/pkg/apperrors"
@@ -13,19 +13,18 @@ import (
 )
 
 type PortfolioHandler struct {
-	*BaseHandler     // <-- 1. Встраиваем BaseHandler
+	*BaseHandler
 	portfolioService services.PortfolioService
 }
 
-// 2. Обновляем конструктор
 func NewPortfolioHandler(base *BaseHandler, portfolioService services.PortfolioService) *PortfolioHandler {
 	return &PortfolioHandler{
-		BaseHandler:      base, // <-- 3. Сохраняем его
+		BaseHandler:      base,
 		portfolioService: portfolioService,
 	}
 }
 
-// RegisterRoutes не требует изменений
+// RegisterRoutes - ОЧИЩЕНО
 func (h *PortfolioHandler) RegisterRoutes(r *gin.RouterGroup) {
 	// Public routes
 	public := r.Group("/portfolio")
@@ -40,7 +39,7 @@ func (h *PortfolioHandler) RegisterRoutes(r *gin.RouterGroup) {
 	portfolio := r.Group("/portfolio")
 	portfolio.Use(middleware.AuthMiddleware())
 	{
-		portfolio.POST("", h.CreatePortfolioItem)
+		portfolio.POST("", h.CreatePortfolioItem) // Этот маршрут остается, т.к. он создает Portfolio *с* файлом
 		portfolio.PUT("/:itemId", h.UpdatePortfolioItem)
 		portfolio.DELETE("/:itemId", h.DeletePortfolioItem)
 		portfolio.PUT("/reorder", h.UpdatePortfolioOrder)
@@ -48,45 +47,27 @@ func (h *PortfolioHandler) RegisterRoutes(r *gin.RouterGroup) {
 		portfolio.GET("/stats/:modelId", h.GetPortfolioStats)
 	}
 
-	// Upload routes
-	uploads := r.Group("/uploads")
-	uploads.Use(middleware.AuthMiddleware())
-	{
-		uploads.POST("", h.UploadFile)
-		uploads.GET("/:uploadId", h.GetUpload)
-		uploads.GET("/user/me", h.GetMyUploads)
-		uploads.GET("/entity/:entityType/:entityId", h.GetEntityUploads)
-		uploads.DELETE("/:uploadId", h.DeleteUpload)
-		uploads.GET("/storage/usage", h.GetStorageUsage)
-	}
-
-	// Admin routes
-	admin := r.Group("/admin/uploads")
-	admin.Use(middleware.AuthMiddleware(), middleware.RoleMiddleware(models.UserRoleAdmin))
-	{
-		admin.POST("/clean-orphaned", h.CleanOrphanedUploads)
-		admin.GET("/stats", h.GetPlatformUploadStats)
-	}
+	// ▼▼▼ УДАЛЕНО: Все маршруты /uploads и /admin/uploads ▼▼▼
+	// Группы /uploads и /admin/uploads удалены.
+	// Они должны быть зарегистрированы в UploadHandler.
+	// ▲▲▲ УДАЛЕНО ▲▲▲
 }
 
-// --- Portfolio handlers ---
+// --- Portfolio handlers (Обновлены с Context) ---
 
 func (h *PortfolioHandler) CreatePortfolioItem(c *gin.Context) {
-	// 4. Используем GetAndAuthorizeUserID
 	userID, ok := h.GetAndAuthorizeUserID(c)
 	if !ok {
 		return
 	}
 
 	var req dto.CreatePortfolioRequest
-	// 5. BindAndValidate_JSON также работает с multipart-form полями
-	// ПРИМЕЧАНИЕ: Для multipart-form используйте c.ShouldBind() вместо c.ShouldBindJSON()
-	// BaseHandler's BindAndValidate_JSON использует c.ShouldBind(), так что все в порядке.
+	// Используем c.ShouldBind() для multipart-form
 	if err := c.ShouldBind(&req); err != nil {
 		h.HandleServiceError(c, apperrors.NewBadRequestError(err.Error()))
 		return
 	}
-	// Валидация вручную, т.к. BindAndValidate_JSON не вызовется для multipart
+	// Валидация
 	if err := h.validator.Validate(req); err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -98,10 +79,9 @@ func (h *PortfolioHandler) CreatePortfolioItem(c *gin.Context) {
 		return
 	}
 
-	// ✅ DB: Используем h.GetDB(c)
-	response, err := h.portfolioService.CreatePortfolioItem(h.GetDB(c), userID, &req, file)
+	// ✅ DB + Context
+	response, err := h.portfolioService.CreatePortfolioItem(c.Request.Context(), h.GetDB(c), userID, &req, file)
 	if err != nil {
-		// 6. Используем HandleServiceError
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -112,8 +92,8 @@ func (h *PortfolioHandler) CreatePortfolioItem(c *gin.Context) {
 func (h *PortfolioHandler) GetPortfolioItem(c *gin.Context) {
 	itemID := c.Param("itemId")
 
-	// ✅ DB: Используем h.GetDB(c)
-	response, err := h.portfolioService.GetPortfolioItem(h.GetDB(c), itemID)
+	// ✅ DB + Context
+	response, err := h.portfolioService.GetPortfolioItem(c.Request.Context(), h.GetDB(c), itemID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -125,8 +105,8 @@ func (h *PortfolioHandler) GetPortfolioItem(c *gin.Context) {
 func (h *PortfolioHandler) GetModelPortfolio(c *gin.Context) {
 	modelID := c.Param("modelId")
 
-	// ✅ DB: Используем h.GetDB(c)
-	responses, err := h.portfolioService.GetModelPortfolio(h.GetDB(c), modelID)
+	// ✅ DB + Context
+	responses, err := h.portfolioService.GetModelPortfolio(c.Request.Context(), h.GetDB(c), modelID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -150,8 +130,8 @@ func (h *PortfolioHandler) UpdatePortfolioItem(c *gin.Context) {
 		return
 	}
 
-	// ✅ DB: Используем h.GetDB(c)
-	if err := h.portfolioService.UpdatePortfolioItem(h.GetDB(c), userID, itemID, &req); err != nil {
+	// ✅ DB + Context
+	if err := h.portfolioService.UpdatePortfolioItem(c.Request.Context(), h.GetDB(c), userID, itemID, &req); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -170,8 +150,8 @@ func (h *PortfolioHandler) UpdatePortfolioOrder(c *gin.Context) {
 		return
 	}
 
-	// ✅ DB: Используем h.GetDB(c)
-	if err := h.portfolioService.UpdatePortfolioOrder(h.GetDB(c), userID, &req); err != nil {
+	// ✅ DB + Context
+	if err := h.portfolioService.UpdatePortfolioOrder(c.Request.Context(), h.GetDB(c), userID, &req); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -186,8 +166,8 @@ func (h *PortfolioHandler) DeletePortfolioItem(c *gin.Context) {
 	}
 	itemID := c.Param("itemId")
 
-	// ✅ DB: Используем h.GetDB(c)
-	if err := h.portfolioService.DeletePortfolioItem(h.GetDB(c), userID, itemID); err != nil {
+	// ✅ DB + Context
+	if err := h.portfolioService.DeletePortfolioItem(c.Request.Context(), h.GetDB(c), userID, itemID); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -196,14 +176,13 @@ func (h *PortfolioHandler) DeletePortfolioItem(c *gin.Context) {
 }
 
 func (h *PortfolioHandler) GetPortfolioStats(c *gin.Context) {
-	// Защищенный маршрут, проверяем авторизацию
 	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
 		return
 	}
 	modelID := c.Param("modelId")
 
-	// ✅ DB: Используем h.GetDB(c)
-	stats, err := h.portfolioService.GetPortfolioStats(h.GetDB(c), modelID)
+	// ✅ DB + Context
+	stats, err := h.portfolioService.GetPortfolioStats(c.Request.Context(), h.GetDB(c), modelID)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -224,8 +203,8 @@ func (h *PortfolioHandler) TogglePortfolioVisibility(c *gin.Context) {
 		return
 	}
 
-	// ✅ DB: Используем h.GetDB(c)
-	if err := h.portfolioService.TogglePortfolioVisibility(h.GetDB(c), userID, itemID, &req); err != nil {
+	// ✅ DB + Context
+	if err := h.portfolioService.TogglePortfolioVisibility(c.Request.Context(), h.GetDB(c), userID, itemID, &req); err != nil {
 		h.HandleServiceError(c, err)
 		return
 	}
@@ -234,14 +213,13 @@ func (h *PortfolioHandler) TogglePortfolioVisibility(c *gin.Context) {
 }
 
 func (h *PortfolioHandler) GetFeaturedPortfolio(c *gin.Context) {
-	// 7. Используем ParseQueryInt
 	limit := ParseQueryInt(c, "limit", 10)
 	if limit <= 0 {
 		limit = 10
 	}
 
-	// ✅ DB: Используем h.GetDB(c)
-	response, err := h.portfolioService.GetFeaturedPortfolio(h.GetDB(c), limit)
+	// ✅ DB + Context
+	response, err := h.portfolioService.GetFeaturedPortfolio(c.Request.Context(), h.GetDB(c), limit)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -256,8 +234,8 @@ func (h *PortfolioHandler) GetRecentPortfolio(c *gin.Context) {
 		limit = 10
 	}
 
-	// ✅ DB: Используем h.GetDB(c)
-	response, err := h.portfolioService.GetRecentPortfolio(h.GetDB(c), limit)
+	// ✅ DB + Context
+	response, err := h.portfolioService.GetRecentPortfolio(c.Request.Context(), h.GetDB(c), limit)
 	if err != nil {
 		h.HandleServiceError(c, err)
 		return
@@ -266,157 +244,15 @@ func (h *PortfolioHandler) GetRecentPortfolio(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// --- Upload handlers ---
-
-func (h *PortfolioHandler) UploadFile(c *gin.Context) {
-	userID, ok := h.GetAndAuthorizeUserID(c)
-	if !ok {
-		return
-	}
-
-	var req dto.UploadRequest
-	// ПРИМЕЧАНИЕ: Для multipart-form используйте c.ShouldBind()
-	if err := c.ShouldBind(&req); err != nil {
-		h.HandleServiceError(c, apperrors.NewBadRequestError(err.Error()))
-		return
-	}
-	// Валидация вручную
-	if err := h.validator.Validate(req); err != nil {
-		h.HandleServiceError(c, err)
-		return
-	}
-
-	file, err := c.FormFile("file")
-	if err != nil {
-		apperrors.HandleError(c, apperrors.NewBadRequestError("File is required"))
-		return
-	}
-
-	// ✅ DB: Используем h.GetDB(c)
-	response, err := h.portfolioService.UploadFile(h.GetDB(c), userID, &req, file)
-	if err != nil {
-		h.HandleServiceError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusCreated, response)
-}
-
-func (h *PortfolioHandler) GetUpload(c *gin.Context) {
-	// Защищенный маршрут, проверяем авторизацию
-	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
-		return
-	}
-	uploadID := c.Param("uploadId")
-
-	// ✅ DB: Используем h.GetDB(c)
-	upload, err := h.portfolioService.GetUpload(h.GetDB(c), uploadID)
-	if err != nil {
-		h.HandleServiceError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, upload)
-}
-
-func (h *PortfolioHandler) GetMyUploads(c *gin.Context) {
-	userID, ok := h.GetAndAuthorizeUserID(c)
-	if !ok {
-		return
-	}
-
-	// ✅ DB: Используем h.GetDB(c)
-	uploads, err := h.portfolioService.GetUserUploads(h.GetDB(c), userID)
-	if err != nil {
-		h.HandleServiceError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"uploads": uploads,
-		"total":   len(uploads),
-	})
-}
-
-func (h *PortfolioHandler) GetEntityUploads(c *gin.Context) {
-	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
-		return
-	}
-	entityType := c.Param("entityType")
-	entityID := c.Param("entityId")
-
-	// ✅ DB: Используем h.GetDB(c)
-	uploads, err := h.portfolioService.GetEntityUploads(h.GetDB(c), entityType, entityID)
-	if err != nil {
-		h.HandleServiceError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"uploads": uploads,
-		"total":   len(uploads),
-	})
-}
-
-func (h *PortfolioHandler) DeleteUpload(c *gin.Context) {
-	userID, ok := h.GetAndAuthorizeUserID(c)
-	if !ok {
-		return
-	}
-	uploadID := c.Param("uploadId")
-
-	// ✅ DB: Используем h.GetDB(c)
-	if err := h.portfolioService.DeleteUpload(h.GetDB(c), userID, uploadID); err != nil {
-		h.HandleServiceError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Upload deleted successfully"})
-}
-
-func (h *PortfolioHandler) GetStorageUsage(c *gin.Context) {
-	userID, ok := h.GetAndAuthorizeUserID(c)
-	if !ok {
-		return
-	}
-
-	// ✅ DB: Используем h.GetDB(c)
-	usage, err := h.portfolioService.GetUserStorageUsage(h.GetDB(c), userID)
-	if err != nil {
-		h.HandleServiceError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, usage)
-}
-
-// --- Admin handlers ---
-
-func (h *PortfolioHandler) CleanOrphanedUploads(c *gin.Context) {
-	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
-		return
-	}
-
-	// ✅ DB: Используем h.GetDB(c)
-	if err := h.portfolioService.CleanOrphanedUploads(h.GetDB(c)); err != nil {
-		h.HandleServiceError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Orphaned uploads cleaned successfully"})
-}
-
-func (h *PortfolioHandler) GetPlatformUploadStats(c *gin.Context) {
-	if _, ok := h.GetAndAuthorizeUserID(c); !ok {
-		return
-	}
-
-	// ✅ DB: Используем h.GetDB(c)
-	stats, err := h.portfolioService.GetPlatformUploadStats(h.GetDB(c))
-	if err != nil {
-		h.HandleServiceError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, stats)
-}
+// --- ▼▼▼ УДАЛЕНО: Все обработчики Uploads ▼▼▼ ---
+//
+// func (h *PortfolioHandler) UploadFile(c *gin.Context) { ... }
+// func (h *PortfolioHandler) GetUpload(c *gin.Context) { ... }
+// func (h *PortfolioHandler) GetMyUploads(c *gin.Context) { ... }
+// func (h *PortfolioHandler) GetEntityUploads(c *gin.Context) { ... }
+// func (h *PortfolioHandler) DeleteUpload(c *gin.Context) { ... }
+// func (h *PortfolioHandler) GetStorageUsage(c *gin.Context) { ... }
+// func (h *PortfolioHandler) CleanOrphanedUploads(c *gin.Context) { ... }
+// func (h *PortfolioHandler) GetPlatformUploadStats(c *gin.Context) { ... }
+//
+// --- ▲▲▲ УДАЛЕНО ▲▲▲ ---

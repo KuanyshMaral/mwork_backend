@@ -2,103 +2,95 @@ package services
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"gorm.io/gorm"
 	"mime/multipart"
-	"path/filepath"
-	"strings"
-	"time"
 
-	"mwork_backend/internal/config"
-	"mwork_backend/internal/imageprocessor"
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/repositories"
-	"mwork_backend/internal/services/dto"
-	"mwork_backend/internal/storage"
+	"mwork_backend/internal/services/dto" // <-- Используем DTO универсального сервиса
 	"mwork_backend/pkg/apperrors"
 )
 
 // =======================
-// 1. ИНТЕРФЕЙС ОБНОВЛЕН
+// 1. ИНТЕРФЕЙС ИСПРАВЛЕН
 // =======================
-// Все методы теперь принимают 'db *gorm.DB'
+// - Добавлен 'ctx context.Context'
+// - Удалены все дублирующие методы UploadService
 type PortfolioService interface {
 	// Portfolio operations
-	CreatePortfolioItem(db *gorm.DB, userID string, req *dto.CreatePortfolioRequest, file *multipart.FileHeader) (*dto.PortfolioResponse, error)
-	GetPortfolioItem(db *gorm.DB, itemID string) (*dto.PortfolioResponse, error)
-	GetModelPortfolio(db *gorm.DB, modelID string) ([]*dto.PortfolioResponse, error)
-	UpdatePortfolioItem(db *gorm.DB, userID, itemID string, req *dto.UpdatePortfolioRequest) error
-	UpdatePortfolioOrder(db *gorm.DB, userID string, req *dto.ReorderPortfolioRequest) error
-	DeletePortfolioItem(db *gorm.DB, userID, itemID string) error
-	GetPortfolioStats(db *gorm.DB, modelID string) (*repositories.PortfolioStats, error)
-	TogglePortfolioVisibility(db *gorm.DB, userID, itemID string, req *dto.PortfolioVisibilityRequest) error
+	CreatePortfolioItem(ctx context.Context, db *gorm.DB, userID string, req *dto.CreatePortfolioRequest, file *multipart.FileHeader) (*dto.PortfolioResponse, error)
+	GetPortfolioItem(ctx context.Context, db *gorm.DB, itemID string) (*dto.PortfolioResponse, error)
+	GetModelPortfolio(ctx context.Context, db *gorm.DB, modelID string) ([]*dto.PortfolioResponse, error)
+	UpdatePortfolioItem(ctx context.Context, db *gorm.DB, userID, itemID string, req *dto.UpdatePortfolioRequest) error
+	UpdatePortfolioOrder(ctx context.Context, db *gorm.DB, userID string, req *dto.ReorderPortfolioRequest) error
+	DeletePortfolioItem(ctx context.Context, db *gorm.DB, userID, itemID string) error
+	GetPortfolioStats(ctx context.Context, db *gorm.DB, modelID string) (*repositories.PortfolioStats, error)
+	TogglePortfolioVisibility(ctx context.Context, db *gorm.DB, userID, itemID string, req *dto.PortfolioVisibilityRequest) error
 
-	// Upload operations
-	UploadFile(db *gorm.DB, userID string, req *dto.UploadRequest, file *multipart.FileHeader) (*dto.UploadResponse, error)
-	GetUpload(db *gorm.DB, uploadID string) (*models.Upload, error)
-	GetUserUploads(db *gorm.DB, userID string) ([]*models.Upload, error)
-	GetEntityUploads(db *gorm.DB, entityType, entityID string) ([]*models.Upload, error)
-	DeleteUpload(db *gorm.DB, userID, uploadID string) error
-	GetUserStorageUsage(db *gorm.DB, userID string) (*dto.StorageUsageResponse, error)
+	// ▼▼▼ УДАЛЕНО: Эти методы теперь в UploadService ▼▼▼
+	// UploadFile(...)
+	// GetUpload(...)
+	// GetUserUploads(...)
+	// GetEntityUploads(...)
+	// DeleteUpload(...)
+	// GetUserStorageUsage(...)
+	// CleanOrphanedUploads(...)
+	// GetPlatformUploadStats(...)
+	// ▲▲▲ УДАЛЕНО ▲▲▲
 
 	// Combined operations
-	CreatePortfolioWithUpload(db *gorm.DB, userID string, req *dto.CreatePortfolioRequest, file *multipart.FileHeader) (*dto.PortfolioResponse, error)
-	DeletePortfolioWithUpload(db *gorm.DB, userID, itemID string) error
-	GetFeaturedPortfolio(db *gorm.DB, limit int) (*dto.PortfolioListResponse, error)
-	GetRecentPortfolio(db *gorm.DB, limit int) (*dto.PortfolioListResponse, error)
-
-	// Admin operations
-	CleanOrphanedUploads(db *gorm.DB) error
-	GetPlatformUploadStats(db *gorm.DB) (*dto.UploadStats, error)
+	// (CreatePortfolioWithUpload и DeletePortfolioWithUpload удалены, т.к. стали дубликатами)
+	GetFeaturedPortfolio(ctx context.Context, db *gorm.DB, limit int) (*dto.PortfolioListResponse, error)
+	GetRecentPortfolio(ctx context.Context, db *gorm.DB, limit int) (*dto.PortfolioListResponse, error)
 }
 
 // =======================
-// 2. РЕАЛИЗАЦИЯ ОБНОВЛЕНА
+// 2. РЕАЛИЗАЦИЯ ИСПРАВЛЕНА
 // =======================
 type portfolioService struct {
-	// ❌ 'db *gorm.DB' УДАЛЕНО ОТСЮДА
 	portfolioRepo repositories.PortfolioRepository
 	userRepo      repositories.UserRepository
 	profileRepo   repositories.ProfileRepository
-	fileConfig    dto.FileConfigPortfolio
-	storage       storage.Storage
-	imageProc     *imageprocessor.Processor
+	uploadService UploadService // <-- ВНЕДРЕН УНИВЕРСАЛЬНЫЙ СЕРВИС
+
+	// ▼▼▼ УДАЛЕНО ▼▼▼
+	// fileConfig    dto.FileConfigPortfolio
+	// storage       storage.Storage
+	// imageProc     *imageprocessor.Processor
+	// ▲▲▲ УДАЛЕНО ▲▲▲
 }
 
-// ✅ Конструктор обновлен (db убран)
+// ✅ Конструктор обновлен
 func NewPortfolioService(
-	// ❌ 'db *gorm.DB,' УДАЛЕНО
 	portfolioRepo repositories.PortfolioRepository,
 	userRepo repositories.UserRepository,
 	profileRepo repositories.ProfileRepository,
-	storage storage.Storage,
+	uploadService UploadService, // <-- ПРИНИМАЕМ УНИВЕРСАЛЬНЫЙ СЕРВИС
 ) PortfolioService {
 	return &portfolioService{
-		// ❌ 'db: db,' УДАЛЕНО
 		portfolioRepo: portfolioRepo,
 		userRepo:      userRepo,
 		profileRepo:   profileRepo,
-		fileConfig:    config.PortfolioFileConfig,
-		storage:       storage,
-		imageProc:     imageprocessor.NewProcessor(config.AppConfig.Upload.ImageQuality),
+		uploadService: uploadService, // <-- СОХРАНЯЕМ УНИВЕРСАЛЬНЫЙ СЕРВИС
+		// ▼▼▼ УДАЛЕНО ▼▼▼
+		// fileConfig:    config.PortfolioFileConfig,
+		// storage:       storage,
+		// imageProc:     imageprocessor.NewProcessor(config.AppConfig.Upload.ImageQuality),
+		// ▲▲▲ УДАЛЕНО ▲▲▲
 	}
 }
 
 // Portfolio operations
 
-// CreatePortfolioItem - 'db' добавлен
-func (s *portfolioService) CreatePortfolioItem(db *gorm.DB, userID string, req *dto.CreatePortfolioRequest, file *multipart.FileHeader) (*dto.PortfolioResponse, error) {
-	// ✅ Начинаем транзакцию из переданного 'db'
+func (s *portfolioService) CreatePortfolioItem(ctx context.Context, db *gorm.DB, userID string, req *dto.CreatePortfolioRequest, file *multipart.FileHeader) (*dto.PortfolioResponse, error) {
 	tx := db.Begin()
 	if tx.Error != nil {
 		return nil, apperrors.InternalError(tx.Error)
 	}
 	defer tx.Rollback()
 
-	// ✅ Передаем tx
 	modelProfile, err := s.profileRepo.FindModelProfileByUserID(tx, userID)
 	if err != nil {
 		return nil, errors.New("model profile not found or access denied")
@@ -108,85 +100,66 @@ func (s *portfolioService) CreatePortfolioItem(db *gorm.DB, userID string, req *
 		return nil, errors.New("invalid model ID")
 	}
 
-	// ✅ Передаем tx
-	upload, err := s.createUploadRecord(tx, userID, file, &dto.UploadRequest{
-		EntityType: "portfolio",
-		EntityID:   "", // Будет установлен ниже
-		FileType:   "image",
-		Usage:      "portfolio_photo",
-		IsPublic:   true,
-	})
-	if err != nil {
-		return nil, err
-	}
-
+	// 1. Создаем PortfolioItem *сначала* (без UploadID), чтобы получить его ID
 	portfolioItem := &models.PortfolioItem{
 		ModelID:     req.ModelID,
-		UploadID:    upload.ID,
 		Title:       req.Title,
 		Description: req.Description,
 		OrderIndex:  req.OrderIndex,
+		// UploadID пока пуст
 	}
 
-	// ✅ Передаем tx
 	if err := s.portfolioRepo.CreatePortfolioItem(tx, portfolioItem); err != nil {
 		return nil, apperrors.InternalError(err)
 	}
 
-	upload.EntityID = portfolioItem.ID
-	// ✅ Передаем tx
-	if err := s.portfolioRepo.UpdateUpload(tx, upload); err != nil {
-		return nil, apperrors.InternalError(err)
+	// 2. Теперь загружаем файл, используя ID созданного PortfolioItem
+	uploadReq := &dto.UniversalUploadRequest{
+		UserID:     userID,
+		Module:     "portfolio",
+		EntityType: "portfolio_item",
+		EntityID:   portfolioItem.ID, // <-- Привязываем к созданному Item
+		Usage:      "portfolio_photo",
+		IsPublic:   true,
+		File:       file,
 	}
 
-	// --- Внешнее I/O ---
-	ctx := context.TODO()
-	src, err := file.Open()
+	// Используем s.uploadService для всей логики загрузки
+	uploadRes, err := s.uploadService.UploadFile(ctx, tx, uploadReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open uploaded file: %w", err)
+		return nil, err // uploadService уже вернул apperror
 	}
-	defer src.Close()
 
-	if err := s.storage.Save(ctx, upload.Path, src, upload.MimeType); err != nil {
-		return nil, fmt.Errorf("failed to save file to storage: %w", err)
-	}
-	// --- Конец I/O ---
-
-	// ✅ Коммитим транзакцию
-	if err := tx.Commit().Error; err != nil {
-		s.storage.Delete(ctx, upload.Path)
+	// 3. Обновляем PortfolioItem, добавляя ID загрузки
+	portfolioItem.UploadID = uploadRes.ID
+	if err := s.portfolioRepo.UpdatePortfolioItem(tx, portfolioItem); err != nil {
+		// (Если обновление не удалось, uploadService отменит загрузку при откате tx)
 		return nil, apperrors.InternalError(err)
 	}
 
-	go s.generateResizedVersions(upload.Path, file)
+	// 4. Коммитим транзакцию
+	if err := tx.Commit().Error; err != nil {
+		return nil, apperrors.InternalError(err)
+	}
 
-	// ✅ Передаем 'db' (пул) в хелпер
-	return s.buildPortfolioResponse(db, portfolioItem, upload), nil
-}
-
-// GetPortfolioItem - 'db' добавлен
-func (s *portfolioService) GetPortfolioItem(db *gorm.DB, itemID string) (*dto.PortfolioResponse, error) {
-	// ✅ Используем 'db' из параметра
-	item, err := s.portfolioRepo.FindPortfolioItemByID(db, itemID)
+	// 5. Загружаем полные данные для ответа (включая Preload("Upload"))
+	newItem, err := s.portfolioRepo.FindPortfolioItemByID(db, portfolioItem.ID)
 	if err != nil {
 		return nil, handlePortfolioError(err)
 	}
 
-	var upload *models.Upload
-	if item.Upload != nil {
-		upload = item.Upload
-	} else {
-		// ✅ Используем 'db' из параметра
-		upload, _ = s.portfolioRepo.FindUploadByID(db, item.UploadID)
-	}
-
-	// ✅ Используем 'db' из параметра
-	return s.buildPortfolioResponse(db, item, upload), nil
+	return s.buildPortfolioResponse(db, newItem), nil
 }
 
-// GetModelPortfolio - 'db' добавлен
-func (s *portfolioService) GetModelPortfolio(db *gorm.DB, modelID string) ([]*dto.PortfolioResponse, error) {
-	// ✅ Используем 'db' из параметра
+func (s *portfolioService) GetPortfolioItem(ctx context.Context, db *gorm.DB, itemID string) (*dto.PortfolioResponse, error) {
+	item, err := s.portfolioRepo.FindPortfolioItemByID(db, itemID)
+	if err != nil {
+		return nil, handlePortfolioError(err)
+	}
+	return s.buildPortfolioResponse(db, item), nil
+}
+
+func (s *portfolioService) GetModelPortfolio(ctx context.Context, db *gorm.DB, modelID string) ([]*dto.PortfolioResponse, error) {
 	items, err := s.portfolioRepo.FindPortfolioByModel(db, modelID)
 	if err != nil {
 		return nil, apperrors.InternalError(err)
@@ -194,36 +167,25 @@ func (s *portfolioService) GetModelPortfolio(db *gorm.DB, modelID string) ([]*dt
 
 	var responses []*dto.PortfolioResponse
 	for _, item := range items {
-		var upload *models.Upload
-		if item.Upload != nil {
-			upload = item.Upload
-		} else {
-			// ✅ Используем 'db' из параметра
-			upload, _ = s.portfolioRepo.FindUploadByID(db, item.UploadID)
-		}
-		// ✅ Используем 'db' из параметра
-		responses = append(responses, s.buildPortfolioResponse(db, &item, upload))
+		// item уже содержит item.Upload благодаря Preload в репозитории
+		responses = append(responses, s.buildPortfolioResponse(db, &item))
 	}
 
 	return responses, nil
 }
 
-// UpdatePortfolioItem - 'db' добавлен
-func (s *portfolioService) UpdatePortfolioItem(db *gorm.DB, userID, itemID string, req *dto.UpdatePortfolioRequest) error {
-	// ✅ Начинаем транзакцию из переданного 'db'
+func (s *portfolioService) UpdatePortfolioItem(ctx context.Context, db *gorm.DB, userID, itemID string, req *dto.UpdatePortfolioRequest) error {
 	tx := db.Begin()
 	if tx.Error != nil {
 		return apperrors.InternalError(tx.Error)
 	}
 	defer tx.Rollback()
 
-	// ✅ Передаем tx
 	item, err := s.portfolioRepo.FindPortfolioItemByID(tx, itemID)
 	if err != nil {
 		return handlePortfolioError(err)
 	}
 
-	// ✅ Передаем tx
 	modelProfile, err := s.profileRepo.FindModelProfileByUserID(tx, userID)
 	if err != nil || modelProfile.ID != item.ModelID {
 		return errors.New("access denied")
@@ -237,12 +199,10 @@ func (s *portfolioService) UpdatePortfolioItem(db *gorm.DB, userID, itemID strin
 	}
 
 	if req.OrderIndex != nil {
-		// ✅ Передаем tx
 		if err := s.portfolioRepo.UpdatePortfolioItemOrder(tx, item, *req.OrderIndex); err != nil {
 			return apperrors.InternalError(err)
 		}
 	} else {
-		// ✅ Передаем tx
 		if err := s.portfolioRepo.UpdatePortfolioItem(tx, item); err != nil {
 			return apperrors.InternalError(err)
 		}
@@ -251,23 +211,19 @@ func (s *portfolioService) UpdatePortfolioItem(db *gorm.DB, userID, itemID strin
 	return tx.Commit().Error
 }
 
-// UpdatePortfolioOrder - 'db' добавлен
-func (s *portfolioService) UpdatePortfolioOrder(db *gorm.DB, userID string, req *dto.ReorderPortfolioRequest) error {
-	// ✅ Начинаем транзакцию из переданного 'db'
+func (s *portfolioService) UpdatePortfolioOrder(ctx context.Context, db *gorm.DB, userID string, req *dto.ReorderPortfolioRequest) error {
 	tx := db.Begin()
 	if tx.Error != nil {
 		return apperrors.InternalError(tx.Error)
 	}
 	defer tx.Rollback()
 
-	// ✅ Передаем tx
 	modelProfile, err := s.profileRepo.FindModelProfileByUserID(tx, userID)
 	if err != nil {
 		return errors.New("model profile not found")
 	}
 
 	for _, itemID := range req.ItemIDs {
-		// ✅ Передаем tx
 		item, err := s.portfolioRepo.FindPortfolioItemByID(tx, itemID)
 		if err != nil {
 			return handlePortfolioError(err)
@@ -277,287 +233,90 @@ func (s *portfolioService) UpdatePortfolioOrder(db *gorm.DB, userID string, req 
 		}
 	}
 
-	// ✅ Передаем tx
 	if err := s.portfolioRepo.ReorderPortfolioItems(tx, modelProfile.ID, req.ItemIDs); err != nil {
 		return apperrors.InternalError(err)
 	}
 	return tx.Commit().Error
 }
 
-// DeletePortfolioItem - 'db' добавлен
-func (s *portfolioService) DeletePortfolioItem(db *gorm.DB, userID, itemID string) error {
-	// ✅ Начинаем транзакцию из переданного 'db'
+func (s *portfolioService) DeletePortfolioItem(ctx context.Context, db *gorm.DB, userID, itemID string) error {
 	tx := db.Begin()
 	if tx.Error != nil {
 		return apperrors.InternalError(tx.Error)
 	}
 	defer tx.Rollback()
 
-	// ✅ Передаем tx
 	item, err := s.portfolioRepo.FindPortfolioItemByID(tx, itemID)
 	if err != nil {
 		return handlePortfolioError(err)
 	}
 
-	// ✅ Передаем tx
 	modelProfile, err := s.profileRepo.FindModelProfileByUserID(tx, userID)
 	if err != nil || modelProfile.ID != item.ModelID {
 		return errors.New("access denied")
 	}
 
-	// ✅ Передаем tx
+	uploadID := item.UploadID
+
+	// 1. Удаляем PortfolioItem
 	if err := s.portfolioRepo.DeletePortfolioItem(tx, itemID); err != nil {
 		return apperrors.InternalError(err)
 	}
+
+	// 2. Делегируем удаление файла UploadService
+	if uploadID != "" {
+		if err := s.uploadService.DeleteUpload(ctx, tx, userID, uploadID); err != nil {
+			// Логируем, но не отменяем транзакцию,
+			// т.к. основная запись (PortfolioItem) уже удалена.
+			fmt.Printf("Failed to delete upload (%s) during portfolio item delete: %v\n", uploadID, err)
+		}
+	}
+
 	return tx.Commit().Error
 }
 
-// GetPortfolioStats - 'db' добавлен
-func (s *portfolioService) GetPortfolioStats(db *gorm.DB, modelID string) (*repositories.PortfolioStats, error) {
-	// ✅ Используем 'db' из параметра
+func (s *portfolioService) GetPortfolioStats(ctx context.Context, db *gorm.DB, modelID string) (*repositories.PortfolioStats, error) {
 	return s.portfolioRepo.GetPortfolioStats(db, modelID)
 }
 
-// TogglePortfolioVisibility - 'db' добавлен
-func (s *portfolioService) TogglePortfolioVisibility(db *gorm.DB, userID, itemID string, req *dto.PortfolioVisibilityRequest) error {
-	// ✅ Начинаем транзакцию из переданного 'db'
+func (s *portfolioService) TogglePortfolioVisibility(ctx context.Context, db *gorm.DB, userID, itemID string, req *dto.PortfolioVisibilityRequest) error {
 	tx := db.Begin()
 	if tx.Error != nil {
 		return apperrors.InternalError(tx.Error)
 	}
 	defer tx.Rollback()
 
-	// ✅ Передаем tx
 	item, err := s.portfolioRepo.FindPortfolioItemByID(tx, itemID)
 	if err != nil {
 		return handlePortfolioError(err)
 	}
 
-	// ✅ Передаем tx
 	modelProfile, err := s.profileRepo.FindModelProfileByUserID(tx, userID)
 	if err != nil || modelProfile.ID != item.ModelID {
 		return errors.New("access denied")
 	}
 
-	// ✅ Передаем tx
-	upload, err := s.portfolioRepo.FindUploadByID(tx, item.UploadID)
-	if err != nil {
-		return handlePortfolioError(err)
-	}
-
-	upload.IsPublic = req.IsPublic
-	// ✅ Передаем tx
-	if err := s.portfolioRepo.UpdateUpload(tx, upload); err != nil {
+	// ▼▼▼ ИСПРАВЛЕНО: Обновляем 'portfolio_items', а не 'uploads' ▼▼▼
+	if err := s.portfolioRepo.UpdatePortfolioItemVisibility(tx, itemID, req.IsPublic); err != nil {
 		return apperrors.InternalError(err)
 	}
+	// ▲▲▲ ИСПРАВЛЕНО ▲▲▲
+
+	// (Логика обновления upload.IsPublic удалена, т.к. это неверно)
+
 	return tx.Commit().Error
 }
 
-// Upload operations
-
-// UploadFile - 'db' добавлен
-func (s *portfolioService) UploadFile(db *gorm.DB, userID string, req *dto.UploadRequest, file *multipart.FileHeader) (*dto.UploadResponse, error) {
-	// ✅ Начинаем транзакцию из переданного 'db'
-	tx := db.Begin()
-	if tx.Error != nil {
-		return nil, apperrors.InternalError(tx.Error)
-	}
-	defer tx.Rollback()
-
-	// ✅ Передаем tx
-	if err := s.validateEntityAccess(tx, userID, req.EntityType, req.EntityID); err != nil {
-		return nil, err
-	}
-
-	// ✅ Передаем tx
-	upload, err := s.createUploadRecord(tx, userID, file, req)
-	if err != nil {
-		return nil, err
-	}
-
-	// --- Внешнее I/O ---
-	ctx := context.TODO()
-	src, err := file.Open()
-	if err != nil {
-		return nil, fmt.Errorf("failed to open uploaded file: %w", err)
-	}
-	defer src.Close()
-
-	if err := s.storage.Save(ctx, upload.Path, src, upload.MimeType); err != nil {
-		return nil, fmt.Errorf("failed to save file to storage: %w", err)
-	}
-	// --- Конец I/O ---
-
-	// ✅ Коммитим транзакцию
-	if err := tx.Commit().Error; err != nil {
-		s.storage.Delete(ctx, upload.Path)
-		return nil, apperrors.InternalError(err)
-	}
-
-	if strings.HasPrefix(upload.MimeType, "image/") {
-		go s.generateResizedVersions(upload.Path, file)
-	}
-
-	return s.buildUploadResponse(upload), nil
-}
-
-// GetUpload - 'db' добавлен
-func (s *portfolioService) GetUpload(db *gorm.DB, uploadID string) (*models.Upload, error) {
-	// ✅ Используем 'db' из параметра
-	upload, err := s.portfolioRepo.FindUploadByID(db, uploadID)
-	if err != nil {
-		return nil, handlePortfolioError(err)
-	}
-	return upload, nil
-}
-
-// GetUserUploads - 'db' добавлен
-func (s *portfolioService) GetUserUploads(db *gorm.DB, userID string) ([]*models.Upload, error) {
-	// ✅ Используем 'db' из параметра
-	uploads, err := s.portfolioRepo.FindUploadsByUser(db, userID)
-	if err != nil {
-		return nil, apperrors.InternalError(err)
-	}
-
-	var result []*models.Upload
-	for i := range uploads {
-		result = append(result, &uploads[i])
-	}
-	return result, nil
-}
-
-// GetEntityUploads - 'db' добавлен
-func (s *portfolioService) GetEntityUploads(db *gorm.DB, entityType, entityID string) ([]*models.Upload, error) {
-	// ✅ Используем 'db' из параметра
-	uploads, err := s.portfolioRepo.FindUploadsByEntity(db, entityType, entityID)
-	if err != nil {
-		return nil, apperrors.InternalError(err)
-	}
-
-	var result []*models.Upload
-	for i := range uploads {
-		result = append(result, &uploads[i])
-	}
-	return result, nil
-}
-
-// DeleteUpload - 'db' добавлен
-func (s *portfolioService) DeleteUpload(db *gorm.DB, userID, uploadID string) error {
-	// ✅ Начинаем транзакцию из переданного 'db'
-	tx := db.Begin()
-	if tx.Error != nil {
-		return apperrors.InternalError(tx.Error)
-	}
-	defer tx.Rollback()
-
-	// ✅ Передаем tx
-	upload, err := s.portfolioRepo.FindUploadByID(tx, uploadID)
-	if err != nil {
-		return handlePortfolioError(err)
-	}
-
-	if upload.UserID != userID {
-		return errors.New("access denied")
-	}
-
-	// ✅ Передаем tx
-	if err := s.portfolioRepo.DeleteUpload(tx, uploadID); err != nil {
-		return apperrors.InternalError(err)
-	}
-
-	// ✅ Коммитим транзакцию
-	if err := tx.Commit().Error; err != nil {
-		return apperrors.InternalError(err)
-	}
-
-	// --- Внешнее I/O (ПОСЛЕ коммита) ---
-	ctx := context.TODO()
-	if err := s.storage.Delete(ctx, upload.Path); err != nil {
-		fmt.Printf("Failed to delete file from storage: %v\n", err)
-	}
-	if strings.HasPrefix(upload.MimeType, "image/") {
-		s.deleteResizedVersions(upload.Path)
-	}
-	// --- Конец I/O ---
-
-	return nil
-}
-
-// GetUserStorageUsage - 'db' добавлен
-func (s *portfolioService) GetUserStorageUsage(db *gorm.DB, userID string) (*dto.StorageUsageResponse, error) {
-	// ✅ Используем 'db' из параметра
-	used, err := s.portfolioRepo.GetUserStorageUsage(db, userID)
-	if err != nil {
-		return nil, apperrors.InternalError(err)
-	}
-
-	return &dto.StorageUsageResponse{
-		Used:  used,
-		Limit: s.fileConfig.MaxUserStorage,
-	}, nil
-}
+// ▼▼▼ УДАЛЕНО: Все операции Upload теперь в UploadService ▼▼▼
+// func (s *portfolioService) UploadFile(...)
+// func (s *portfolioService) GetUpload(...)
+// func (s *portfolioService) GetUserUploads(...)
+// ... и т.д.
+// ▲▲▲ УДАЛЕНО ▲▲▲
 
 // Combined operations
 
-// CreatePortfolioWithUpload - 'db' добавлен
-func (s *portfolioService) CreatePortfolioWithUpload(db *gorm.DB, userID string, req *dto.CreatePortfolioRequest, file *multipart.FileHeader) (*dto.PortfolioResponse, error) {
-	// ✅ Передаем 'db'
-	return s.CreatePortfolioItem(db, userID, req, file)
-}
-
-// DeletePortfolioWithUpload - 'db' добавлен
-func (s *portfolioService) DeletePortfolioWithUpload(db *gorm.DB, userID, itemID string) error {
-	// ✅ Начинаем транзакцию из переданного 'db'
-	tx := db.Begin()
-	if tx.Error != nil {
-		return apperrors.InternalError(tx.Error)
-	}
-	defer tx.Rollback()
-
-	// ✅ Передаем tx
-	item, err := s.portfolioRepo.FindPortfolioItemByID(tx, itemID)
-	if err != nil {
-		return handlePortfolioError(err)
-	}
-
-	// ✅ Передаем tx
-	modelProfile, err := s.profileRepo.FindModelProfileByUserID(tx, userID)
-	if err != nil || modelProfile.ID != item.ModelID {
-		return errors.New("access denied")
-	}
-
-	// ✅ Передаем tx
-	upload, err := s.portfolioRepo.FindUploadByID(tx, item.UploadID)
-	if err != nil {
-		return handlePortfolioError(err)
-	}
-
-	// ✅ Передаем tx
-	if err := s.portfolioRepo.DeletePortfolioItemWithUpload(tx, itemID); err != nil {
-		return apperrors.InternalError(err)
-	}
-
-	// ✅ Коммитим транзакцию
-	if err := tx.Commit().Error; err != nil {
-		return apperrors.InternalError(err)
-	}
-
-	// --- Внешнее I/O (ПОСЛЕ коммита) ---
-	ctx := context.TODO()
-	if err := s.storage.Delete(ctx, upload.Path); err != nil {
-		fmt.Printf("Failed to delete file from storage: %v\n", err)
-	}
-	if strings.HasPrefix(upload.MimeType, "image/") {
-		s.deleteResizedVersions(upload.Path)
-	}
-	// --- Конец I/O ---
-
-	return nil
-}
-
-// GetFeaturedPortfolio - 'db' добавлен
-func (s *portfolioService) GetFeaturedPortfolio(db *gorm.DB, limit int) (*dto.PortfolioListResponse, error) {
-	// ✅ Используем 'db' из параметра
+func (s *portfolioService) GetFeaturedPortfolio(ctx context.Context, db *gorm.DB, limit int) (*dto.PortfolioListResponse, error) {
 	items, err := s.portfolioRepo.FindFeaturedPortfolioItems(db, limit)
 	if err != nil {
 		return nil, apperrors.InternalError(err)
@@ -565,15 +324,7 @@ func (s *portfolioService) GetFeaturedPortfolio(db *gorm.DB, limit int) (*dto.Po
 
 	var responses []*dto.PortfolioResponse
 	for _, item := range items {
-		var upload *models.Upload
-		if item.Upload != nil {
-			upload = item.Upload
-		} else {
-			// ✅ Используем 'db' из параметра
-			upload, _ = s.portfolioRepo.FindUploadByID(db, item.UploadID)
-		}
-		// ✅ Используем 'db' из параметра
-		responses = append(responses, s.buildPortfolioResponse(db, &item, upload))
+		responses = append(responses, s.buildPortfolioResponse(db, &item))
 	}
 
 	return &dto.PortfolioListResponse{
@@ -582,9 +333,7 @@ func (s *portfolioService) GetFeaturedPortfolio(db *gorm.DB, limit int) (*dto.Po
 	}, nil
 }
 
-// GetRecentPortfolio - 'db' добавлен
-func (s *portfolioService) GetRecentPortfolio(db *gorm.DB, limit int) (*dto.PortfolioListResponse, error) {
-	// ✅ Используем 'db' из параметра
+func (s *portfolioService) GetRecentPortfolio(ctx context.Context, db *gorm.DB, limit int) (*dto.PortfolioListResponse, error) {
 	items, err := s.portfolioRepo.FindRecentPortfolioItems(db, limit)
 	if err != nil {
 		return nil, apperrors.InternalError(err)
@@ -592,15 +341,7 @@ func (s *portfolioService) GetRecentPortfolio(db *gorm.DB, limit int) (*dto.Port
 
 	var responses []*dto.PortfolioResponse
 	for _, item := range items {
-		var upload *models.Upload
-		if item.Upload != nil {
-			upload = item.Upload
-		} else {
-			// ✅ Используем 'db' из параметра
-			upload, _ = s.portfolioRepo.FindUploadByID(db, item.UploadID)
-		}
-		// ✅ Используем 'db' из параметра
-		responses = append(responses, s.buildPortfolioResponse(db, &item, upload))
+		responses = append(responses, s.buildPortfolioResponse(db, &item))
 	}
 
 	return &dto.PortfolioListResponse{
@@ -609,156 +350,26 @@ func (s *portfolioService) GetRecentPortfolio(db *gorm.DB, limit int) (*dto.Port
 	}, nil
 }
 
-// Admin operations
-
-// CleanOrphanedUploads - 'db' добавлен
-func (s *portfolioService) CleanOrphanedUploads(db *gorm.DB) error {
-	// ✅ Начинаем транзакцию из переданного 'db'
-	tx := db.Begin()
-	if tx.Error != nil {
-		return apperrors.InternalError(tx.Error)
-	}
-	defer tx.Rollback()
-
-	// ✅ Передаем tx
-	if err := s.portfolioRepo.CleanOrphanedUploads(tx); err != nil {
-		return apperrors.InternalError(err)
-	}
-	return tx.Commit().Error
-}
-
-// GetPlatformUploadStats - 'db' добавлен
-func (s *portfolioService) GetPlatformUploadStats(db *gorm.DB) (*dto.UploadStats, error) {
-	// ✅ Используем 'db' из параметра
-	// TODO: Реализовать s.portfolioRepo.GetPlatformUploadStats(db)
-	return &dto.UploadStats{
-		TotalUploads: 0,
-		TotalSize:    0,
-		ByFileType:   make(map[string]int64),
-		ByUsage:      make(map[string]int64),
-		ActiveUsers:  0,
-		StorageUsed:  0,
-		StorageLimit: 0,
-	}, nil
-}
+// ▼▼▼ УДАЛЕНО: Admin operations теперь в UploadService ▼▼▼
+// func (s *portfolioService) CleanOrphanedUploads(...)
+// func (s *portfolioService) GetPlatformUploadStats(...)
+// ▲▲▲ УДАЛЕНО ▲▲▲
 
 // Helper methods
 
-// (createUploadRecord - 'db' уже был)
-func (s *portfolioService) createUploadRecord(db *gorm.DB, userID string, file *multipart.FileHeader, req *dto.UploadRequest) (*models.Upload, error) {
-	if file.Size > s.fileConfig.MaxSize {
-		return nil, apperrors.ErrFileTooLarge
-	}
-	mimeType := file.Header.Get("Content-Type")
-	if mimeType == "" {
-		mimeType = getMimeTypeFromFilename(file.Filename)
-	}
-	if !s.isValidFileType(mimeType) {
-		return nil, apperrors.ErrInvalidFileType
-	}
-	if !s.isValidUsage(req.EntityType, req.Usage) {
-		return nil, apperrors.ErrInvalidUploadUsage
-	}
+// ▼▼▼ УДАЛЕНО: Все хелперы загрузки ▼▼▼
+// func (s *portfolioService) createUploadRecord(...)
+// func (s *portfolioService) isValidFileType(...)
+// func (s *portfolioService) isValidUsage(...)
+// func (s *portfolioService) validateEntityAccess(...)
+// func (s *portfolioService) generateRandomString(...)
+// func (s *portfolioService) generateFileURL(...)
+// func (s *portfolioService) generateResizedVersions(...)
+// func (s *portfolioService) deleteResizedVersions(...)
+// ▲▲▲ УДАЛЕНО ▲▲▲
 
-	// ✅ Передаем db
-	currentUsage, err := s.portfolioRepo.GetUserStorageUsage(db, userID)
-	if err != nil {
-		return nil, apperrors.InternalError(err)
-	}
-	if currentUsage+file.Size > s.fileConfig.MaxUserStorage {
-		return nil, apperrors.ErrStorageLimitExceeded
-	}
-
-	fileExt := filepath.Ext(file.Filename)
-	fileName := fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), s.generateRandomString(8), fileExt)
-	filePath := filepath.Join(req.EntityType, fileName)
-
-	upload := &models.Upload{
-		UserID:     userID,
-		EntityType: req.EntityType,
-		EntityID:   req.EntityID,
-		FileType:   s.getFileTypeFromMIME(mimeType),
-		Usage:      req.Usage,
-		Path:       filePath,
-		MimeType:   mimeType,
-		Size:       file.Size,
-		IsPublic:   req.IsPublic,
-	}
-
-	// ✅ Передаем db
-	if err := s.portfolioRepo.CreateUpload(db, upload); err != nil {
-		return nil, apperrors.InternalError(err)
-	}
-	return upload, nil
-}
-
-// (isValidFileType - чистая функция, без изменений)
-func (s *portfolioService) isValidFileType(mimeType string) bool {
-	for _, allowedType := range s.fileConfig.AllowedTypes {
-		if mimeType == allowedType {
-			return true
-		}
-	}
-	return false
-}
-
-// (isValidUsage - чистая функция, без изменений)
-func (s *portfolioService) isValidUsage(entityType, usage string) bool {
-	allowedUsages, ok := s.fileConfig.AllowedUsages[entityType]
-	if !ok {
-		return false
-	}
-	for _, allowedUsage := range allowedUsages {
-		if usage == allowedUsage {
-			return true
-		}
-	}
-	return false
-}
-
-// (getFileTypeFromMIME - чистая функция, без изменений)
-func (s *portfolioService) getFileTypeFromMIME(mimeType string) string {
-	if strings.HasPrefix(mimeType, "image/") {
-		return "image"
-	} else if strings.HasPrefix(mimeType, "video/") {
-		return "video"
-	}
-	return "file"
-}
-
-// (validateEntityAccess - 'db' уже был)
-func (s *portfolioService) validateEntityAccess(db *gorm.DB, userID, entityType, entityID string) error {
-	switch entityType {
-	case "portfolio":
-		if entityID != "" {
-			// ✅ Передаем db
-			item, err := s.portfolioRepo.FindPortfolioItemByID(db, entityID)
-			if err != nil {
-				return errors.New("portfolio item not found")
-			}
-			// ✅ Передаем db
-			modelProfile, err := s.profileRepo.FindModelProfileByUserID(db, userID)
-			if err != nil || modelProfile.ID != item.ModelID {
-				return errors.New("access denied")
-			}
-		}
-	case "model_profile":
-		if entityID != "" {
-			// ✅ Передаем db
-			profile, err := s.profileRepo.FindModelProfileByID(db, entityID)
-			if err != nil {
-				return errors.New("profile not found")
-			}
-			if profile.UserID != userID {
-				return errors.New("access denied")
-			}
-		}
-	}
-	return nil
-}
-
-// (buildPortfolioResponse - 'db' уже был)
-func (s *portfolioService) buildPortfolioResponse(db *gorm.DB, item *models.PortfolioItem, upload *models.Upload) *dto.PortfolioResponse {
+// buildPortfolioResponse - Упрощено
+func (s *portfolioService) buildPortfolioResponse(db *gorm.DB, item *models.PortfolioItem) *dto.PortfolioResponse {
 	response := &dto.PortfolioResponse{
 		ID:          item.ID,
 		ModelID:     item.ModelID,
@@ -769,94 +380,33 @@ func (s *portfolioService) buildPortfolioResponse(db *gorm.DB, item *models.Port
 		UpdatedAt:   item.UpdatedAt,
 	}
 
-	if upload == nil && item.UploadID != "" {
-		// ✅ Передаем db
-		upload, _ = s.portfolioRepo.FindUploadByID(db, item.UploadID)
-	}
-
-	if upload != nil {
-		response.Upload = s.buildUploadResponse(upload)
+	// Используем 'item.Upload', который был получен через Preload
+	if item.Upload != nil {
+		// (buildUploadResponse теперь ожидает models.Upload, а не uploadService.buildUploadResponse)
+		response.Upload = &dto.UploadResponse{
+			ID:         item.Upload.ID,
+			UserID:     item.Upload.UserID,
+			EntityType: item.Upload.EntityType,
+			EntityID:   item.Upload.EntityID,
+			FileType:   item.Upload.FileType,
+			Usage:      item.Upload.Usage,
+			URL:        item.Upload.Path, // (Примечание: URL теперь должен генерироваться UploadService.GetURL)
+			MimeType:   item.Upload.MimeType,
+			Size:       item.Upload.Size,
+			IsPublic:   item.Upload.IsPublic,
+			CreatedAt:  item.Upload.CreatedAt,
+		}
 	}
 
 	return response
 }
 
-// (buildUploadResponse - чистая функция, без изменений)
-func (s *portfolioService) buildUploadResponse(upload *models.Upload) *dto.UploadResponse {
-	return &dto.UploadResponse{
-		ID:         upload.ID,
-		UserID:     upload.UserID,
-		EntityType: upload.EntityType,
-		EntityID:   upload.EntityID,
-		FileType:   upload.FileType,
-		Usage:      upload.Usage,
-		URL:        s.generateFileURL(upload),
-		MimeType:   upload.MimeType,
-		Size:       upload.Size,
-		IsPublic:   upload.IsPublic,
-		CreatedAt:  upload.CreatedAt,
-	}
-}
-
-// (generateRandomString - чистая функция, без изменений)
-func (s *portfolioService) generateRandomString(length int) string {
-	bytes := make([]byte, length)
-	if _, err := rand.Read(bytes); err != nil {
-		return fmt.Sprintf("%d", time.Now().UnixNano())
-	}
-	return hex.EncodeToString(bytes)[:length]
-}
-
-// (generateFileURL - чистая функция, без изменений)
-func (s *portfolioService) generateFileURL(upload *models.Upload) string {
-	ctx := context.TODO()
-	url, err := s.storage.GetURL(ctx, upload.Path)
-	if err != nil {
-		return fmt.Sprintf("/api/v1/files/%s", upload.ID)
-	}
-	return url
-}
-
-// (generateResizedVersions - чистая функция, без изменений)
-func (s *portfolioService) generateResizedVersions(originalPath string, file *multipart.FileHeader) {
-	ctx := context.TODO()
-	sizes := []imageprocessor.ImageSize{
-		imageprocessor.SizeThumbnail,
-		imageprocessor.SizeSmall,
-		imageprocessor.SizeMedium,
-	}
-	for _, size := range sizes {
-		src, err := file.Open()
-		if err != nil {
-			continue
-		}
-		format := strings.TrimPrefix(filepath.Ext(originalPath), ".")
-		resized, err := s.imageProc.ProcessImage(src, size, format)
-		src.Close()
-		if err != nil {
-			continue
-		}
-		resizedPath := getResizedPath(originalPath, size.Name)
-		mimeType := "image/" + format
-		s.storage.Save(ctx, resizedPath, resized, mimeType)
-	}
-}
-
-// (deleteResizedVersions - чистая функция, без изменений)
-func (s *portfolioService) deleteResizedVersions(originalPath string) {
-	ctx := context.TODO()
-	sizes := []string{"thumbnail", "small", "medium"}
-	for _, size := range sizes {
-		resizedPath := getResizedPath(originalPath, size)
-		s.storage.Delete(ctx, resizedPath)
-	}
-}
+// buildUploadResponse - Удален (теперь в 'buildPortfolioResponse')
 
 // (Вспомогательный хелпер для ошибок - без изменений)
 func handlePortfolioError(err error) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) ||
-		errors.Is(err, repositories.ErrPortfolioItemNotFound) ||
-		errors.Is(err, repositories.ErrUploadNotFound) {
+		errors.Is(err, repositories.ErrPortfolioItemNotFound) {
 		return apperrors.ErrNotFound(err)
 	}
 	if errors.Is(err, repositories.ErrUserNotFound) {
