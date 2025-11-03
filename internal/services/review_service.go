@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+
 	"gorm.io/gorm"
 
 	"mwork_backend/internal/models"
@@ -106,26 +107,43 @@ func (s *reviewService) CreateReview(db *gorm.DB, userID string, req *dto.Create
 	}
 
 	// ✅ Передаем tx
-	employer, err := s.userRepo.FindByID(tx, req.EmployerID)
+	// 1. Находим профиль Работодателя по ID пользователя (из токена)
+	employerProfile, err := s.profileRepo.FindEmployerProfileByUserID(tx, req.EmployerID)
 	if err != nil {
-		return nil, errors.New("employer not found")
-	}
-	// ✅ Передаем tx
-	model, err := s.userRepo.FindByID(tx, req.ModelID)
-	if err != nil {
-		return nil, errors.New("model not found")
+		if errors.Is(err, repositories.ErrProfileNotFound) {
+			return nil, apperrors.NewForbiddenError("Employer profile not found")
+		}
+		return nil, apperrors.InternalError(err)
 	}
 
-	if employer.Role != models.UserRoleEmployer {
-		return nil, errors.New("only employers can create reviews")
+	// ✅ Передаем tx
+	// 2. Находим профиль Модели по ID профиля (из JSON)
+	modelProfile, err := s.profileRepo.FindModelProfileByID(tx, req.ModelID)
+	if err != nil {
+		if errors.Is(err, repositories.ErrProfileNotFound) {
+			return nil, apperrors.NewNotFoundError("Model profile not found") // 404, т.к. ID из запроса
+		}
+		return nil, apperrors.InternalError(err)
 	}
-	if model.Role != models.UserRoleModel {
-		return nil, errors.New("can only review models")
+
+	// 3. Проверяем, что это не отзыв самому себе
+	if employerProfile.UserID == modelProfile.UserID {
+		return nil, ErrSelfReviewNotAllowed
 	}
 	// --- Конец валидации ---
 
-	if userID != req.EmployerID {
-		return nil, errors.New("only the employer can create reviews")
+	if userID != req.EmployerID { // userID - это ID пользователя (из токена), req.EmployerID тоже
+		return nil, apperrors.NewForbiddenError("User ID mismatch")
+	}
+
+	// ⭐️ 1. НАМ НУЖЕН ЮЗЕР, ЧТОБЫ УЗНАТЬ ЕГО РОЛЬ
+	// ✅ Передаем tx
+	employerUser, err := s.userRepo.FindByID(tx, req.EmployerID)
+	if err != nil {
+		if errors.Is(err, repositories.ErrUserNotFound) {
+			return nil, apperrors.NewNotFoundError("Employer user account not found")
+		}
+		return nil, apperrors.InternalError(err)
 	}
 
 	var castingID string
@@ -133,17 +151,27 @@ func (s *reviewService) CreateReview(db *gorm.DB, userID string, req *dto.Create
 		castingID = *req.CastingID
 	}
 	// ✅ Передаем tx
-	canReview, err := s.CanUserReview(tx, req.EmployerID, req.ModelID, castingID)
-	if err != nil {
-		return nil, apperrors.InternalError(err)
-	}
-	if !canReview {
-		return nil, errors.New("cannot create review for this casting")
+	// ❗️ Важно: CanUserReview должен принимать ID *профилей*, а не *пользователей*.
+	//    Убедись, что s.reviewRepo.CanCreateReview ожидает ID профилей.
+	//    Если он ожидает ID *пользователей*, используй employerProfile.UserID и modelProfile.UserID
+	// ⭐️ 2. ПРОПУСКАЕМ ПРОВЕРКУ ДЛЯ АДМИНОВ
+	if employerUser.Role != models.UserRoleAdmin {
+		canReview, err := s.CanUserReview(tx, employerProfile.ID, modelProfile.ID, castingID)
+
+		// ⭐️ 3. ИСПРАВЛЯЕМ ОШИБКУ 500
+		// Если CanUserReview вернул ошибку (напр. "кастинг не закрыт"),
+		// это 403 Forbidden, а НЕ 500 Internal.
+		if err != nil {
+			return nil, apperrors.NewForbiddenError(err.Error())
+		}
+		if !canReview {
+			return nil, apperrors.NewForbiddenError("Review for this model/casting already exists or is not allowed")
+		}
 	}
 
 	review := &models.Review{
-		ModelID:    req.ModelID,
-		EmployerID: req.EmployerID,
+		ModelID:    modelProfile.ID,
+		EmployerID: employerProfile.ID,
 		CastingID:  req.CastingID,
 		Rating:     req.Rating,
 		ReviewText: req.ReviewText,
@@ -159,7 +187,7 @@ func (s *reviewService) CreateReview(db *gorm.DB, userID string, req *dto.Create
 	}
 
 	// ✅ Отправляем уведомление *после* коммита, передаем 'db' (пул)
-	go s.sendReviewNotification(db, req.ModelID, req.CastingID)
+	go s.sendReviewNotification(db, modelProfile.UserID, req.CastingID)
 
 	// ✅ Возвращаем полный DTO, используя GetReview (и передавая 'db')
 	return s.GetReview(db, review.ID)

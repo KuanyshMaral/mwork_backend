@@ -94,24 +94,43 @@ func (s *CastingServiceImpl) CreateCasting(db *gorm.DB, req *dto.CreateCastingRe
 	}
 	defer tx.Rollback()
 
+	employerUserID := req.EmployerID
+
 	// ✅ Передаем tx
+	// 1. Находим ЮЗЕРА, чтобы проверить роль
 	employer, err := s.userRepo.FindByID(tx, req.EmployerID)
 	if err != nil {
 		return handleCastingError(err)
 	}
 
-	if employer.Role != models.UserRoleEmployer {
+	// 2. Проверяем роль
+	if employer.Role != models.UserRoleEmployer && employer.Role != models.UserRoleAdmin {
 		return apperrors.ErrInsufficientPermissions
 	}
 
-	// ✅ Передаем tx
-	canPublish, err := s.subscriptionRepo.CanUserPublish(tx, req.EmployerID)
+	// Нам нужен ID *профиля* (employer_profiles.id), а не ID *пользователя* (users.id)
+	employerProfile, err := s.profileRepo.FindEmployerProfileByUserID(tx, employerUserID)
 	if err != nil {
+		if errors.Is(err, repositories.ErrProfileNotFound) {
+			// Это может случиться, если у юзера нет профиля (хотя у админа он теперь есть)
+			return apperrors.NewForbiddenError("User profile not found. Cannot create casting.")
+		}
 		return apperrors.InternalError(err)
 	}
 
-	if !canPublish {
-		return apperrors.ErrSubscriptionLimit
+	// ✅ Передаем tx
+	// 4. Проверяем подписку (пропускаем для админа)
+	if employer.Role != models.UserRoleAdmin {
+		canPublish, err := s.subscriptionRepo.CanUserPublish(tx, employerUserID)
+		if err != nil {
+			if errors.Is(err, repositories.ErrSubscriptionNotFound) {
+				return apperrors.ErrSubscriptionLimit
+			}
+			return apperrors.InternalError(err)
+		}
+		if !canPublish {
+			return apperrors.ErrSubscriptionLimit
+		}
 	}
 
 	categoriesJSON, err := json.Marshal(req.Categories)
@@ -130,7 +149,7 @@ func (s *CastingServiceImpl) CreateCasting(db *gorm.DB, req *dto.CreateCastingRe
 	}
 
 	casting := &models.Casting{
-		EmployerID:      req.EmployerID,
+		EmployerID:      employerProfile.ID,
 		Title:           req.Title,
 		Description:     req.Description,
 		PaymentMin:      req.PaymentMin,
@@ -161,8 +180,12 @@ func (s *CastingServiceImpl) CreateCasting(db *gorm.DB, req *dto.CreateCastingRe
 	}
 
 	// ✅ Передаем tx
-	if err := s.subscriptionRepo.IncrementSubscriptionUsage(tx, req.EmployerID, "publications"); err != nil {
-		return apperrors.InternalError(err)
+	// 5. ⭐️ Увеличиваем счетчик подписки (ТОЛЬКО если это не админ)
+	if employer.Role != models.UserRoleAdmin {
+		// ✅ Передаем tx
+		if err := s.subscriptionRepo.IncrementSubscriptionUsage(tx, req.EmployerID, "publications"); err != nil {
+			return apperrors.InternalError(err)
+		}
 	}
 
 	return tx.Commit().Error

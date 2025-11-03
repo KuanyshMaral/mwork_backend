@@ -42,7 +42,7 @@ func (h *CastingHandler) RegisterRoutes(r *gin.RouterGroup) {
 
 	// Protected routes - Employer only
 	castings := r.Group("/castings")
-	castings.Use(middleware.AuthMiddleware(), middleware.RoleMiddleware(models.UserRoleEmployer))
+	castings.Use(middleware.AuthMiddleware(), middleware.RequireRoles(models.UserRoleEmployer, models.UserRoleAdmin))
 	{
 		castings.POST("", h.CreateCasting)
 		castings.GET("/my", h.GetMyCastings)

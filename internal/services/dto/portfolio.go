@@ -7,10 +7,10 @@ import (
 // Portfolio Request DTOs
 
 type CreatePortfolioRequest struct {
-	ModelID     string `json:"model_id" validate:"-"` // Set by server from auth
-	Title       string `json:"title" validate:"required,min=3,max=100"`
-	Description string `json:"description" validate:"omitempty,max=1000"`
-	OrderIndex  int    `json:"order_index" validate:"omitempty,min=0"`
+	ModelID     string `json:"model_id" form:"model_id" validate:"omitempty,uuid"`
+	Title       string `json:"title" form:"title" validate:"required,min=3,max=100"`
+	Description string `json:"description" form:"description" validate:"omitempty,max=1000"`
+	OrderIndex  int    `json:"order_index" form:"order_index" validate:"omitempty,min=0"`
 }
 
 type UpdatePortfolioRequest struct {

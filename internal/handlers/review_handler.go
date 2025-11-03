@@ -39,7 +39,7 @@ func (h *ReviewHandler) RegisterRoutes(r *gin.RouterGroup) {
 
 	// Protected routes - Employer only
 	reviews := r.Group("/reviews")
-	reviews.Use(middleware.AuthMiddleware(), middleware.RoleMiddleware(models.UserRoleEmployer))
+	reviews.Use(middleware.AuthMiddleware(), middleware.RequireRoles(models.UserRoleEmployer, models.UserRoleAdmin))
 	{
 		reviews.POST("", h.CreateReview)
 		reviews.GET("/my", h.GetMyReviews)

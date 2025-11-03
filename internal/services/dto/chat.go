@@ -12,7 +12,7 @@ type CreateDialogRequest struct {
 	Title     *string  `json:"title,omitempty" validate:"omitempty,max=100"`
 	ImageURL  *string  `json:"image_url,omitempty" validate:"omitempty,url"`
 	CastingID *string  `json:"casting_id,omitempty"`
-	UserIDs   []string `json:"user_ids" validate:"required,min=1"`
+	UserIDs   []string `json:"participant_ids" validate:"required,min=1"` // 👈 ИСПРАВЛЕНО
 }
 
 type UpdateDialogRequest struct {

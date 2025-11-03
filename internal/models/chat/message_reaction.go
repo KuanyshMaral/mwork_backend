@@ -9,3 +9,8 @@ type MessageReaction struct {
 	Emoji     string `gorm:"type:varchar(10);not null"`
 	CreatedAt time.Time
 }
+
+// ✅ ИСПРАВЛЕНИЕ: Указываем схему "chat"
+func (MessageReaction) TableName() string {
+	return "chat.message_reactions"
+}

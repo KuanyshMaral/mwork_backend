@@ -15,3 +15,8 @@ type Dialog struct {
 	Participants []DialogParticipant `gorm:"foreignKey:DialogID"`
 	LastMessage  *Message            `gorm:"foreignKey:LastMessageID"`
 }
+
+// ✅ ИСПРАВЛЕНИЕ: Указываем схему "chat"
+func (Dialog) TableName() string {
+	return "chat.dialogs"
+}

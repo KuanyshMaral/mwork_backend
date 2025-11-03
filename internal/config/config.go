@@ -4,119 +4,146 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
-	"gopkg.in/yaml.v2"
+	"github.com/joho/godotenv" // Import the godotenv package
 )
 
 type Config struct {
 	Server struct {
-		Host string `yaml:"host"`
-		Port int    `yaml:"port"`
-		Env  string `yaml:"env"`
-	} `yaml:"server"`
+		Host string
+		Port int
+		Env  string
+	}
 
 	Database struct {
-		DSN string `yaml:"url"`
-	} `yaml:"database"`
+		DSN string
+	}
 
 	Email struct {
-		SMTPHost     string `yaml:"smtp_host"`
-		SMTPPort     int    `yaml:"smtp_port"`
-		SMTPUsername string `yaml:"smtp_user"`
-		SMTPPassword string `yaml:"smtp_password"`
-		FromEmail    string `yaml:"from_email"`
-		FromName     string `yaml:"from_name"`
-		UseTLS       bool   `yaml:"use_tls"`
-		TemplatesDir string `yaml:"templates_dir"`
-	} `yaml:"email"`
+		SMTPHost     string
+		SMTPPort     int
+		SMTPUsername string
+		SMTPPassword string
+		FromEmail    string
+		FromName     string
+		UseTLS       bool
+		TemplatesDir string
+	}
 
 	JWT struct {
-		Secret string `yaml:"secret"`
-		TTL    int    `yaml:"ttl"`
-	} `yaml:"jwt"`
+		Secret string
+		TTL    int
+	}
 
 	Storage struct {
-		Type       string `yaml:"type"`        // local, s3, cloudflare_r2
-		BasePath   string `yaml:"base_path"`   // For local storage
-		BaseURL    string `yaml:"base_url"`    // Public URL base
-		Bucket     string `yaml:"bucket"`      // For S3/R2
-		Region     string `yaml:"region"`      // For S3
-		AccessKey  string `yaml:"access_key"`  // For S3/R2
-		SecretKey  string `yaml:"secret_key"`  // For S3/R2
-		Endpoint   string `yaml:"endpoint"`    // For R2 or custom S3
-		UseSSL     bool   `yaml:"use_ssl"`     // For S3/R2
-		PublicRead bool   `yaml:"public_read"` // Make files public
-	} `yaml:"storage"`
+		Type       string
+		BasePath   string
+		BaseURL    string
+		Bucket     string
+		Region     string
+		AccessKey  string
+		SecretKey  string
+		Endpoint   string
+		UseSSL     bool
+		PublicRead bool
+	}
 
 	Upload struct {
-		MaxSize        int64    `yaml:"max_size"`         // Max file size in bytes
-		MaxUserStorage int64    `yaml:"max_user_storage"` // Max storage per user
-		AllowedTypes   []string `yaml:"allowed_types"`    // Allowed MIME types
-		ImageQuality   int      `yaml:"image_quality"`    // JPEG quality (1-100)
-	} `yaml:"upload"`
+		MaxSize        int64
+		MaxUserStorage int64
+		AllowedTypes   []string
+		ImageQuality   int
+	}
+
+	FirstAdminEmail    string `mapstructure:"FIRST_ADMIN_EMAIL"`
+	FirstAdminPassword string `mapstructure:"FIRST_ADMIN_PASSWORD"`
+}
+
+// This struct was implied by your initPortfolioFileConfig function.
+// I've added its definition here so the file is complete.
+type PortfolioFileConfigType struct {
+	MaxSize        int64
+	AllowedTypes   []string
+	StoragePath    string
+	MaxUserStorage int64
+	AllowedUsages  map[string][]string
 }
 
 var AppConfig *Config
 
 func LoadConfig() {
+	// Load .env file *before* reading any environment variables
+	// This will load variables from a .env file in the working directory
+	err := godotenv.Load()
+	if err != nil {
+		// It's okay if the .env file doesn't exist, we'll just use system env vars
+		log.Println("Warning: Could not load .env file. Using system environment variables only.")
+	} else {
+		log.Println("Loaded configuration from .env file")
+	}
+
 	var cfg Config
 
-	dbURL := os.Getenv("DATABASE_URL")
-	serverEnv := os.Getenv("SERVER_ENV")
-	portStr := os.Getenv("SERVER_PORT")
-	jwtSecret := os.Getenv("JWT_SECRET")
+	// Server Configuration
+	cfg.Server.Host = getEnv("SERVER_HOST", "localhost")
+	cfg.Server.Port = getEnvAsInt("SERVER_PORT", 4000)
+	cfg.Server.Env = getEnv("SERVER_ENV", "development")
 
-	if dbURL == "" {
-		log.Println("Загрузка из config.yaml (режим НЕ-тест)")
-
-		configPath := os.Getenv("CONFIG_PATH")
-		if configPath == "" {
-			configPath = "config/config.yaml"
-		}
-
-		f, err := os.Open(configPath)
-		if err != nil {
-			log.Fatalf("Failed to open config file at %s: %v", configPath, err)
-		}
-		defer f.Close()
-
-		decoder := yaml.NewDecoder(f)
-		if err := decoder.Decode(&cfg); err != nil {
-			log.Fatalf("Failed to parse config file at %s: %v", configPath, err)
-		}
-
-		AppConfig = &cfg
-		initPortfolioFileConfig()
-		return
+	// Database Configuration
+	cfg.Database.DSN = getEnv("DATABASE_DSN", "")
+	if cfg.Database.DSN == "" {
+		// This is the error you were seeing
+		log.Fatal("DATABASE_DSN environment variable is required (not found in .env or system env)")
 	}
 
-	log.Println("✅ Загрузка конфигурации из ПЕРЕМЕННЫХ ОКРУЖЕНИЯ (режим теста)")
+	// Email Configuration
+	cfg.Email.SMTPHost = getEnv("EMAIL_SMTP_HOST", "smtp.gmail.com")
+	cfg.Email.SMTPPort = getEnvAsInt("EMAIL_SMTP_PORT", 587)
+	cfg.Email.SMTPUsername = getEnv("EMAIL_SMTP_USER", "")
+	cfg.Email.SMTPPassword = getEnv("EMAIL_SMTP_PASSWORD", "")
+	cfg.Email.FromEmail = getEnv("EMAIL_FROM_EMAIL", "noreply@mwork.com")
+	cfg.Email.FromName = getEnv("EMAIL_FROM_NAME", "MWork")
+	cfg.Email.UseTLS = getEnvAsBool("EMAIL_USE_TLS", true)
+	cfg.Email.TemplatesDir = getEnv("EMAIL_TEMPLATES_DIR", "templates")
 
-	cfg.Database.DSN = dbURL
-	cfg.Server.Env = serverEnv
-	cfg.Server.Port, _ = strconv.Atoi(portStr)
-	cfg.JWT.Secret = jwtSecret
-	cfg.JWT.TTL = 60
+	// JWT Configuration
+	cfg.JWT.Secret = getEnv("JWT_SECRET", "")
+	if cfg.JWT.Secret == "" {
+		log.Fatal("JWT_SECRET environment variable is required (not found in .env or system env)")
+	}
+	cfg.JWT.TTL = getEnvAsInt("JWT_TTL", 1440) // 24 hours in minutes
 
-	cfg.Email.SMTPHost = "smtp.test.com"
-	cfg.Email.SMTPPort = 587
-	cfg.Email.FromEmail = "test@mwork.com"
-	cfg.Email.TemplatesDir = "templates"
+	// Storage Configuration
+	cfg.Storage.Type = getEnv("STORAGE_TYPE", "local")
+	cfg.Storage.BasePath = getEnv("STORAGE_BASE_PATH", "./uploads")
+	cfg.Storage.BaseURL = getEnv("STORAGE_BASE_URL", "/api/v1/files")
+	cfg.Storage.Bucket = getEnv("STORAGE_BUCKET", "")
+	cfg.Storage.Region = getEnv("STORAGE_REGION", "")
+	cfg.Storage.AccessKey = getEnv("STORAGE_ACCESS_KEY", "")
+	cfg.Storage.SecretKey = getEnv("STORAGE_SECRET_KEY", "")
+	cfg.Storage.Endpoint = getEnv("STORAGE_ENDPOINT", "")
+	cfg.Storage.UseSSL = getEnvAsBool("STORAGE_USE_SSL", false)
+	cfg.Storage.PublicRead = getEnvAsBool("STORAGE_PUBLIC_READ", true)
 
-	cfg.Storage.Type = "local"
-	cfg.Storage.BasePath = "./uploads"
-	cfg.Storage.BaseURL = "/api/v1/files"
-
-	cfg.Upload.MaxSize = 10 * 1024 * 1024         // 10MB
-	cfg.Upload.MaxUserStorage = 100 * 1024 * 1024 // 100MB
-	cfg.Upload.AllowedTypes = []string{
+	// Upload Configuration
+	cfg.Upload.MaxSize = getEnvAsInt64("UPLOAD_MAX_SIZE", 10485760)                 // 10MB
+	cfg.Upload.MaxUserStorage = getEnvAsInt64("UPLOAD_MAX_USER_STORAGE", 104857600) // 100MB
+	cfg.Upload.AllowedTypes = getEnvAsSlice("UPLOAD_ALLOWED_TYPES", []string{
 		"image/jpeg", "image/png", "image/gif", "image/webp",
 		"video/mp4", "video/quicktime",
-	}
-	cfg.Upload.ImageQuality = 85
+	})
+	cfg.Upload.ImageQuality = getEnvAsInt("UPLOAD_IMAGE_QUALITY", 85)
+
+	cfg.FirstAdminEmail = getEnv("FIRST_ADMIN_EMAIL", "")
+	cfg.FirstAdminPassword = getEnv("FIRST_ADMIN_PASSWORD", "")
 
 	AppConfig = &cfg
+
+	// Now this function will work correctly
 	initPortfolioFileConfig()
+
+	log.Printf("✅ Configuration loaded (env: %s)", cfg.Server.Env)
 }
 
 func initPortfolioFileConfig() {
@@ -136,4 +163,83 @@ func GetConfig() *Config {
 		LoadConfig()
 	}
 	return AppConfig
+}
+
+// getEnv retrieves a string from environment variables or returns a default value
+func getEnv(key string, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	return value
+}
+
+// getEnvAsInt retrieves an integer from environment variables or returns a default value
+func getEnvAsInt(key string, defaultValue int) int {
+	valueStr := os.Getenv(key)
+	if valueStr == "" {
+		return defaultValue
+	}
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		log.Printf("Warning: Invalid integer value for %s, using default: %d", key, defaultValue)
+		return defaultValue
+	}
+	return value
+}
+
+// getEnvAsInt64 retrieves an int64 from environment variables or returns a default value
+func getEnvAsInt64(key string, defaultValue int64) int64 {
+	valueStr := os.Getenv(key)
+	if valueStr == "" {
+		return defaultValue
+	}
+	value, err := strconv.ParseInt(valueStr, 10, 64)
+	if err != nil {
+		log.Printf("Warning: Invalid int64 value for %s, using default: %d", key, defaultValue)
+		return defaultValue
+	}
+	return value
+}
+
+// getEnvAsBool retrieves a boolean from environment variables or returns a default value
+func getEnvAsBool(key string, defaultValue bool) bool {
+	valueStr := os.Getenv(key)
+	if valueStr == "" {
+		return defaultValue
+	}
+	value, err := strconv.ParseBool(valueStr)
+	if err != nil {
+		log.Printf("Warning: Invalid boolean value for %s, using default: %t", key, defaultValue)
+		return defaultValue
+	}
+	return value
+}
+
+// getEnvAsSlice retrieves a comma-separated string from environment variables,
+// splits it into a slice, or returns a default value
+func getEnvAsSlice(key string, defaultValue []string) []string {
+	valueStr := os.Getenv(key)
+	if valueStr == "" {
+		return defaultValue
+	}
+	// Split by comma and trim spaces
+	values := strings.Split(valueStr, ",")
+	if len(values) == 0 {
+		return defaultValue
+	}
+
+	result := make([]string, 0, len(values))
+	for _, v := range values {
+		trimmedV := strings.TrimSpace(v)
+		if trimmedV != "" {
+			result = append(result, trimmedV)
+		}
+	}
+
+	if len(result) == 0 {
+		return defaultValue
+	}
+
+	return result
 }

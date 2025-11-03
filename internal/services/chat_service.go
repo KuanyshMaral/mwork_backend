@@ -449,16 +449,31 @@ func (s *chatService) SendMessage(ctx context.Context, db *gorm.DB, userID strin
 		return nil, apperrors.InternalError(tx.Error)
 	}
 	defer tx.Rollback()
-	hasAccess, err := s.chatRepo.IsUserInDialog(tx, req.DialogID, userID)
+
+	// 1. Находим пользователя, чтобы проверить роль
+	sender, err := s.userRepo.FindByID(tx, userID)
 	if err != nil {
-		return nil, apperrors.InternalError(err)
+		return nil, apperrors.ErrNotFound(errors.New("sender not found"))
 	}
-	if !hasAccess {
-		return nil, apperrors.ErrDialogAccessDenied
+
+	// 2. ⭐️⭐️⭐️ ЛОГИКА АДМИНСКОГО ДОСТУПА ⭐️⭐️⭐️
+	// Если это не Админ, мы должны проверить, что он является участником
+	if sender.Role != models.UserRoleAdmin {
+		hasAccess, err := s.chatRepo.IsUserInDialog(tx, req.DialogID, userID)
+		if err != nil {
+			return nil, apperrors.InternalError(err)
+		}
+		if !hasAccess {
+			return nil, apperrors.ErrDialogAccessDenied // 403 для не-админов
+		}
 	}
+	// ⭐️⭐️⭐️ Админ пропускает проверку hasAccess ⭐️⭐️⭐️
+
+	// 3. Продолжаем отправку сообщения для ВСЕХ, кто прошел (или обошел) проверку
 	if !isValidMessageType(req.Type) {
 		return nil, apperrors.ErrInvalidMessageType
 	}
+
 	message := &chat.Message{
 		DialogID:      req.DialogID,
 		SenderID:      userID,
@@ -687,19 +702,34 @@ func (s *chatService) AddReaction(ctx context.Context, db *gorm.DB, userID, mess
 		return apperrors.InternalError(tx.Error)
 	}
 	defer tx.Rollback()
+
+	// 1. Находим сообщение (нужно для получения DialogID)
 	message, err := s.chatRepo.FindMessageByID(tx, messageID)
 	if err != nil {
 		return handleChatError(err)
 	}
-	hasAccess, err := s.chatRepo.IsUserInDialog(tx, message.DialogID, userID)
-	if err != nil || !hasAccess {
-		return apperrors.ErrDialogAccessDenied
+
+	// 2. Находим пользователя, чтобы проверить роль
+	sender, err := s.userRepo.FindByID(tx, userID)
+	if err != nil {
+		return apperrors.ErrNotFound(errors.New("sender user not found"))
 	}
+
+	// 3. ⭐️ ПРОВЕРКА ДОСТУПА: Пропускаем, если Админ
+	if sender.Role != models.UserRoleAdmin {
+		hasAccess, err := s.chatRepo.IsUserInDialog(tx, message.DialogID, userID)
+		if err != nil || !hasAccess {
+			return apperrors.ErrDialogAccessDenied // 403 для не-админов
+		}
+	}
+	// ⭐️ КОНЕЦ ПРОВЕРКИ
+
 	reaction := &chat.MessageReaction{
 		MessageID: messageID,
 		UserID:    userID,
 		Emoji:     emoji,
 	}
+	// 4. Добавляем реакцию (проходит, если нет конфликта)
 	if err := s.chatRepo.AddReaction(tx, reaction); err != nil {
 		return apperrors.InternalError(err)
 	}
@@ -753,10 +783,23 @@ func (s *chatService) MarkMessagesAsRead(ctx context.Context, db *gorm.DB, userI
 		return apperrors.InternalError(tx.Error)
 	}
 	defer tx.Rollback()
-	hasAccess, err := s.chatRepo.IsUserInDialog(tx, dialogID, userID)
-	if err != nil || !hasAccess {
-		return apperrors.ErrDialogAccessDenied
+
+	// 1. Находим пользователя, чтобы проверить роль
+	sender, err := s.userRepo.FindByID(tx, userID)
+	if err != nil {
+		return apperrors.ErrNotFound(errors.New("sender not found"))
 	}
+
+	// 2. ⭐️ ПРОВЕРКА ДОСТУПА: Пропускаем, если Админ
+	if sender.Role != models.UserRoleAdmin {
+		hasAccess, err := s.chatRepo.IsUserInDialog(tx, dialogID, userID)
+		if err != nil || !hasAccess {
+			return apperrors.ErrDialogAccessDenied // 403 для не-админов
+		}
+	}
+	// ⭐️ КОНЕЦ ПРОВЕРКИ
+
+	// 3. Выполняем основную операцию
 	if err := s.chatRepo.MarkMessagesAsRead(tx, dialogID, userID); err != nil {
 		return apperrors.InternalError(err)
 	}

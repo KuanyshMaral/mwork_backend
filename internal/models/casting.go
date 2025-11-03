@@ -14,8 +14,8 @@ type Casting struct {
 	Description     string         `json:"description,omitempty"`
 	PaymentMin      float64        `json:"payment_min"`
 	PaymentMax      float64        `json:"payment_max"`
-	CastingDate     *time.Time     `json:"casting_date,omitempty"`
-	CastingTime     *string        `json:"casting_time,omitempty"`
+	CastingDate     *time.Time     `gorm:"column:event_date" json:"casting_date,omitempty"`
+	CastingTime     *string        `gorm:"column:event_time" json:"casting_time,omitempty"`
 	Address         *string        `json:"address,omitempty"`
 	City            string         `gorm:"not null" json:"city"`
 	Categories      datatypes.JSON `gorm:"type:jsonb" json:"categories,omitempty"`

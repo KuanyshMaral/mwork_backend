@@ -2,6 +2,7 @@ package models
 
 import (
 	"encoding/json"
+
 	"gorm.io/datatypes"
 )
 
@@ -66,7 +67,7 @@ type EmployerProfile struct {
 	UserID        string `gorm:"uniqueIndex;not null"`
 	CompanyName   string `gorm:"not null"`
 	ContactPerson string
-	Phone         string
+	Phone         string `gorm:"column:contact_phone" json:"phone,omitempty"`
 	Website       string
 	City          string
 	CompanyType   string

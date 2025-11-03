@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"mwork_backend/internal/logger"
+	"mwork_backend/internal/middleware"
 	"mwork_backend/internal/services"
 	"mwork_backend/internal/services/dto"
 	"net/http"
@@ -35,6 +36,14 @@ func (h *AuthHandler) RegisterRoutes(rg *gin.RouterGroup) {
 		auth.POST("/verify-email", h.VerifyEmail)
 		auth.POST("/request-password-reset", h.RequestPasswordReset)
 		auth.POST("/reset-password", h.ResetPassword)
+	}
+
+	admin := rg.Group("/admin")
+	admin.Use(middleware.AuthMiddleware())  //
+	admin.Use(middleware.AdminMiddleware()) //
+	{
+		// Роут: POST /api/v1/admin/users
+		admin.POST("/users", h.AdminCreateUser) //
 	}
 
 	// Примечание: h.GetCurrentUser не регистрируется здесь.
@@ -180,4 +189,24 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 		"id":   userID,
 		"role": c.GetString("role"),
 	})
+}
+
+func (h *AuthHandler) AdminCreateUser(c *gin.Context) {
+	var req dto.AdminCreateUserRequest // 👈 Используем новый DTO
+	if !h.BindAndValidate_JSON(c, &req) {
+		return
+	}
+
+	db := h.GetDB(c)
+
+	user, err := h.authService.AdminCreateUser(db, &req)
+	if err != nil {
+		h.HandleServiceError(c, err)
+		return
+	}
+
+	// ❗️ Важно: Убираем хеш пароля из ответа
+	user.PasswordHash = ""
+
+	c.JSON(http.StatusCreated, user)
 }

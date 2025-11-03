@@ -13,3 +13,8 @@ type MessageAttachment struct {
 	Size       int64
 	CreatedAt  time.Time
 }
+
+// ✅ ИСПРАВЛЕНИЕ: Указываем схему "chat"
+func (MessageAttachment) TableName() string {
+	return "chat.message_attachments"
+}

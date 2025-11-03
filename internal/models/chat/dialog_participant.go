@@ -13,3 +13,8 @@ type DialogParticipant struct {
 	TypingUntil *time.Time
 	LeftAt      *time.Time
 }
+
+// ✅ ИСПРАВЛЕНИЕ: Указываем схему "chat"
+func (DialogParticipant) TableName() string {
+	return "chat.dialog_participants"
+}

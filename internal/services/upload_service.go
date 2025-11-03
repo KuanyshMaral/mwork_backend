@@ -110,19 +110,25 @@ func NewUploadService(
 
 // ▼▼▼ ИЗМЕНЕНО (Проблема 4) ▼▼▼
 func (s *uploadService) UploadFile(ctx context.Context, db *gorm.DB, req *dto.UniversalUploadRequest) (*dto.UploadResponse, error) {
-	// ▲▲▲ ИЗМЕНЕНО (Проблема 4) ▲▲▲
 	// Валидация модуля
 	moduleConfig, exists := s.config.Modules[req.Module]
 	if !exists {
 		return nil, apperrors.NewBadRequestError(fmt.Sprintf("unknown module: %s", req.Module))
 	}
 
-	// Начинаем транзакцию
-	tx := db.Begin()
-	if tx.Error != nil {
-		return nil, apperrors.InternalError(tx.Error)
+	// ⭐️ ГИБКОСТЬ ТРАНЗАКЦИЙ: Определяем, кто управляет коммитом
+	// Если db.Statement.Context не nil, мы уже находимся в транзакции верхнего уровня.
+	inTransaction := db.Statement.Context != nil
+
+	// Если не в транзакции, начинаем новую, чтобы обеспечить атомарность
+	if !inTransaction {
+		db = db.Begin()
+		if db.Error != nil {
+			return nil, apperrors.InternalError(db.Error)
+		}
+		defer db.Rollback() // Откат, если что-то пойдет не так
 	}
-	defer tx.Rollback()
+	// ⭐️ (db теперь используется как текущая рабочая транзакция/пул)
 
 	// Валидация файла
 	if err := s.validateFile(req.File, moduleConfig); err != nil {
@@ -130,19 +136,19 @@ func (s *uploadService) UploadFile(ctx context.Context, db *gorm.DB, req *dto.Un
 	}
 
 	// Проверка лимитов хранилища
-	if err := s.checkStorageLimits(tx, req.UserID, req.File.Size); err != nil {
+	if err := s.checkStorageLimits(db, req.UserID, req.File.Size); err != nil { // ИСПОЛЬЗУЕМ db
 		return nil, err
 	}
 
 	// Кастомная валидация модуля
 	if moduleConfig.Validation != nil {
-		if err := moduleConfig.Validation(tx, req.UserID, req); err != nil {
+		if err := moduleConfig.Validation(db, req.UserID, req); err != nil { // ИСПОЛЬЗУЕМ db
 			return nil, err
 		}
 	}
 
 	// Создаём запись в БД
-	upload, err := s.createUploadRecord(tx, req, moduleConfig)
+	upload, err := s.createUploadRecord(db, req, moduleConfig) // ИСПОЛЬЗУЕМ db
 	if err != nil {
 		return nil, err
 	}
@@ -154,34 +160,29 @@ func (s *uploadService) UploadFile(ctx context.Context, db *gorm.DB, req *dto.Un
 	}
 	defer src.Close()
 
-	// ▼▼▼ ИЗМЕНЕНО (Проблема 4) ▼▼▼
-	// ctx := context.TODO() // Контекст теперь приходит из параметров
 	if err := s.storage.Save(ctx, upload.Path, src, upload.MimeType); err != nil {
-		// ▲▲▲ ИЗМЕНЕНО (Проблема 4) ▲▲▲
 		return nil, fmt.Errorf("failed to save file to storage: %w", err)
 	}
 
-	// Коммитим транзакцию
-	if err := tx.Commit().Error; err != nil {
-		// ▼▼▼ ИЗМЕНЕНО (Проблема 4) ▼▼▼
-		// Откатываем файл из storage (используем ctx из запроса)
-		if delErr := s.storage.Delete(ctx, upload.Path); delErr != nil {
-			log.Printf("CRITICAL: failed to rollback file save: %v", delErr)
+	// ⭐️ КОММИТ ТОЛЬКО ЕСЛИ МЫ САМИ НАЧАЛИ ТРАНЗАКЦИЮ
+	if !inTransaction {
+		if err := db.Commit().Error; err != nil {
+			// Откатываем файл из storage
+			if delErr := s.storage.Delete(ctx, upload.Path); delErr != nil {
+				// Логируем критическую ошибку, но не возвращаем её
+				fmt.Printf("CRITICAL: failed to rollback file save: %v\n", delErr)
+			}
+			return nil, apperrors.InternalError(err)
 		}
-		// ▲▲▲ ИЗМЕНЕНО (Проблема 4) ▲▲▲
-		return nil, apperrors.InternalError(err)
 	}
+	// ⭐️ КОНЕЦ КОММИТА
 
-	// ▼▼▼ ИЗМЕНЕНО (Проблема 3) ▼▼▼
-	// Асинхронная обработка (ресайз изображений)
+	// Асинхронная обработка
 	if strings.HasPrefix(upload.MimeType, "image/") {
 		go s.processImageAsync(upload, moduleConfig.ImageQuality)
 	}
-	// ▲▲▲ ИЗМЕНЕНО (Проблема 3) ▲▲▲
 
-	// ▼▼▼ ИЗМЕНЕНО (Проблема 4) ▼▼▼
 	return s.buildUploadResponse(ctx, upload), nil
-	// ▲▲▲ ИЗМЕНЕНО (Проблема 4) ▲▲▲
 }
 
 func (s *uploadService) GetUpload(db *gorm.DB, uploadID string) (*models.Upload, error) {
@@ -202,14 +203,18 @@ func (s *uploadService) GetEntityUploads(db *gorm.DB, entityType, entityID strin
 
 // ▼▼▼ ИЗМЕНЕНО (Проблема 4) ▼▼▼
 func (s *uploadService) DeleteUpload(ctx context.Context, db *gorm.DB, userID, uploadID string) error {
-	// ▲▲▲ ИЗМЕНЕНО (Проблема 4) ▼▼▼
-	tx := db.Begin()
-	if tx.Error != nil {
-		return apperrors.InternalError(tx.Error)
+	// ⭐️ ГИБКОСТЬ ТРАНЗАКЦИЙ: Определяем, кто управляет коммитом
+	inTransaction := db.Statement.Context != nil
+	if !inTransaction {
+		db = db.Begin()
+		if db.Error != nil {
+			return apperrors.InternalError(db.Error)
+		}
+		defer db.Rollback()
 	}
-	defer tx.Rollback()
+	// ⭐️ (db теперь используется как текущая рабочая транзакция/пул)
 
-	upload, err := s.uploadRepo.FindByID(tx, uploadID)
+	upload, err := s.uploadRepo.FindByID(db, uploadID) // ИСПОЛЬЗУЕМ db
 	if err != nil {
 		return handleUploadError(err)
 	}
@@ -218,27 +223,27 @@ func (s *uploadService) DeleteUpload(ctx context.Context, db *gorm.DB, userID, u
 		return apperrors.NewForbiddenError("access denied")
 	}
 
-	if err := s.uploadRepo.Delete(tx, uploadID); err != nil {
+	if err := s.uploadRepo.Delete(db, uploadID); err != nil { // ИСПОЛЬЗУЕМ db
 		return apperrors.InternalError(err)
 	}
 
-	if err := tx.Commit().Error; err != nil {
-		return apperrors.InternalError(err)
+	// ⭐️ КОММИТ ТОЛЬКО ЕСЛИ МЫ САМИ НАЧАЛИ ТРАНЗАКЦИЮ
+	if !inTransaction {
+		if err := db.Commit().Error; err != nil {
+			return apperrors.InternalError(err)
+		}
 	}
+	// ⭐️ КОНЕЦ КОММИТА
 
-	// ▼▼▼ ИЗМЕНЕНО (Проблема 4) ▼▼▼
-	// Удаляем из storage (после коммита, используя контекст)
+	// Удаляем из storage (после успешного коммита БД)
 	if err := s.storage.Delete(ctx, upload.Path); err != nil {
 		// Логируем, но не возвращаем ошибку, т.к. запись в БД уже удалена
 		log.Printf("Failed to delete file from storage: %v", err)
 	}
-	// ▲▲▲ ИЗМЕНЕНО (Проблема 4) ▲▲▲
 
 	if strings.HasPrefix(upload.MimeType, "image/") {
-		// ▼▼▼ ИЗМЕНЕНО (Проблема 3 и 4) ▼▼▼
-		// Запускаем очистку в фоне, т.к. основной запрос уже успешен
+		// Запускаем очистку в фоне
 		go s.deleteResizedVersions(context.Background(), upload.Path)
-		// ▲▲▲ ИЗМЕНЕНО (Проблема 3 и 4) ▲▲▲
 	}
 
 	return nil

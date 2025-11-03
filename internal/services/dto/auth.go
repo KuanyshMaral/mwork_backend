@@ -57,3 +57,15 @@ type UserDTO struct {
 	IsVerified bool              `json:"is_verified"`
 	CreatedAt  time.Time         `json:"created_at"`
 }
+
+// AdminCreateUserRequest - запрос для админа на создание юзера
+type AdminCreateUserRequest struct {
+	Email    string          `json:"email" binding:"required,email"`
+	Password string          `json:"password" binding:"required,min=6"`
+	Role     models.UserRole `json:"role" binding:"required"`
+
+	// Поля для профиля (необязательные, но желательные)
+	Name        string `json:"name"`        // Для модели
+	City        string `json:"city"`        // Для обоих
+	CompanyName string `json:"companyName"` // Для работодателя
+}

@@ -355,7 +355,10 @@ func (r *ChatRepositoryImpl) CreateMessage(db *gorm.DB, message *chat.Message) e
 func (r *ChatRepositoryImpl) FindMessageByID(db *gorm.DB, id string) (*chat.Message, error) {
 	var message chat.Message
 	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
-	err := db.Preload("Uploads").Preload("Reactions").Preload("ReadReceipts").
+	// ❌ Удаляем Preload("Uploads")
+	// Примечание: Если ты использовал другое имя отношения в модели chat.Message,
+	// например, Attachments, удали его тоже.
+	err := db.Preload("Reactions").Preload("ReadReceipts").
 		Preload("ForwardFrom").Preload("ReplyTo").
 		First(&message, "id = ?", id).Error
 	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
@@ -371,7 +374,8 @@ func (r *ChatRepositoryImpl) FindMessageByID(db *gorm.DB, id string) (*chat.Mess
 func (r *ChatRepositoryImpl) FindMessagesByDialog(db *gorm.DB, dialogID string, criteria MessageCriteria) ([]chat.Message, int64, error) {
 	var messages []chat.Message
 	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
-	query := db.Preload("Uploads").Preload("Reactions").Preload("ReadReceipts").
+	// ❌ Удаляем Preload("Uploads")
+	query := db.Preload("Reactions").Preload("ReadReceipts").
 		Where("dialog_id = ? AND deleted_at IS NULL", dialogID)
 	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
 

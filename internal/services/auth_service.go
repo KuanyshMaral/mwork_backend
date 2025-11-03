@@ -29,6 +29,7 @@ type AuthService interface {
 	RequestPasswordReset(db *gorm.DB, email string) error
 	ResetPassword(db *gorm.DB, token, newPassword string) error
 	ChangePassword(db *gorm.DB, userID, currentPassword, newPassword string) error
+	AdminCreateUser(db *gorm.DB, req *dto.AdminCreateUserRequest) (*models.User, error)
 }
 
 // =======================
@@ -378,6 +379,92 @@ func (s *AuthServiceImpl) ChangePassword(db *gorm.DB, userID, currentPassword, n
 		return apperrors.InternalError(err)
 	}
 	return tx.Commit().Error
+}
+
+// AdminCreateUser - метод для создания пользователя админом
+func (s *AuthServiceImpl) AdminCreateUser(db *gorm.DB, req *dto.AdminCreateUserRequest) (*models.User, error) {
+
+	// 1. Проверяем, что роль валидна (но теперь допускаем и Admin)
+	if req.Role != models.UserRoleModel && req.Role != models.UserRoleEmployer && req.Role != models.UserRoleAdmin {
+		return nil, apperrors.ErrInvalidUserRole
+	}
+
+	// 2. Валидируем поля профиля (аналогично Register)
+	// (Мы не можем вызвать s.validateRegisterRequest, т.к. DTO другой,
+	// поэтому дублируем логику валидации здесь)
+	if req.Role == models.UserRoleModel {
+		if req.Name == "" || req.City == "" {
+			return nil, apperrors.ValidationError("name and city are required for model role")
+		}
+	} else if req.Role == models.UserRoleEmployer {
+		if req.CompanyName == "" || req.City == "" {
+			return nil, apperrors.ValidationError("company_name and city are required for employer role")
+		}
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, apperrors.InternalError(err)
+	}
+
+	user := &models.User{
+		Email:             req.Email,
+		PasswordHash:      string(hashedPassword),
+		Role:              req.Role,
+		Status:            models.UserStatusActive, // 👈 Сразу активный
+		IsVerified:        true,                    // 👈 Сразу верифицирован
+		VerificationToken: "",                      // 👈 Не нужен
+	}
+
+	tx := db.Begin()
+	if tx.Error != nil {
+		return nil, apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// 3. Создаем пользователя
+	if err := s.userRepo.Create(tx, user); err != nil {
+		if errors.Is(err, repositories.ErrUserAlreadyExists) {
+			return nil, apperrors.ErrEmailAlreadyExists
+		}
+		return nil, apperrors.InternalError(err)
+	}
+
+	// 4. Создаем профиль и подписку, ТОЛЬКО если это не админ
+	if req.Role != models.UserRoleAdmin {
+
+		// Адаптируем DTO админа к DTO регистрации для хелпера
+		profileReq := &dto.RegisterRequest{
+			Email:       req.Email,
+			Role:        req.Role,
+			Name:        req.Name,
+			City:        req.City,
+			CompanyName: req.CompanyName,
+		}
+
+		// Создаем профиль
+		if err := s.createUserProfile(tx, user, profileReq); err != nil {
+			// Логируем, но не валим транзакцию,
+			// т.к. юзер уже создан - это важнее
+			fmt.Printf("AdminCreateUser: failed to create profile: %v\n", err)
+		}
+
+		// Назначаем подписку
+		if err := s.assignFreeSubscription(tx, user.ID); err != nil {
+			fmt.Printf("AdminCreateUser: failed to create free subscription: %v\n", err)
+		}
+	}
+
+	// 5. Коммитим
+	if err := tx.Commit().Error; err != nil {
+		return nil, apperrors.InternalError(err)
+	}
+
+	// Email верификации не шлем.
+	// Можно послать email "Администратор создал вам аккаунт"
+	// (но пока пропустим)
+
+	return user, nil
 }
 
 // --- Helper functions ---

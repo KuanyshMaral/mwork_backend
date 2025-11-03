@@ -30,6 +30,9 @@ func registerCustomRules(v *validator.Validate) {
 	// 'is-user-role': Проверяет, что роль пользователя валидна
 	mustRegister("is-user-role", validateUserRole)
 
+	// 'is-user-status': Проверяет, что статус пользователя валиден
+	mustRegister("is-user-status", validateUserStatus)
+
 	// 'is-casting-status': Проверяет, что статус кастинга валиден
 	mustRegister("is-casting-status", validateCastingStatus)
 
@@ -63,6 +66,24 @@ func validateUserRole(fl validator.FieldLevel) bool {
 	// Проверяем, соответствует ли строка одному из наших типов
 	switch models.UserRole(value) {
 	case models.UserRoleModel, models.UserRoleEmployer, models.UserRoleAdmin:
+		return true
+	default:
+		return false
+	}
+}
+
+func validateUserStatus(fl validator.FieldLevel) bool {
+	value := fl.Field().String()
+	if value == "" {
+		return true // Не проверяем пустые значения, для этого есть 'required'
+	}
+
+	// Проверяем, соответствует ли строка одному из наших типов
+	switch models.UserStatus(value) {
+	case models.UserStatusActive,
+		models.UserStatusPending,
+		models.UserStatusSuspended,
+		models.UserStatusBanned:
 		return true
 	default:
 		return false

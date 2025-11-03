@@ -7,9 +7,9 @@ import "time"
 // ======================
 
 type CreateReviewRequest struct {
-	ModelID    string  `json:"model_id" validate:"required"`
-	EmployerID string  `json:"employer_id" validate:"-"` // Set by server from auth
-	CastingID  *string `json:"casting_id,omitempty"`
+	ModelID    string  `json:"model_id" validate:"required,uuid"`
+	EmployerID string  `json:"employer_id" validate:"-"`                       // Set by server from auth
+	CastingID  *string `json:"casting_id,omitempty" validate:"omitempty,uuid"` // omitempty, т.к. поле *string
 	Rating     int     `json:"rating" validate:"required,min=1,max=5"`
 	ReviewText string  `json:"review_text" validate:"omitempty,max=2000"`
 }

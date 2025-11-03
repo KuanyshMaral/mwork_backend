@@ -2,9 +2,8 @@ package app
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
-	"log/slog"
-	"time"
 
 	"mwork_backend/internal/config"
 	"mwork_backend/internal/email"
@@ -12,37 +11,25 @@ import (
 	"mwork_backend/internal/logger"
 	"mwork_backend/internal/middleware"
 	"mwork_backend/internal/repositories"
+	"mwork_backend/internal/routes"
 	"mwork_backend/internal/services"
 	"mwork_backend/internal/storage"
 	"mwork_backend/internal/validator"
-	"mwork_backend/pkg/contextkeys"
 	"mwork_backend/ws"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+
+	"mwork_backend/internal/models"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
-type AppHandlers struct {
-	AuthHandler         *handlers.AuthHandler
-	UserHandler         *handlers.UserHandler
-	ProfileHandler      *handlers.ProfileHandler
-	CastingHandler      *handlers.CastingHandler
-	ResponseHandler     *handlers.ResponseHandler
-	ReviewHandler       *handlers.ReviewHandler
-	PortfolioHandler    *handlers.PortfolioHandler
-	MatchingHandler     *handlers.MatchingHandler
-	NotificationHandler *handlers.NotificationHandler
-	SubscriptionHandler *handlers.SubscriptionHandler
-	SearchHandler       *handlers.SearchHandler
-	AnalyticsHandler    *handlers.AnalyticsHandler
-	ChatHandler         *handlers.ChatHandler
-	FileHandler         *handlers.FileHandler
-	UploadHandler       *handlers.UploadHandler // <-- ✅ 1. ДОБАВЛЕН UploadHandler
-}
+// ▼▼▼ УДАЛЕНЫ определения struct: AppHandlers и ServiceContainer ▼▼▼
 
 func Run() {
+	// ... (LoadConfig, Init, GORM, sqlDB... всё это остается как есть) ...
 	config.LoadConfig()
 	cfg := config.AppConfig
 	logger.Init(cfg.Server.Env)
@@ -60,7 +47,15 @@ func Run() {
 		logger.Fatal("Database unavailable", "error", err)
 	}
 	logger.Info("Database connected")
+
+	if err := seedFirstAdmin(gormDB, cfg); err != nil {
+		// Если не удалось создать админа (проблемы с БД и т.д.) - не запускаем сервер
+		logger.Fatal("Failed to seed first admin user", "error", err)
+	}
+
+	// ▼▼▼ ИЗМЕНЕНИЕ: SetupRouter теперь просто возвращает *gin.Engine ▼▼▼
 	ginRouter := SetupRouter(cfg, gormDB, sqlDB)
+
 	address := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	logger.Info(fmt.Sprintf("🚀 Server starting on %s", address))
 	if err := ginRouter.Run(address); err != nil {
@@ -85,8 +80,14 @@ func SetupRouter(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB) *gin.Engine
 		logger.Fatal("Failed to initialize storage", "error", err)
 	}
 	logger.Info("Storage initialized", "type", cfg.Storage.Type)
+
+	// 1. Инициализируем сервисы
 	serviceContainer := initializeServices(cfg, gormDB, sqlDB, storageInstance)
+
+	// 2. Инициализируем хэндлеры
 	appHandlers := initializeHandlers(serviceContainer, storageInstance, gormDB)
+
+	// 3. Инициализируем WebSocket
 	wsManager := ws.NewWebSocketManager(
 		serviceContainer.ChatService,
 		gormDB,
@@ -96,77 +97,26 @@ func SetupRouter(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB) *gin.Engine
 		wsManager,
 	)
 
+	// 4. Инициализируем Gin
 	ginRouter := initializeGinRouter(gormDB)
-	setupRoutes(ginRouter, appHandlers, wsHandler)
+
+	// 5. ▼▼▼ ГЛАВНОЕ ИЗМЕНЕНИЕ: Делегируем регистрацию маршрутов пакету 'routes' ▼▼▼
+	routes.RegisterRoutes(ginRouter, appHandlers, wsHandler)
+	// ▲▲▲
 
 	return ginRouter
 }
 
-type ServiceContainer struct {
-	UserService         services.UserService
-	AuthService         services.AuthService
-	ProfileService      services.ProfileService
-	CastingService      services.CastingService
-	ResponseService     services.ResponseService
-	ReviewService       services.ReviewService
-	PortfolioService    services.PortfolioService
-	MatchingService     services.MatchingService
-	NotificationService services.NotificationService
-	SubscriptionService services.SubscriptionService
-	SearchService       services.SearchService
-	AnalyticsService    services.AnalyticsService
-	ChatService         services.ChatService
-	UploadService       services.UploadService // <-- ✅ 2. ДОБАВЛЕН UploadService
-	EmailService        email.Provider
-	storage             storage.Storage
-}
+// ▼▼▼ ИЗМЕНЕНИЕ: Функция теперь возвращает *services.ServiceContainer ▼▼▼
+func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB, storageInstance storage.Storage) *services.ServiceContainer {
 
-func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB, storageInstance storage.Storage) *ServiceContainer {
-	/* ВРЕМЕННО ВЫКЛЮЧАЮ ВНЕШНИЙ СЕРВИС emailServiceConfig := services.EmailServiceConfig{
-		SMTPHost:     cfg.Email.SMTPHost,
-		SMTPPort:     cfg.Email.SMTPPort,
-		SMTPUsername: cfg.Email.SMTPUsername,
-		SMTPPassword: cfg.Email.SMTPPassword,
-		FromEmail:    cfg.Email.FromEmail,
-		FromName:     cfg.Email.FromName,
-		UseTLS:       cfg.Email.UseTLS,
-		TemplatesDir: cfg.Email.TemplatesDir,
-	}
-	emailService, err := services.NewEmailServiceWithConfig(emailServiceConfig)
-	if err != nil {
-		logger.Fatal("Failed to initialize EmailService", "error", err)
-	}
-
-	*/
-
+	// ... (логика с MockEmailProvider остается) ...
 	var emailService email.Provider
 	logger.Warn("--- [ВРЕМЕННО] Email-сервис отключен. Используется MOCK. ---")
-	emailService = &MockEmailProvider{}
-
-	/*
-
-		// ❗️ 1. ОБЪЯВЛЯЕМ ИНТЕРФЕЙС
-		var emailService email.Provider
-
-		if cfg.Server.Env == "test" {
-			// ❗️ 2. ЕСЛИ ЭТО ТЕСТ - ИСПОЛЬЗУЕМ MOCK
-			logger.Info("Using MOCK Email Provider for test environment")
-			emailService = &MockEmailProvider{} // (MockEmailProvider нужно будет создать)
-		} else {
-			// ❗️ 3. ЕСЛИ ЭТО PROD/DEV - ИСПОЛЬЗУЕМ НАСТОЯЩИЙ СЕРВИС
-			emailServiceConfig := services.EmailServiceConfig{
-				// ... (все ваши настройки)
-				TemplatesDir: cfg.Email.TemplatesDir,
-			}
-			var err error
-			emailService, err = services.NewEmailServiceWithConfig(emailServiceConfig)
-			if err != nil {
-				logger.Fatal("Failed to initialize EmailService", "error", err)
-			}
-		}
-	*/
+	emailService = &MockEmailProvider{} // (MockEmailProvider теперь в mocks.go)
 
 	// --- Инициализация репозиториев ---
+	// ... (NewUserRepository, NewRefreshTokenRepository... и т.д.) ...
 	userRepo := repositories.NewUserRepository()
 	refreshTokenRepo := repositories.NewRefreshTokenRepository()
 	profileRepo := repositories.NewProfileRepository()
@@ -178,112 +128,28 @@ func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB, stor
 	subscriptionRepo := repositories.NewSubscriptionRepository()
 	chatRepo := repositories.NewChatRepository()
 	analyticsRepo := repositories.NewAnalyticsRepository()
-	uploadRepo := repositories.NewUploadRepository() // <-- ✅ 3. Создаем UploadRepo
+	uploadRepo := repositories.NewUploadRepository()
 
 	// --- Инициализация сервисов ---
-
-	// ✅ 4. Создаем UploadService
-	uploadConfig := services.GetDefaultUploadConfig() // (Или из 'cfg' если настроено)
+	// ... (NewUploadService, NewUserService, NewAuthService... и т.д.) ...
+	uploadConfig := services.GetDefaultUploadConfig()
 	uploadService := services.NewUploadService(uploadRepo, storageInstance, uploadConfig)
-
 	userService := services.NewUserService(userRepo, profileRepo)
-	authService := services.NewAuthService(
-		userRepo,
-		profileRepo,
-		subscriptionRepo,
-		emailService,
-		refreshTokenRepo,
-	)
-	profileService := services.NewProfileService(
-		profileRepo,
-		userRepo,
-		portfolioRepo,
-		reviewRepo,
-		notificationRepo,
-	)
-	castingService := services.NewCastingService(
-		castingRepo,
-		userRepo,
-		profileRepo,
-		subscriptionRepo,
-		notificationRepo,
-		reviewRepo,
-		responseRepo,
-	)
-	responseService := services.NewResponseService(
-		responseRepo,
-		castingRepo,
-		userRepo,
-		subscriptionRepo,
-		notificationRepo,
-		reviewRepo,
-	)
-	notificationService := services.NewNotificationService(
-		notificationRepo,
-		userRepo,
-		profileRepo,
-	)
+	authService := services.NewAuthService(userRepo, profileRepo, subscriptionRepo, emailService, refreshTokenRepo)
+	profileService := services.NewProfileService(profileRepo, userRepo, portfolioRepo, reviewRepo, notificationRepo)
+	castingService := services.NewCastingService(castingRepo, userRepo, profileRepo, subscriptionRepo, notificationRepo, reviewRepo, responseRepo)
+	responseService := services.NewResponseService(responseRepo, castingRepo, userRepo, subscriptionRepo, notificationRepo, reviewRepo)
+	notificationService := services.NewNotificationService(notificationRepo, userRepo, profileRepo)
+	portfolioService := services.NewPortfolioService(portfolioRepo, userRepo, profileRepo, uploadService)
+	reviewService := services.NewReviewService(reviewRepo, userRepo, profileRepo, castingRepo, notificationRepo)
+	searchService := services.NewSearchService(castingRepo, profileRepo, portfolioRepo, reviewRepo)
+	matchingService := services.NewMatchingService(profileRepo, castingRepo, reviewRepo, portfolioRepo, notificationRepo, userRepo)
+	analyticsService := services.NewAnalyticsService(userRepo, profileRepo, castingRepo, reviewRepo, notificationRepo, portfolioRepo, subscriptionRepo, chatRepo, analyticsRepo)
+	subscriptionService := services.NewSubscriptionService(subscriptionRepo, userRepo, notificationRepo)
+	chatService := services.NewChatService(chatRepo, userRepo, castingRepo, profileRepo, notificationRepo, responseRepo, uploadService)
 
-	// ▼▼▼ ИСПРАВЛЕНА ОШИБКА 1 ▼▼▼
-	portfolioService := services.NewPortfolioService(
-		portfolioRepo,
-		userRepo,
-		profileRepo,
-		uploadService, // <-- ✅ 5. Передаем UploadService (вместо storageInstance)
-	)
-	// ▲▲▲ ИСПРАВЛЕНО ▲▲▲
-
-	reviewService := services.NewReviewService(
-		reviewRepo,
-		userRepo,
-		profileRepo,
-		castingRepo,
-		notificationRepo,
-	)
-	searchService := services.NewSearchService(
-		castingRepo,
-		profileRepo,
-		portfolioRepo,
-		reviewRepo,
-	)
-	matchingService := services.NewMatchingService(
-		profileRepo,
-		castingRepo,
-		reviewRepo,
-		portfolioRepo,
-		notificationRepo,
-		userRepo,
-	)
-	analyticsService := services.NewAnalyticsService(
-		userRepo,
-		profileRepo,
-		castingRepo,
-		reviewRepo,
-		notificationRepo,
-		portfolioRepo,
-		subscriptionRepo,
-		chatRepo,
-		analyticsRepo,
-	)
-	subscriptionService := services.NewSubscriptionService(
-		subscriptionRepo,
-		userRepo,
-		notificationRepo,
-	)
-
-	// ▼▼▼ ИСПРАВЛЕНА ОШИБКА 2 ▼▼▼
-	chatService := services.NewChatService(
-		chatRepo,
-		userRepo,
-		castingRepo,
-		profileRepo,
-		notificationRepo,
-		responseRepo,
-		uploadService, // <-- ✅ 6. Добавляем UploadService
-	)
-	// ▲▲▲ ИСПРАВЛЕНО ▲▲▲
-
-	return &ServiceContainer{
+	// ▼▼▼ ИЗМЕНЕНИЕ: Возвращаем *services.ServiceContainer ▼▼▼
+	return &services.ServiceContainer{
 		UserService:         userService,
 		AuthService:         authService,
 		ProfileService:      profileService,
@@ -297,20 +163,20 @@ func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB, stor
 		SearchService:       searchService,
 		AnalyticsService:    analyticsService,
 		ChatService:         chatService,
-		UploadService:       uploadService, // <-- ✅ 7. Добавляем в контейнер
+		UploadService:       uploadService,
 		EmailService:        emailService,
 	}
 }
 
-func initializeHandlers(services *ServiceContainer, storageInstance storage.Storage, gormDB *gorm.DB) *AppHandlers {
+// ▼▼▼ ИЗMENT: Принимает *services.ServiceContainer, возвращает *handlers.AppHandlers ▼▼▼
+func initializeHandlers(services *services.ServiceContainer, storageInstance storage.Storage, gormDB *gorm.DB) *handlers.AppHandlers {
 	customValidator := validator.New()
-	baseHandler := handlers.NewBaseHandler(customValidator) // (DBMiddleware позаботится о 'db')
+	baseHandler := handlers.NewBaseHandler(customValidator)
 
-	// ▼▼▼ ИСПРАВЛЕНА ОШИБКА 3 ▼▼▼
-	uploadRepo := repositories.NewUploadRepository() // <-- ✅ 8. Создаем UploadRepo
-	// ▲▲▲ ИСПРАВЛЕНО ▲▲▲
+	uploadRepo := repositories.NewUploadRepository()
 
-	return &AppHandlers{
+	// ▼▼▼ ИЗМЕНЕНИЕ: Возвращаем *handlers.AppHandlers ▼▼▼
+	return &handlers.AppHandlers{
 		AuthHandler:         handlers.NewAuthHandler(baseHandler, services.AuthService),
 		UserHandler:         handlers.NewUserHandler(baseHandler, services.UserService, services.AuthService),
 		ProfileHandler:      handlers.NewProfileHandler(baseHandler, services.ProfileService),
@@ -324,126 +190,93 @@ func initializeHandlers(services *ServiceContainer, storageInstance storage.Stor
 		SearchHandler:       handlers.NewSearchHandler(baseHandler, services.SearchService),
 		AnalyticsHandler:    handlers.NewAnalyticsHandler(baseHandler, services.AnalyticsService),
 		ChatHandler:         handlers.NewChatHandler(baseHandler, services.ChatService),
-		// ▼▼▼ ИСПРАВЛЕНА ОШИБКА 3 ▼▼▼
-		FileHandler:   handlers.NewFileHandler(baseHandler, storageInstance, uploadRepo), // <-- ✅ 9. Передаем uploadRepo
-		UploadHandler: handlers.NewUploadHandler(baseHandler, services.UploadService),    // <-- ✅ 10. Создаем UploadHandler
-		// ▲▲▲ ИСПРАВЛЕНО ▲▲▲
+		FileHandler:         handlers.NewFileHandler(baseHandler, storageInstance, uploadRepo),
+		UploadHandler:       handlers.NewUploadHandler(baseHandler, services.UploadService),
 	}
 }
 
-// initializeGinRouter (сохраняем ваши изменения)
+// ▼▼▼ ИЗМЕНЕНИЕ: Используем middleware из пакета 'middleware' ▼▼▼
 func initializeGinRouter(db *gorm.DB) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
-	router.Use(RequestIDMiddleware())
-	router.Use(LoggingMiddleware())
+	router.Use(middleware.RequestIDMiddleware()) // <-- ИЗМЕНЕНО
+	router.Use(middleware.LoggingMiddleware())   // <-- ИЗМЕНЕНО
 	router.Use(middleware.CORSMiddleware())
-	router.Use(DBMiddleware(db)) // <-- ✅ Сохранено
+	router.Use(middleware.DBMiddleware(db)) // <-- ИЗМЕНЕНО
 	return router
 }
 
-func setupRoutes(ginRouter *gin.Engine, handlers *AppHandlers, wsHandler *ws.WebSocketHandler) {
-	api := ginRouter.Group("/api/v1")
-	handlers.AuthHandler.RegisterRoutes(api)
-	handlers.FileHandler.RegisterRoutes(api)
-	handlers.UserHandler.RegisterRoutes(api)
-	handlers.ProfileHandler.RegisterRoutes(api)
-	handlers.CastingHandler.RegisterRoutes(api)
-	handlers.ResponseHandler.RegisterRoutes(api)
-	handlers.ReviewHandler.RegisterRoutes(api)
-	handlers.PortfolioHandler.RegisterRoutes(api)
-	handlers.MatchingHandler.RegisterRoutes(api)
-	handlers.NotificationHandler.RegisterRoutes(api)
-	handlers.SubscriptionHandler.RegisterRoutes(api)
-	handlers.SearchHandler.RegisterRoutes(api)
-	handlers.AnalyticsHandler.RegisterRoutes(api)
-	handlers.ChatHandler.RegisterRoutes(api)
-	handlers.UploadHandler.RegisterRoutes(api) // <-- ✅ 11. Регистрируем маршруты UploadHandler
-	setupWebSocketRoutes(ginRouter, wsHandler)
-}
+func seedFirstAdmin(db *gorm.DB, cfg *config.Config) error {
+	adminEmail := cfg.FirstAdminEmail
+	adminPassword := cfg.FirstAdminPassword
 
-func setupWebSocketRoutes(ginRouter *gin.Engine, wsHandler *ws.WebSocketHandler) {
-	// (Этот маршрут должен быть защищен AuthMiddleware, если ServeWS ожидает userID)
-	// ginRouter.GET("/ws", wsHandler.ServeWS)
-
-	// ▼▼▼ ИСПРАВЛЕНИЕ: WS должен быть защищен ▼▼▼
-	wsGroup := ginRouter.Group("/ws")
-	wsGroup.Use(middleware.AuthMiddleware())
-	{
-		wsGroup.GET("", wsHandler.ServeWS)
+	if adminEmail == "" || adminPassword == "" {
+		logger.Warn("FIRST_ADMIN_EMAIL or FIRST_ADMIN_PASSWORD is not set in .env. Skipping admin seeding.")
+		return nil
 	}
-	// ▲▲▲ ИСПРАВЛЕНО ▲▲▲
 
-	logger.Info("WebSocket route /ws registered")
-}
-
-func RequestIDMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		requestID := uuid.NewString()
-		ctx := logger.WithRequestID(c.Request.Context(), requestID)
-		c.Request = c.Request.WithContext(ctx)
-		c.Header("X-Request-ID", requestID)
-		c.Next()
+	// ⭐️ ИСПОЛЬЗУЕМ ТРАНЗАКЦИЮ (чтобы создать и юзера, и профиль)
+	tx := db.Begin()
+	if tx.Error != nil {
+		return fmt.Errorf("failed to begin transaction: %w", tx.Error)
 	}
-}
+	defer tx.Rollback() // Откат, если что-то пойдет не так
 
-func LoggingMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		start := time.Now()
-		c.Next()
-		duration := time.Since(start)
-		log := logger.FromContext(c.Request.Context())
-		fields := []any{
-			slog.String("client_ip", c.ClientIP()),
-			slog.String("user_agent", c.Request.UserAgent()),
-			slog.Int("status", c.Writer.Status()),
-			slog.String("method", c.Request.Method),
-			slog.String("path", c.Request.URL.Path),
-			slog.Duration("duration", duration),
-			slog.Int("size_bytes", c.Writer.Size()),
-		}
-		if c.Writer.Status() >= 500 {
-			log.Error("HTTP Server Error", fields...)
-		} else if c.Writer.Status() >= 400 {
-			log.Warn("HTTP Client Error", fields...)
-		} else {
-			log.Info("HTTP Request", fields...)
-		}
+	// 2. Ищем юзера (используем 'tx')
+	var adminUser models.User
+	result := tx.Where("email = ?", adminEmail).First(&adminUser)
+
+	if result.Error == nil {
+		logger.Info("Admin user already exists. Skipping creation.", "email", adminEmail)
+		tx.Rollback() // Все в порядке, просто откатываем
+		return nil
 	}
-}
 
-// DBMiddleware (сохраняем ваши изменения)
-func DBMiddleware(db *gorm.DB) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		dbKey := string(contextkeys.DBContextKey)
-
-		// 1. Пытаемся получить 'tx' (транзакцию) из контекста HTTP-запроса,
-		//    которую туда положил testserver.go
-		tx, ok := c.Request.Context().Value(contextkeys.DBContextKey).(*gorm.DB)
-
-		if ok && tx != nil {
-			// 2. ✅ УСПЕХ: Это тестовый запрос.
-			//    Мы кладем в gin-контекст именно эту транзакцию 'tx'.
-			c.Set(dbKey, tx)
-		} else {
-			// 3. ❌ ПРОВАЛ: Это обычный (не тестовый) запрос.
-			//    Мы кладем в gin-контекст ОБЩИЙ пул 'db'.
-			c.Set(dbKey, db)
-		}
-
-		c.Next()
+	if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return fmt.Errorf("failed to check for admin user: %w", result.Error)
 	}
+
+	// 5. (gorm.ErrRecordNotFound) - Юзера нет. Создаем.
+	logger.Warn("No admin user found with specified email. Creating first admin...", "email", adminEmail)
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("failed to hash admin password: %w", err)
+	}
+
+	newAdmin := &models.User{
+		Email:        adminEmail,
+		PasswordHash: string(hashedPassword),
+		Role:         models.UserRoleAdmin,
+		Status:       models.UserStatusActive,
+		IsVerified:   true,
+	}
+
+	// 6. Сохраняем ЮЗЕРА (используем 'tx')
+	if err := tx.Create(newAdmin).Error; err != nil {
+		return fmt.Errorf("failed to create admin user in database: %w", err)
+	}
+
+	// 7. ⭐️ НОВОЕ: СОЗДАЕМ ПРОФИЛЬ РАБОТОДАТЕЛЯ ДЛЯ АДМИНА
+	//    (Это нужно, чтобы удовлетворить 'fk_casting_employer')
+	adminProfile := &models.EmployerProfile{
+		UserID:      newAdmin.ID,
+		CompanyName: "MWork Administration", // Можешь написать что угодно
+		IsVerified:  true,
+		City:        "Platform", // Можешь написать что угодно
+	}
+
+	if err := tx.Create(adminProfile).Error; err != nil {
+		return fmt.Errorf("failed to create admin employer profile: %w", err)
+	}
+	// ⭐️ КОНЕЦ НОВОГО БЛОКА
+
+	logger.Info("✅ Successfully created first admin user AND profile", "email", adminEmail)
+
+	// 8. Коммитим транзакцию
+	return tx.Commit().Error
 }
 
-type MockEmailProvider struct{}
-
-func (m *MockEmailProvider) Send(email *email.Email) error { return nil }
-func (m *MockEmailProvider) SendWithTemplate(templateName string, data email.TemplateData, emailMsg *email.Email) error {
-	return nil
-}
-func (m *MockEmailProvider) SendVerification(email string, token string) error { return nil }
-func (m *MockEmailProvider) SendTemplate(to []string, subject string, templateName string, data email.TemplateData) error {
-	return nil
-}
-func (m *MockEmailProvider) Validate() error { return nil }
-func (m *MockEmailProvider) Close() error    { return nil }
+// ▼▼▼ УДАЛЕНЫ: setupRoutes, setupWebSocketRoutes ▼▼▼
+// ▼▼▼ УДАЛЕНЫ: RequestIDMiddleware, LoggingMiddleware, DBMiddleware ▼▼▼
+// ▼▼▼ УДАЛЕНО: MockEmailProvider ▼▼▼

@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gorm.io/gorm"
 	"mime/multipart"
+
+	"gorm.io/gorm"
 
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/repositories"
@@ -29,17 +30,6 @@ type PortfolioService interface {
 	GetPortfolioStats(ctx context.Context, db *gorm.DB, modelID string) (*repositories.PortfolioStats, error)
 	TogglePortfolioVisibility(ctx context.Context, db *gorm.DB, userID, itemID string, req *dto.PortfolioVisibilityRequest) error
 
-	// ▼▼▼ УДАЛЕНО: Эти методы теперь в UploadService ▼▼▼
-	// UploadFile(...)
-	// GetUpload(...)
-	// GetUserUploads(...)
-	// GetEntityUploads(...)
-	// DeleteUpload(...)
-	// GetUserStorageUsage(...)
-	// CleanOrphanedUploads(...)
-	// GetPlatformUploadStats(...)
-	// ▲▲▲ УДАЛЕНО ▲▲▲
-
 	// Combined operations
 	// (CreatePortfolioWithUpload и DeletePortfolioWithUpload удалены, т.к. стали дубликатами)
 	GetFeaturedPortfolio(ctx context.Context, db *gorm.DB, limit int) (*dto.PortfolioListResponse, error)
@@ -55,11 +45,6 @@ type portfolioService struct {
 	profileRepo   repositories.ProfileRepository
 	uploadService UploadService // <-- ВНЕДРЕН УНИВЕРСАЛЬНЫЙ СЕРВИС
 
-	// ▼▼▼ УДАЛЕНО ▼▼▼
-	// fileConfig    dto.FileConfigPortfolio
-	// storage       storage.Storage
-	// imageProc     *imageprocessor.Processor
-	// ▲▲▲ УДАЛЕНО ▲▲▲
 }
 
 // ✅ Конструктор обновлен
@@ -74,11 +59,6 @@ func NewPortfolioService(
 		userRepo:      userRepo,
 		profileRepo:   profileRepo,
 		uploadService: uploadService, // <-- СОХРАНЯЕМ УНИВЕРСАЛЬНЫЙ СЕРВИС
-		// ▼▼▼ УДАЛЕНО ▼▼▼
-		// fileConfig:    config.PortfolioFileConfig,
-		// storage:       storage,
-		// imageProc:     imageprocessor.NewProcessor(config.AppConfig.Upload.ImageQuality),
-		// ▲▲▲ УДАЛЕНО ▲▲▲
 	}
 }
 
@@ -91,18 +71,45 @@ func (s *portfolioService) CreatePortfolioItem(ctx context.Context, db *gorm.DB,
 	}
 	defer tx.Rollback()
 
-	modelProfile, err := s.profileRepo.FindModelProfileByUserID(tx, userID)
+	// 1. Ищем пользователя (автора запроса)
+	requestingUser, err := s.userRepo.FindByID(tx, userID)
 	if err != nil {
-		return nil, errors.New("model profile not found or access denied")
+		return nil, apperrors.ErrNotFound(errors.New("user not found"))
 	}
 
-	if modelProfile.ID != req.ModelID {
-		return nil, errors.New("invalid model ID")
+	var targetModelProfile *models.ModelProfile
+
+	// 2. ⭐️⭐️⭐️ ЛОГИКА АДМИНСКОГО РЕЖИМА ⭐️⭐️⭐️
+	if requestingUser.Role == models.UserRoleAdmin {
+		if req.ModelID == "" {
+			return nil, apperrors.NewBadRequestError("Admin must specify 'model_id'")
+		}
+
+		// Админ: Ищем профиль по ID, который прислал Админ
+		targetModelProfile, err = s.profileRepo.FindModelProfileByID(tx, req.ModelID)
+		if err != nil {
+			return nil, apperrors.NewNotFoundError("Target Model profile not found")
+		}
+
+	} else if requestingUser.Role == models.UserRoleModel {
+		if req.ModelID != "" {
+			return nil, apperrors.NewForbiddenError("Model cannot create portfolio for another model")
+		}
+
+		// Обычный пользователь (Модель): Ищем профиль по своему ID
+		targetModelProfile, err = s.profileRepo.FindModelProfileByUserID(tx, userID)
+		if err != nil {
+			return nil, apperrors.NewForbiddenError("Portfolio can only be created by a user with a Model profile.")
+		}
+	} else {
+		// Работодателям нельзя создавать портфолио
+		return nil, apperrors.NewForbiddenError("Only models and admins can create portfolio items.")
 	}
+	// ⭐️⭐️⭐️ КОНЕЦ ЛОГИКИ ⭐️⭐️⭐️
 
 	// 1. Создаем PortfolioItem *сначала* (без UploadID), чтобы получить его ID
 	portfolioItem := &models.PortfolioItem{
-		ModelID:     req.ModelID,
+		ModelID:     targetModelProfile.ID,
 		Title:       req.Title,
 		Description: req.Description,
 		OrderIndex:  req.OrderIndex,
@@ -131,7 +138,7 @@ func (s *portfolioService) CreatePortfolioItem(ctx context.Context, db *gorm.DB,
 	}
 
 	// 3. Обновляем PortfolioItem, добавляя ID загрузки
-	portfolioItem.UploadID = uploadRes.ID
+	portfolioItem.UploadID = &uploadRes.ID
 	if err := s.portfolioRepo.UpdatePortfolioItem(tx, portfolioItem); err != nil {
 		// (Если обновление не удалось, uploadService отменит загрузку при откате tx)
 		return nil, apperrors.InternalError(err)
@@ -264,11 +271,13 @@ func (s *portfolioService) DeletePortfolioItem(ctx context.Context, db *gorm.DB,
 	}
 
 	// 2. Делегируем удаление файла UploadService
-	if uploadID != "" {
-		if err := s.uploadService.DeleteUpload(ctx, tx, userID, uploadID); err != nil {
+	// ❗️ ИСПРАВЛЕНИЕ: Проверяем, что указатель не nil, и разыменовываем его
+	if uploadID != nil {
+		if err := s.uploadService.DeleteUpload(ctx, tx, userID, *uploadID); err != nil {
+			//                                                   ^ разыменовываем
 			// Логируем, но не отменяем транзакцию,
 			// т.к. основная запись (PortfolioItem) уже удалена.
-			fmt.Printf("Failed to delete upload (%s) during portfolio item delete: %v\n", uploadID, err)
+			fmt.Printf("Failed to delete upload (%s) during portfolio item delete: %v\n", *uploadID, err)
 		}
 	}
 

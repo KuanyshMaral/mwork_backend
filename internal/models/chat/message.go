@@ -22,3 +22,8 @@ type Message struct {
 	ReadReceipts []MessageReadReceipt `gorm:"foreignKey:MessageID"`
 	Attachments  []MessageAttachment  `gorm:"foreignKey:MessageID"`
 }
+
+// ✅ ИСПРАВЛЕНИЕ: Указываем схему "chat"
+func (Message) TableName() string {
+	return "chat.messages"
+}
