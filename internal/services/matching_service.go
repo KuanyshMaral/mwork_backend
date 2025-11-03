@@ -509,13 +509,13 @@ func (s *matchingService) calculatePhysicalScoreDTO(model *models.ModelProfile, 
 	score := 0.0
 	criteriaCount := 0
 	if casting.HeightMin != nil && casting.HeightMax != nil {
-		if model.Height >= int(*casting.HeightMin) && model.Height <= int(*casting.HeightMax) {
+		if model.Height >= float64(*casting.HeightMin) && model.Height <= float64(*casting.HeightMax) {
 			score += 50.0
 		}
 		criteriaCount++
 	}
 	if casting.WeightMin != nil && casting.WeightMax != nil {
-		if model.Weight >= int(*casting.WeightMin) && model.Weight <= int(*casting.WeightMax) {
+		if model.Weight >= float64(*casting.WeightMin) && model.Weight <= float64(*casting.WeightMax) {
 			score += 50.0
 		}
 		criteriaCount++

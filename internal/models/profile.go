@@ -7,13 +7,13 @@ import (
 
 type ModelProfile struct {
 	BaseModel
-	UserID         string `gorm:"uniqueIndex;not null"`
-	Name           string `gorm:"not null"`
-	Age            int    `gorm:"not null"`
-	Height         int    `gorm:"not null"` // Изменено с float64 на int
-	Weight         int    `gorm:"not null"` // Изменено с float64 на int
-	Gender         string `gorm:"not null"`
-	Experience     int    // years
+	UserID         string  `gorm:"uniqueIndex;not null"`
+	Name           string  `gorm:"not null"`
+	Age            int     `gorm:"not null"`
+	Height         float64 `gorm:"not null"` // Изменено с float64 на int
+	Weight         float64 `gorm:"not null"` // Изменено с float64 на int
+	Gender         string  `gorm:"not null"`
+	Experience     int     // years
 	HourlyRate     float64
 	Description    string
 	ClothingSize   string

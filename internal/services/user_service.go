@@ -292,10 +292,10 @@ func updateModelProfile(profile *models.ModelProfile, req *dto.UpdateProfileRequ
 		profile.Age = *req.Age
 	}
 	if req.Height != nil {
-		profile.Height = int(math.Round(*req.Height))
+		profile.Height = float64(math.Round(*req.Height))
 	}
 	if req.Weight != nil {
-		profile.Weight = int(math.Round(*req.Weight))
+		profile.Weight = float64(math.Round(*req.Weight))
 	}
 	if req.Gender != nil {
 		profile.Gender = *req.Gender

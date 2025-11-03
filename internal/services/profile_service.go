@@ -98,8 +98,8 @@ func (s *ProfileServiceImpl) CreateModelProfile(db *gorm.DB, req *dto.CreateMode
 		UserID:         req.UserID,
 		Name:           req.Name,
 		Age:            req.Age,
-		Height:         int(req.Height),
-		Weight:         int(req.Weight),
+		Height:         float64(req.Height),
+		Weight:         float64(req.Weight),
 		Gender:         req.Gender,
 		Experience:     req.Experience,
 		HourlyRate:     req.HourlyRate,
@@ -273,10 +273,10 @@ func (s *ProfileServiceImpl) updateModelProfile(db *gorm.DB, userID string, req 
 		profile.City = *req.City
 	}
 	if req.Height != nil {
-		profile.Height = int(*req.Height)
+		profile.Height = float64(*req.Height)
 	}
 	if req.Weight != nil {
-		profile.Weight = int(*req.Weight)
+		profile.Weight = float64(*req.Weight)
 	}
 	// ... (другие поля)
 	if req.Languages != nil {
