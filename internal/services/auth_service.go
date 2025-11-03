@@ -389,8 +389,10 @@ func (s *AuthServiceImpl) createUserProfile(db *gorm.DB, user *models.User, req 
 			UserID:   user.ID,
 			Name:     req.Name,
 			City:     req.City,
-			Age:      0,
+			Age:      18,
 			IsPublic: true,
+			Height:   170, // Поставь валидное значение (не 0)
+			Weight:   55,  // Поставь валидное значение (не 0)
 		}
 		// ✅ Передаем db (БЕЗ 'ctx')
 		return s.profileRepo.CreateModelProfile(db, profile)

@@ -139,25 +139,32 @@ func initializeServices(cfg *config.Config, gormDB *gorm.DB, sqlDB *sql.DB, stor
 
 	*/
 
-	// ❗️ 1. ОБЪЯВЛЯЕМ ИНТЕРФЕЙС
 	var emailService email.Provider
+	logger.Warn("--- [ВРЕМЕННО] Email-сервис отключен. Используется MOCK. ---")
+	emailService = &MockEmailProvider{}
 
-	if cfg.Server.Env == "test" {
-		// ❗️ 2. ЕСЛИ ЭТО ТЕСТ - ИСПОЛЬЗУЕМ MOCK
-		logger.Info("Using MOCK Email Provider for test environment")
-		emailService = &MockEmailProvider{} // (MockEmailProvider нужно будет создать)
-	} else {
-		// ❗️ 3. ЕСЛИ ЭТО PROD/DEV - ИСПОЛЬЗУЕМ НАСТОЯЩИЙ СЕРВИС
-		emailServiceConfig := services.EmailServiceConfig{
-			// ... (все ваши настройки)
-			TemplatesDir: cfg.Email.TemplatesDir,
+	/*
+
+		// ❗️ 1. ОБЪЯВЛЯЕМ ИНТЕРФЕЙС
+		var emailService email.Provider
+
+		if cfg.Server.Env == "test" {
+			// ❗️ 2. ЕСЛИ ЭТО ТЕСТ - ИСПОЛЬЗУЕМ MOCK
+			logger.Info("Using MOCK Email Provider for test environment")
+			emailService = &MockEmailProvider{} // (MockEmailProvider нужно будет создать)
+		} else {
+			// ❗️ 3. ЕСЛИ ЭТО PROD/DEV - ИСПОЛЬЗУЕМ НАСТОЯЩИЙ СЕРВИС
+			emailServiceConfig := services.EmailServiceConfig{
+				// ... (все ваши настройки)
+				TemplatesDir: cfg.Email.TemplatesDir,
+			}
+			var err error
+			emailService, err = services.NewEmailServiceWithConfig(emailServiceConfig)
+			if err != nil {
+				logger.Fatal("Failed to initialize EmailService", "error", err)
+			}
 		}
-		var err error
-		emailService, err = services.NewEmailServiceWithConfig(emailServiceConfig)
-		if err != nil {
-			logger.Fatal("Failed to initialize EmailService", "error", err)
-		}
-	}
+	*/
 
 	// --- Инициализация репозиториев ---
 	userRepo := repositories.NewUserRepository()
