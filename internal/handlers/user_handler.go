@@ -47,6 +47,8 @@ func (h *UserHandler) RegisterRoutes(r *gin.RouterGroup) {
 		admin.PUT("/:userId/status", h.UpdateUserStatus)
 		admin.PUT("/:userId/verify-employer", h.VerifyEmployer)
 		admin.GET("/stats/registration", h.GetRegistrationStats)
+		// ❗️ ДОБАВЛЕН МАРШРУТ УДАЛЕНИЯ
+		admin.DELETE("/:userId", h.DeleteUser)
 	}
 }
 
@@ -91,6 +93,23 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Profile updated successfully"})
+}
+
+func (h *UserHandler) DeleteUser(c *gin.Context) {
+	adminID, ok := h.GetAndAuthorizeUserID(c)
+	if !ok {
+		return
+	}
+	// Получаем ID пользователя, которого нужно удалить, из параметров URL
+	userID := c.Param("userId")
+
+	db := h.GetDB(c)
+	if err := h.userService.DeleteUser(db, adminID, userID); err != nil {
+		h.HandleServiceError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
 }
 
 func (h *UserHandler) ChangePassword(c *gin.Context) {

@@ -32,7 +32,7 @@ func (h *NotificationHandler) RegisterRoutes(r *gin.RouterGroup) {
 	notifications.Use(middleware.AuthMiddleware())
 	{
 		notifications.POST("", h.CreateNotification)
-		notifications.GET("", h.GetUserNotifications)
+		notifications.GET("/my", h.GetUserNotifications)
 		notifications.GET("/:notificationId", h.GetNotification)
 		notifications.PUT("/:notificationId/read", h.MarkAsRead)
 		notifications.PUT("/read-all", h.MarkAllAsRead)

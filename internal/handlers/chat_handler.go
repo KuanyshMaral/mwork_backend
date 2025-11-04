@@ -42,8 +42,8 @@ func (h *ChatHandler) RegisterRoutes(router *gin.RouterGroup) {
 
 	// Participant routes
 	router.POST("/dialogs/:dialogID/participants", h.AddParticipants)
-	router.DELETE("/dialogs/:dialogID/participants/:userID", h.RemoveParticipant)
-	router.PUT("/dialogs/:dialogID/participants/:userID/role", h.UpdateParticipantRole)
+	router.DELETE("/dialogs/:dialogID/participants/:userId", h.RemoveParticipant)
+	router.PUT("/dialogs/:dialogID/participants/:userId/role", h.UpdateParticipantRole)
 	router.POST("/dialogs/:dialogID/mute", h.MuteDialog)
 	router.POST("/dialogs/:dialogID/last-seen", h.UpdateLastSeen)
 	router.POST("/dialogs/:dialogID/typing", h.SetTyping)
@@ -82,7 +82,7 @@ func (h *ChatHandler) RegisterRoutes(router *gin.RouterGroup) {
 	router.GET("/admin/dialogs", h.GetAllDialogs)
 	router.GET("/admin/stats", h.GetChatStats)
 	router.POST("/admin/clean", h.CleanOldMessages)
-	router.DELETE("/admin/users/:userID/messages", h.DeleteUserMessages)
+	router.DELETE("/admin/users/:userId/messages", h.DeleteUserMessages)
 }
 
 // --- Dialog handlers (Обновлены с Context) ---

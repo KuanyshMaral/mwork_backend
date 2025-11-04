@@ -2,13 +2,14 @@ package services
 
 import (
 	"errors"
-	"gorm.io/gorm"
 	"math"
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/repositories"
 	"mwork_backend/internal/services/dto"
 	"mwork_backend/pkg/apperrors"
 	"time" // 👈 Добавлен импорт для GetRegistrationStats
+
+	"gorm.io/gorm"
 )
 
 // =======================
@@ -21,9 +22,9 @@ type UserService interface {
 	GetUsers(db *gorm.DB, filter dto.AdminUserFilter) ([]*dto.UserResponse, int64, error)
 	UpdateUserStatus(db *gorm.DB, adminID, userID string, status models.UserStatus) error
 	VerifyEmployer(db *gorm.DB, adminID, employerID string) error
-	// ❗️ Добавлен метод, который был в хендлере (GetRegistrationStats)
-	// (Предполагается, что он возвращает 'interface{}', как в старом репо)
 	GetRegistrationStats(db *gorm.DB, days int) (interface{}, error)
+	// ❗️ ДОБАВЛЕН МЕТОД УДАЛЕНИЯ ПОЛЬЗОВАТЕЛЯ
+	DeleteUser(db *gorm.DB, adminID, userID string) error
 }
 
 // =======================
@@ -238,6 +239,45 @@ func (s *UserServiceImpl) GetRegistrationStats(db *gorm.DB, days int) (interface
 		return nil, apperrors.InternalError(err)
 	}
 	return stats, nil
+}
+
+// DeleteUser - 'db' добавлен
+func (s *UserServiceImpl) DeleteUser(db *gorm.DB, adminID, userID string) error {
+	if adminID == userID {
+		return apperrors.ErrCannotModifySelf // Администратор не может удалить сам себя
+	}
+
+	// ✅ Начинаем транзакцию из переданного 'db'
+	tx := db.Begin()
+	if tx.Error != nil {
+		return apperrors.InternalError(tx.Error)
+	}
+	defer tx.Rollback()
+
+	// 1. Проверяем, что запрос исходит от Администратора
+	// ✅ Передаем 'tx'
+	admin, err := s.userRepo.FindByID(tx, adminID)
+	if err != nil {
+		return handleRepositoryError(err)
+	}
+
+	if admin.Role != models.UserRoleAdmin {
+		return apperrors.ErrInsufficientPermissions
+	}
+
+	// 2. Удаляем пользователя
+	// Логика полного удаления (например, токенов) должна быть здесь,
+	// но пока просто вызываем репозиторий.
+	// ✅ Передаем 'tx'
+	if err := s.userRepo.Delete(tx, userID); err != nil {
+		return handleRepositoryError(err)
+	}
+
+	// 3. Коммитим
+	if err := tx.Commit().Error; err != nil {
+		return apperrors.InternalError(err)
+	}
+	return nil
 }
 
 // =======================

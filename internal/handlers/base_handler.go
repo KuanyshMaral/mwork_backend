@@ -73,11 +73,7 @@ func (h *BaseHandler) BindAndValidate_JSON(c *gin.Context, obj interface{}) bool
 		if vErr, ok := err.(*validator.ValidationError); ok {
 			logger.CtxWarn(ctx, "Validation failed", "errors", vErr.Errors, "path", c.Request.URL.Path)
 
-			// --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
-			// Было: appErrors.HandleError(c, appErrors.NewValidationError(vErr.Errors))
-			// Стало:
 			apperrors.HandleError(c, apperrors.ValidationError(vErr.Errors))
-			// -------------------------
 
 		} else {
 			logger.CtxWithError(ctx, "Internal validator error", err, "path", c.Request.URL.Path)
@@ -101,11 +97,7 @@ func (h *BaseHandler) BindAndValidate_Query(c *gin.Context, obj interface{}) boo
 		if vErr, ok := err.(*validator.ValidationError); ok {
 			logger.CtxWarn(ctx, "Validation failed (query)", "errors", vErr.Errors, "path", c.Request.URL.Path)
 
-			// --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
-			// Было: appErrors.HandleError(c, appErrors.NewValidationError(vErr.Errors))
-			// Стало:
 			apperrors.HandleError(c, apperrors.ValidationError(vErr.Errors))
-			// -------------------------
 
 		} else {
 			logger.CtxWithError(ctx, "Internal validator error (query)", err, "path", c.Request.URL.Path)
