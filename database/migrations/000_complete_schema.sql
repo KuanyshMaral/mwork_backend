@@ -1,6 +1,6 @@
 -- ============================================================
 -- MWORK PLATFORM - COMPLETE DATABASE SCHEMA MIGRATION
--- This is a consolidated migration that creates the entire schema from scratch
+-- (Исправленная версия, учитывающая GORM Soft Delete и конфликты полей)
 -- ============================================================
 
 BEGIN;
@@ -35,7 +35,7 @@ CREATE OR REPLACE FUNCTION trigger_set_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN
   NEW.updated_at = NOW();
-  RETURN NEW;
+RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -45,9 +45,10 @@ $$ LANGUAGE plpgsql;
 
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                                     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     name VARCHAR(100) NOT NULL,
     email TEXT NOT NULL UNIQUE,
@@ -68,7 +69,7 @@ CREATE TABLE IF NOT EXISTS users (
 
     two_factor_enabled BOOLEAN DEFAULT false,
     two_factor_secret TEXT
-);
+    );
 
 CREATE TRIGGER set_timestamp_users
     BEFORE UPDATE ON users
@@ -79,12 +80,14 @@ CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_status ON users(status);
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_created_at ON users(created_at DESC);
+CREATE INDEX idx_users_deleted_at ON users(deleted_at); -- ⭐️ ADDED INDEX
 
 -- Model Profiles
 CREATE TABLE IF NOT EXISTS model_profiles (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                                              id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     user_id UUID NOT NULL UNIQUE,
 
@@ -128,7 +131,7 @@ CREATE TABLE IF NOT EXISTS model_profiles (
     is_public BOOLEAN DEFAULT true,
 
     CONSTRAINT fk_model_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
+    );
 
 CREATE TRIGGER set_timestamp_model_profiles
     BEFORE UPDATE ON model_profiles
@@ -139,12 +142,14 @@ CREATE INDEX idx_model_profiles_user_id ON model_profiles(user_id);
 CREATE INDEX idx_model_profiles_city ON model_profiles(city);
 CREATE INDEX idx_model_profiles_rating ON model_profiles(rating DESC);
 CREATE INDEX idx_model_profiles_is_public ON model_profiles(is_public) WHERE is_public = true;
+CREATE INDEX idx_model_profiles_deleted_at ON model_profiles(deleted_at); -- ⭐️ ADDED INDEX
 
 -- Employer Profiles
 CREATE TABLE IF NOT EXISTS employer_profiles (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                                                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     user_id UUID NOT NULL UNIQUE,
 
@@ -170,7 +175,7 @@ CREATE TABLE IF NOT EXISTS employer_profiles (
     verified_at TIMESTAMPTZ,
 
     CONSTRAINT fk_employer_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
+    );
 
 CREATE TRIGGER set_timestamp_employer_profiles
     BEFORE UPDATE ON employer_profiles
@@ -180,15 +185,17 @@ CREATE TRIGGER set_timestamp_employer_profiles
 CREATE INDEX idx_employer_profiles_user_id ON employer_profiles(user_id);
 CREATE INDEX idx_employer_profiles_city ON employer_profiles(city);
 CREATE INDEX idx_employer_profiles_is_verified ON employer_profiles(is_verified);
+CREATE INDEX idx_employer_profiles_deleted_at ON employer_profiles(deleted_at); -- ⭐️ ADDED INDEX
 
 -- ============================================================
 -- 5. SUBSCRIPTION & PAYMENTS
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS subscription_plans (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                                                  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     name VARCHAR(100) NOT NULL UNIQUE,
     slug VARCHAR(100) NOT NULL UNIQUE,
@@ -203,7 +210,7 @@ CREATE TABLE IF NOT EXISTS subscription_plans (
 
     is_active BOOLEAN DEFAULT true,
     trial_days INTEGER DEFAULT 0
-);
+    );
 
 CREATE TRIGGER set_timestamp_subscription_plans
     BEFORE UPDATE ON subscription_plans
@@ -211,12 +218,14 @@ CREATE TRIGGER set_timestamp_subscription_plans
     EXECUTE PROCEDURE trigger_set_timestamp();
 
 CREATE INDEX idx_subscription_plans_is_active ON subscription_plans(is_active) WHERE is_active = true;
+CREATE INDEX idx_subscription_plans_deleted_at ON subscription_plans(deleted_at); -- ⭐️ ADDED INDEX
 
 -- User Subscriptions
 CREATE TABLE IF NOT EXISTS user_subscriptions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                                                  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     user_id UUID NOT NULL,
     plan_id UUID NOT NULL,
@@ -237,7 +246,7 @@ CREATE TABLE IF NOT EXISTS user_subscriptions (
     inv_id TEXT,
     CONSTRAINT fk_subscription_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_subscription_plan FOREIGN KEY (plan_id) REFERENCES subscription_plans(id) ON DELETE RESTRICT
-);
+    );
 
 CREATE TRIGGER set_timestamp_user_subscriptions
     BEFORE UPDATE ON user_subscriptions
@@ -247,12 +256,14 @@ CREATE TRIGGER set_timestamp_user_subscriptions
 CREATE INDEX idx_user_subscriptions_user_id ON user_subscriptions(user_id);
 CREATE INDEX idx_user_subscriptions_status ON user_subscriptions(status);
 CREATE INDEX idx_user_subscriptions_end_date ON user_subscriptions(end_date) WHERE status = 'active';
+CREATE INDEX idx_user_subscriptions_deleted_at ON user_subscriptions(deleted_at); -- ⭐️ ADDED INDEX
 
 -- Payment Transactions
 CREATE TABLE IF NOT EXISTS payment_transactions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                                                    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     user_id UUID NOT NULL,
     subscription_id UUID,
@@ -273,7 +284,7 @@ CREATE TABLE IF NOT EXISTS payment_transactions (
 
     CONSTRAINT fk_payment_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_payment_subscription FOREIGN KEY (subscription_id) REFERENCES user_subscriptions(id) ON DELETE SET NULL
-);
+    );
 
 CREATE TRIGGER set_timestamp_payment_transactions
     BEFORE UPDATE ON payment_transactions
@@ -282,18 +293,21 @@ CREATE TRIGGER set_timestamp_payment_transactions
 
 CREATE INDEX idx_payment_transactions_user_id ON payment_transactions(user_id);
 CREATE INDEX idx_payment_transactions_status ON payment_transactions(status);
+CREATE INDEX idx_payment_transactions_deleted_at ON payment_transactions(deleted_at); -- ⭐️ ADDED INDEX
 
 -- ============================================================
 -- 6. FILE UPLOADS
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS uploads (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                                       id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     user_id UUID NOT NULL,
 
+    module VARCHAR(50), -- ⭐️ ADDED: Для универсального UploadService
     entity_type VARCHAR(50),
     entity_id TEXT,
 
@@ -312,7 +326,7 @@ CREATE TABLE IF NOT EXISTS uploads (
     thumbnail_path TEXT,
     variants JSONB, -- {"small": "path", "medium": "path", "large": "path"}
 
-    -- Metadata
+-- Metadata
     metadata JSONB, -- dimensions, duration, etc.
 
     storage_provider VARCHAR(50) DEFAULT 'local', -- 'local', 's3', 'cloudflare_r2'
@@ -325,7 +339,7 @@ CREATE TABLE IF NOT EXISTS uploads (
 
     CONSTRAINT fk_upload_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT chk_storage_provider CHECK (storage_provider IN ('local', 's3', 'cloudflare_r2'))
-);
+    );
 
 CREATE TRIGGER set_timestamp_uploads
     BEFORE UPDATE ON uploads
@@ -338,15 +352,18 @@ CREATE INDEX idx_uploads_usage ON uploads(usage);
 CREATE INDEX idx_uploads_storage_provider ON uploads(storage_provider);
 CREATE INDEX idx_uploads_expires_at ON uploads(expires_at) WHERE expires_at IS NOT NULL;
 CREATE INDEX idx_uploads_created_at ON uploads(created_at DESC);
+CREATE INDEX idx_uploads_deleted_at ON uploads(deleted_at); -- ⭐️ ADDED INDEX
+CREATE INDEX idx_uploads_module ON uploads(module); -- ⭐️ ADDED INDEX
 
 -- Portfolio Items
 CREATE TABLE IF NOT EXISTS portfolio_items (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                                               id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     model_id UUID NOT NULL,
-    upload_id UUID NOT NULL,
+    upload_id UUID, -- ⭐️ MODIFIED: Удалено NOT NULL для поддержки 2-фазной загрузки
 
     title VARCHAR(255),
     description TEXT,
@@ -354,7 +371,7 @@ CREATE TABLE IF NOT EXISTS portfolio_items (
 
     CONSTRAINT fk_portfolio_model FOREIGN KEY (model_id) REFERENCES model_profiles(id) ON DELETE CASCADE,
     CONSTRAINT fk_portfolio_upload FOREIGN KEY (upload_id) REFERENCES uploads(id) ON DELETE CASCADE
-);
+    );
 
 CREATE TRIGGER set_timestamp_portfolio_items
     BEFORE UPDATE ON portfolio_items
@@ -363,15 +380,17 @@ CREATE TRIGGER set_timestamp_portfolio_items
 
 CREATE INDEX idx_portfolio_items_model_id ON portfolio_items(model_id);
 CREATE INDEX idx_portfolio_items_order ON portfolio_items(model_id, order_index);
+CREATE INDEX idx_portfolio_items_deleted_at ON portfolio_items(deleted_at); -- ⭐️ ADDED INDEX
 
 -- ============================================================
 -- 7. CASTINGS & RESPONSES
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS castings (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                                        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     employer_id UUID NOT NULL,
 
@@ -411,7 +430,7 @@ CREATE TABLE IF NOT EXISTS castings (
     -- Job type
     job_type VARCHAR(50), -- 'one-time', 'recurring', 'permanent'
 
-    -- Status
+-- Status
     status casting_status DEFAULT 'draft',
     published_at TIMESTAMPTZ,
     closed_at TIMESTAMPTZ,
@@ -428,7 +447,7 @@ CREATE TABLE IF NOT EXISTS castings (
     CONSTRAINT chk_age_range CHECK (age_min IS NULL OR age_max IS NULL OR age_min <= age_max),
     CONSTRAINT chk_height_range CHECK (height_min IS NULL OR height_max IS NULL OR height_min <= height_max),
     CONSTRAINT chk_weight_range CHECK (weight_min IS NULL OR weight_max IS NULL OR weight_min <= weight_max)
-);
+    );
 
 CREATE TRIGGER set_timestamp_castings
     BEFORE UPDATE ON castings
@@ -440,12 +459,14 @@ CREATE INDEX idx_castings_city ON castings(city);
 CREATE INDEX idx_castings_status ON castings(status);
 CREATE INDEX idx_castings_event_date ON castings(event_date) WHERE status = 'active';
 CREATE INDEX idx_castings_published ON castings(published_at DESC) WHERE status = 'active';
+CREATE INDEX idx_castings_deleted_at ON castings(deleted_at); -- ⭐️ ADDED INDEX
 
 -- Casting Responses
 CREATE TABLE IF NOT EXISTS casting_responses (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                                                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     casting_id UUID NOT NULL,
     model_id UUID NOT NULL,
@@ -463,7 +484,7 @@ CREATE TABLE IF NOT EXISTS casting_responses (
     CONSTRAINT fk_response_casting FOREIGN KEY (casting_id) REFERENCES castings(id) ON DELETE CASCADE,
     CONSTRAINT fk_response_model FOREIGN KEY (model_id) REFERENCES model_profiles(id) ON DELETE CASCADE,
     CONSTRAINT uq_casting_response UNIQUE(casting_id, model_id)
-);
+    );
 
 CREATE TRIGGER set_timestamp_casting_responses
     BEFORE UPDATE ON casting_responses
@@ -473,15 +494,17 @@ CREATE TRIGGER set_timestamp_casting_responses
 CREATE INDEX idx_casting_responses_casting_id ON casting_responses(casting_id);
 CREATE INDEX idx_casting_responses_model_id ON casting_responses(model_id);
 CREATE INDEX idx_casting_responses_status ON casting_responses(status);
+CREATE INDEX idx_casting_responses_deleted_at ON casting_responses(deleted_at); -- ⭐️ ADDED INDEX
 
 -- ============================================================
 -- 8. REVIEWS & RATINGS
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS reviews (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                                       id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     model_id UUID NOT NULL,
     employer_id UUID NOT NULL,
@@ -499,7 +522,7 @@ CREATE TABLE IF NOT EXISTS reviews (
     CONSTRAINT fk_review_employer FOREIGN KEY (employer_id) REFERENCES employer_profiles(id) ON DELETE CASCADE,
     CONSTRAINT fk_review_casting FOREIGN KEY (casting_id) REFERENCES castings(id) ON DELETE SET NULL,
     CONSTRAINT uq_review UNIQUE(model_id, employer_id, casting_id)
-);
+    );
 
 CREATE TRIGGER set_timestamp_reviews
     BEFORE UPDATE ON reviews
@@ -511,15 +534,17 @@ CREATE INDEX idx_reviews_employer_id ON reviews(employer_id);
 CREATE INDEX idx_reviews_casting_id ON reviews(casting_id);
 CREATE INDEX idx_reviews_status ON reviews(status);
 CREATE INDEX idx_reviews_rating ON reviews(rating);
+CREATE INDEX idx_reviews_deleted_at ON reviews(deleted_at); -- ⭐️ ADDED INDEX
 
 -- ============================================================
 -- 9. NOTIFICATIONS
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS notifications (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                                             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     user_id UUID NOT NULL,
 
@@ -535,7 +560,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     action_url TEXT,
 
     CONSTRAINT fk_notification_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
+    );
 
 CREATE TRIGGER set_timestamp_notifications
     BEFORE UPDATE ON notifications
@@ -545,13 +570,15 @@ CREATE TRIGGER set_timestamp_notifications
 CREATE INDEX idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX idx_notifications_is_read ON notifications(is_read);
 CREATE INDEX idx_notifications_created_at ON notifications(created_at DESC);
+CREATE INDEX idx_notifications_deleted_at ON notifications(deleted_at); -- ⭐️ ADDED INDEX
 
 -- ============================================================
 -- 10. USAGE TRACKING
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS usage_tracking (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                                              id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     user_id UUID,
 
@@ -562,11 +589,12 @@ CREATE TABLE IF NOT EXISTS usage_tracking (
     created_at TIMESTAMPTZ DEFAULT now(),
 
     CONSTRAINT fk_usage_tracking_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-);
+    );
 
 CREATE INDEX idx_usage_tracking_user_id ON usage_tracking(user_id);
 CREATE INDEX idx_usage_tracking_event_type ON usage_tracking(event_type);
 CREATE INDEX idx_usage_tracking_created_at ON usage_tracking(created_at DESC);
+CREATE INDEX idx_usage_tracking_deleted_at ON usage_tracking(deleted_at); -- ⭐️ ADDED INDEX
 
 -- ============================================================
 -- 11. CHAT SYSTEM (in chat schema)
@@ -574,9 +602,10 @@ CREATE INDEX idx_usage_tracking_created_at ON usage_tracking(created_at DESC);
 
 -- Dialogs (conversations)
 CREATE TABLE IF NOT EXISTS chat.dialogs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     is_group BOOLEAN DEFAULT false,
     title VARCHAR(255),
@@ -587,7 +616,7 @@ CREATE TABLE IF NOT EXISTS chat.dialogs (
     last_message_id UUID,
 
     CONSTRAINT fk_dialog_casting FOREIGN KEY (casting_id) REFERENCES public.castings(id) ON DELETE SET NULL
-);
+    );
 
 CREATE TRIGGER set_timestamp_chat_dialogs
     BEFORE UPDATE ON chat.dialogs
@@ -596,11 +625,13 @@ CREATE TRIGGER set_timestamp_chat_dialogs
 
 CREATE INDEX idx_chat_dialogs_is_group ON chat.dialogs(is_group);
 CREATE INDEX idx_chat_dialogs_casting_id ON chat.dialogs(casting_id);
+CREATE INDEX idx_chat_dialogs_deleted_at ON chat.dialogs(deleted_at); -- ⭐️ ADDED INDEX
 
 -- Messages
 CREATE TABLE IF NOT EXISTS chat.messages (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                                             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at TIMESTAMPTZ DEFAULT now(),
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete (в дополнение к старому deleted_at, если он был)
 
     dialog_id UUID NOT NULL,
     sender_id UUID NOT NULL,
@@ -618,34 +649,36 @@ CREATE TABLE IF NOT EXISTS chat.messages (
     status message_status DEFAULT 'sent',
 
     edited_at TIMESTAMPTZ,
-    deleted_at TIMESTAMPTZ,
+    -- deleted_at TIMESTAMPTZ, -- ❌ УДАЛЕНО: Чтобы не дублировать поле
 
     CONSTRAINT fk_message_dialog FOREIGN KEY (dialog_id) REFERENCES chat.dialogs(id) ON DELETE CASCADE,
     CONSTRAINT fk_message_sender FOREIGN KEY (sender_id) REFERENCES public.users(id) ON DELETE SET NULL,
     CONSTRAINT fk_message_forward FOREIGN KEY (forward_from_id) REFERENCES chat.messages(id) ON DELETE SET NULL,
     CONSTRAINT fk_message_reply FOREIGN KEY (reply_to_id) REFERENCES chat.messages(id) ON DELETE SET NULL
-);
+    );
 
 CREATE INDEX idx_chat_messages_dialog_id ON chat.messages(dialog_id);
 CREATE INDEX idx_chat_messages_sender_id ON chat.messages(sender_id);
 CREATE INDEX idx_chat_messages_created_at ON chat.messages(created_at DESC);
+CREATE INDEX idx_chat_messages_deleted_at ON chat.messages(deleted_at); -- ⭐️ ADDED INDEX
 
 -- Add foreign key for last_message_id
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_dialog_last_message') THEN
-        ALTER TABLE chat.dialogs
-        ADD CONSTRAINT fk_dialog_last_message
-            FOREIGN KEY (last_message_id) REFERENCES chat.messages(id) ON DELETE SET NULL;
-    END IF;
+ALTER TABLE chat.dialogs
+    ADD CONSTRAINT fk_dialog_last_message
+        FOREIGN KEY (last_message_id) REFERENCES chat.messages(id) ON DELETE SET NULL;
+END IF;
 END;
 $$;
 
 -- Dialog Participants
 CREATE TABLE IF NOT EXISTS chat.dialog_participants (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                                                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     dialog_id UUID NOT NULL,
     user_id UUID NOT NULL,
@@ -664,7 +697,7 @@ CREATE TABLE IF NOT EXISTS chat.dialog_participants (
     CONSTRAINT fk_participant_dialog FOREIGN KEY (dialog_id) REFERENCES chat.dialogs(id) ON DELETE CASCADE,
     CONSTRAINT fk_participant_user FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE,
     CONSTRAINT uq_dialog_participant UNIQUE(dialog_id, user_id)
-);
+    );
 
 CREATE TRIGGER set_timestamp_chat_dialog_participants
     BEFORE UPDATE ON chat.dialog_participants
@@ -673,11 +706,13 @@ CREATE TRIGGER set_timestamp_chat_dialog_participants
 
 CREATE INDEX idx_chat_dialog_participants_dialog_id ON chat.dialog_participants(dialog_id);
 CREATE INDEX idx_chat_dialog_participants_user_id ON chat.dialog_participants(user_id);
+CREATE INDEX idx_chat_dialog_participants_deleted_at ON chat.dialog_participants(deleted_at); -- ⭐️ ADDED INDEX
 
--- Message Attachments
+-- Message Attachments (Оставлено как есть, но предполагается, что будет удалено в пользу uploads)
 CREATE TABLE IF NOT EXISTS chat.message_attachments (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                                                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at TIMESTAMPTZ DEFAULT now(),
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     message_id UUID NOT NULL,
     uploader_id UUID,
@@ -690,14 +725,15 @@ CREATE TABLE IF NOT EXISTS chat.message_attachments (
 
     CONSTRAINT fk_attachment_message FOREIGN KEY (message_id) REFERENCES chat.messages(id) ON DELETE CASCADE,
     CONSTRAINT fk_attachment_uploader FOREIGN KEY (uploader_id) REFERENCES public.users(id) ON DELETE SET NULL
-);
-
+    );
 CREATE INDEX idx_chat_message_attachments_message_id ON chat.message_attachments(message_id);
+CREATE INDEX idx_chat_message_attachments_deleted_at ON chat.message_attachments(deleted_at); -- ⭐️ ADDED INDEX
 
 -- Message Reactions
 CREATE TABLE IF NOT EXISTS chat.message_reactions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                                                      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at TIMESTAMPTZ DEFAULT now(),
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     message_id UUID NOT NULL,
     user_id UUID NOT NULL,
@@ -707,15 +743,17 @@ CREATE TABLE IF NOT EXISTS chat.message_reactions (
     CONSTRAINT fk_reaction_message FOREIGN KEY (message_id) REFERENCES chat.messages(id) ON DELETE CASCADE,
     CONSTRAINT fk_reaction_user FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE,
     CONSTRAINT uq_message_reaction UNIQUE(message_id, user_id, emoji)
-);
+    );
 
 CREATE INDEX idx_chat_message_reactions_message_id ON chat.message_reactions(message_id);
 CREATE INDEX idx_chat_message_reactions_user_id ON chat.message_reactions(user_id);
+CREATE INDEX idx_chat_message_reactions_deleted_at ON chat.message_reactions(deleted_at); -- ⭐️ ADDED INDEX
 
 -- Message Read Receipts
 CREATE TABLE IF NOT EXISTS chat.message_read_receipts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                                                          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at TIMESTAMPTZ DEFAULT now(),
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     message_id UUID NOT NULL,
     user_id UUID NOT NULL,
@@ -725,19 +763,21 @@ CREATE TABLE IF NOT EXISTS chat.message_read_receipts (
     CONSTRAINT fk_read_receipt_message FOREIGN KEY (message_id) REFERENCES chat.messages(id) ON DELETE CASCADE,
     CONSTRAINT fk_read_receipt_user FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE,
     CONSTRAINT uq_read_receipt UNIQUE(message_id, user_id)
-);
+    );
 
 CREATE INDEX idx_chat_message_read_receipts_message_id ON chat.message_read_receipts(message_id);
 CREATE INDEX idx_chat_message_read_receipts_user_id ON chat.message_read_receipts(user_id);
+CREATE INDEX idx_chat_message_read_receipts_deleted_at ON chat.message_read_receipts(deleted_at); -- ⭐️ ADDED INDEX
 
 -- ============================================================
 -- 12. REFRESH TOKENS
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS refresh_tokens (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                                              id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     user_id UUID NOT NULL,
 
@@ -751,7 +791,7 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
     user_agent TEXT,
 
     CONSTRAINT fk_refresh_token_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
+    );
 
 CREATE TRIGGER set_timestamp_refresh_tokens
     BEFORE UPDATE ON refresh_tokens
@@ -761,6 +801,7 @@ CREATE TRIGGER set_timestamp_refresh_tokens
 CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
 CREATE INDEX idx_refresh_tokens_token ON refresh_tokens(token);
 CREATE INDEX idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
+CREATE INDEX idx_refresh_tokens_deleted_at ON refresh_tokens(deleted_at); -- ⭐️ ADDED INDEX
 
 -- ============================================================
 -- 13. SAMPLE DATA (Optional)
@@ -781,7 +822,7 @@ VALUES
      '{"castings": -1, "responses": true, "reviews": true, "promotion": true, "analytics": true, "support": "priority"}'::jsonb,
      '{"max_castings": -1, "max_portfolio_items": -1}'::jsonb,
      true)
-ON CONFLICT (slug) DO NOTHING;
+    ON CONFLICT (slug) DO NOTHING;
 
 COMMIT;
 
