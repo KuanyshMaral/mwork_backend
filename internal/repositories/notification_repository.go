@@ -26,6 +26,8 @@ const (
 	NotificationTypeSubscriptionExpiring = "subscription_expiring"
 	NotificationTypeNewCasting           = "new_casting"
 	NotificationTypeProfileView          = "profile_view"
+	NotificationTypePasswordReset        = "password_reset"
+	NotificationTypeAnnouncement         = "announcement"
 )
 
 type NotificationRepository interface {
@@ -95,14 +97,14 @@ type AdminNotificationCriteria struct {
 
 // Notification template
 type NotificationTemplate struct {
-	ID        string    `gorm:"primaryKey" json:"id"`
-	Type      string    `gorm:"uniqueIndex" json:"type"`
-	Title     string    `json:"title"`
-	Message   string    `json:"message"`
-	Variables []string  `json:"variables" gorm:"type:jsonb"`
-	IsActive  bool      `gorm:"default:true" json:"is_active"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        string         `gorm:"primaryKey" json:"id"`
+	Type      string         `gorm:"uniqueIndex" json:"type"`
+	Title     string         `json:"title"`
+	Message   string         `json:"message"`
+	Variables datatypes.JSON `json:"variables" gorm:"type:jsonb"`
+	IsActive  bool           `gorm:"default:true" json:"is_active"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
 }
 
 // Notification statistics
@@ -384,9 +386,7 @@ func (r *NotificationRepositoryImpl) FindTemplateByID(db *gorm.DB, templateID st
 
 func (r *NotificationRepositoryImpl) FindAllTemplates(db *gorm.DB) ([]*NotificationTemplate, error) {
 	var templates []*NotificationTemplate
-	// (Обратите внимание: в репозитории мы не используем *NotificationTemplate,
-	// а в сервисе используется. Убедитесь, что типы совпадают.
-	// Если NotificationTemplate определен в models, используйте models.NotificationTemplate)
+	// GORM сам найдет таблицу "notification_templates" в схеме "public"
 	err := db.Find(&templates).Error
 	return templates, err
 }
@@ -722,6 +722,8 @@ func (r *NotificationRepositoryImpl) validateNotification(db *gorm.DB, notificat
 		NotificationTypeSubscriptionExpiring: true,
 		NotificationTypeNewCasting:           true,
 		NotificationTypeProfileView:          true,
+		NotificationTypePasswordReset:        true,
+		NotificationTypeAnnouncement:         true,
 	}
 
 	if !validTypes[notification.Type] {

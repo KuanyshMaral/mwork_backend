@@ -9,6 +9,7 @@ import (
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/repositories"
 	"mwork_backend/pkg/apperrors"
+	"strings"
 	"time"
 )
 
@@ -128,14 +129,21 @@ func (s *subscriptionService) CreatePlan(db *gorm.DB, adminID string, req *model
 		return fmt.Errorf("failed to marshal limits: %w", err)
 	}
 
+	slug := generateSlug(req.Name)
+
+	billingDays := durationToDays(req.Duration)
+
 	plan := &models.SubscriptionPlan{
-		Name:     req.Name,
-		Price:    req.Price,
-		Currency: req.Currency,
-		Duration: req.Duration,
-		Features: datatypes.JSON(featuresJSON),
-		Limits:   datatypes.JSON(limitsJSON),
-		IsActive: req.IsActive,
+		Name:          req.Name,
+		Description:   req.Description,
+		Slug:          slug,
+		Price:         req.Price,
+		Currency:      req.Currency,
+		Duration:      req.Duration,
+		BillingPeriod: billingDays,
+		Features:      datatypes.JSON(featuresJSON),
+		Limits:        datatypes.JSON(limitsJSON),
+		IsActive:      req.IsActive,
 	}
 
 	// ✅ Передаем tx
@@ -701,4 +709,28 @@ func handleSubscriptionError(err error) error {
 		return apperrors.ErrNotFound(err)
 	}
 	return apperrors.InternalError(err)
+}
+
+func generateSlug(name string) string {
+	// 1. Преобразуем в нижний регистр
+	slug := strings.ToLower(name)
+	// 2. Заменяем пробелы на дефисы
+	slug = strings.ReplaceAll(slug, " ", "-")
+
+	// (Опционально: можно добавить regexp для удаления спецсимволов)
+
+	return slug
+}
+
+func durationToDays(duration string) int {
+	switch duration {
+	case "monthly":
+		return 30
+	case "yearly":
+		return 365
+	case "weekly":
+		return 7
+	default:
+		return 30 // По умолчанию
+	}
 }

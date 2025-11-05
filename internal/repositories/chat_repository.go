@@ -700,20 +700,23 @@ func (r *ChatRepositoryImpl) GetChatStats(db *gorm.DB) (*ChatStats, error) {
 
 func (r *ChatRepositoryImpl) CleanOldMessages(db *gorm.DB, days int) error {
 	cutoffDate := time.Now().AddDate(0, 0, -days)
-	// ▼▼▼ ИЗМЕНЕНО ▼▼▼
-	if err := db.Where("message_id IN (SELECT id FROM messages WHERE created_at < ?)", cutoffDate).
+
+	// ✅ ИСПРАВЛЕНО: "chat"."messages"
+	if err := db.Where("message_id IN (SELECT id FROM \"chat\".\"messages\" WHERE created_at < ?)", cutoffDate).
 		Delete(&chat.MessageReadReceipt{}).Error; err != nil {
 		return err
 	}
-	if err := db.Where("message_id IN (SELECT id FROM messages WHERE created_at < ?)", cutoffDate).
+	// ✅ ИСПРАВЛЕНО: "chat"."messages"
+	if err := db.Where("message_id IN (SELECT id FROM \"chat\".\"messages\" WHERE created_at < ?)", cutoffDate).
 		Delete(&chat.MessageReaction{}).Error; err != nil {
 		return err
 	}
-	// Удалена строка 'Delete(&chat.MessageAttachment{})'
+
+	// ✅ ИСПРАВЛЕНО: (GORM сам справится, но для единообразия можно использовать .Table)
 	if err := db.Where("created_at < ?", cutoffDate).Delete(&chat.Message{}).Error; err != nil {
 		return err
 	}
-	// ▲▲▲ ИЗМЕНЕНО ▲▲▲
+
 	return nil
 }
 

@@ -205,6 +205,10 @@ CREATE TABLE IF NOT EXISTS subscription_plans (
     currency VARCHAR(10) DEFAULT 'KZT',
     billing_period INTEGER NOT NULL, -- days
 
+    duration VARCHAR(50),
+    payment_status VARCHAR(100),
+    slug TEXT NOT NULL,
+
     features JSONB DEFAULT '{}',
     limits JSONB DEFAULT '{}',
 
@@ -571,6 +575,32 @@ CREATE INDEX idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX idx_notifications_is_read ON notifications(is_read);
 CREATE INDEX idx_notifications_created_at ON notifications(created_at DESC);
 CREATE INDEX idx_notifications_deleted_at ON notifications(deleted_at); -- ⭐️ ADDED INDEX
+
+
+-- ============================================================
+-- 9.1. NOTIFICATION TEMPLATES (⭐️ ПРОПУЩЕННАЯ ТАБЛИЦА)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS notification_templates (
+                                                      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    deleted_at TIMESTAMPTZ, -- (Для GORM Soft Delete)
+
+    type VARCHAR(100) NOT NULL UNIQUE,
+    title TEXT,
+    message TEXT,
+    variables JSONB,
+    is_active BOOLEAN DEFAULT true
+    );
+
+CREATE TRIGGER set_timestamp_notification_templates
+    BEFORE UPDATE ON notification_templates
+    FOR EACH ROW
+    EXECUTE PROCEDURE trigger_set_timestamp();
+
+CREATE INDEX idx_notification_templates_deleted_at ON notification_templates(deleted_at);
+CREATE INDEX idx_notification_templates_type ON notification_templates(type);
 
 -- ============================================================
 -- 10. USAGE TRACKING

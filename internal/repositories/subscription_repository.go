@@ -720,7 +720,7 @@ func (r *SubscriptionRepositoryImpl) GetRevenueStats(db *gorm.DB, days int) (*Re
 	}
 
 	// ✅ Используем 'db' из параметра
-	err := db.Model(&models.PaymentTransaction{}).
+	err := db.Table("payment_transactions as pt").
 		Select("p.name as plan_name, COALESCE(SUM(pt.amount), 0) as revenue").
 		Joins("LEFT JOIN user_subscriptions us ON pt.subscription_id = us.id").
 		Joins("LEFT JOIN subscription_plans p ON us.plan_id = p.id").

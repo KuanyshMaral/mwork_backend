@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 	"time"
 
+	"github.com/google/uuid"
 	"mwork_backend/internal/models"
 	"mwork_backend/internal/repositories"
 	"mwork_backend/internal/services/dto"
@@ -402,11 +403,17 @@ func (s *notificationService) CreateTemplate(db *gorm.DB, adminID string, req *d
 		return errors.New("invalid notification type")
 	}
 
+	variablesJSON, err := json.Marshal(req.Variables)
+	if err != nil {
+		return fmt.Errorf("failed to marshal variables: %w", err)
+	}
+
 	template := &repositories.NotificationTemplate{
+		ID:        uuid.New().String(),
 		Type:      req.Type,
 		Title:     req.Title,
 		Message:   req.Message,
-		Variables: req.Variables,
+		Variables: datatypes.JSON(variablesJSON),
 		IsActive:  req.IsActive,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -470,7 +477,11 @@ func (s *notificationService) UpdateTemplate(db *gorm.DB, adminID, templateID st
 		template.Message = *req.Message
 	}
 	if req.Variables != nil {
-		template.Variables = req.Variables
+		variablesJSON, err := json.Marshal(req.Variables)
+		if err != nil {
+			return fmt.Errorf("failed to marshal variables: %w", err)
+		}
+		template.Variables = datatypes.JSON(variablesJSON)
 	}
 	if req.IsActive != nil {
 		template.IsActive = *req.IsActive
@@ -855,6 +866,8 @@ func isValidNotificationType(notificationType string) bool {
 		repositories.NotificationTypeSubscriptionExpiring: true,
 		repositories.NotificationTypeNewCasting:           true,
 		repositories.NotificationTypeProfileView:          true,
+		repositories.NotificationTypePasswordReset:        true,
+		repositories.NotificationTypeAnnouncement:         true,
 	}
 	return validTypes[notificationType]
 }

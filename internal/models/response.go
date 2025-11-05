@@ -3,23 +3,25 @@ package models
 import "time"
 
 type CreatePlanRequest struct {
-	Name     string         `json:"name" binding:"required"`
-	Price    float64        `json:"price" binding:"required,min=0"`
-	Currency string         `json:"currency" binding:"required"`
-	Duration string         `json:"duration" binding:"required"`
-	Features map[string]any `json:"features" binding:"required"`
-	Limits   map[string]int `json:"limits" binding:"required"`
-	IsActive bool           `json:"is_active"`
+	Name        string         `json:"name" binding:"required"`
+	Description string         `json:"description,omitempty"`
+	Price       float64        `json:"price" binding:"required,min=0"`
+	Currency    string         `json:"currency" binding:"required"`
+	Duration    string         `json:"duration" binding:"required"`
+	Features    map[string]any `json:"features" binding:"required"`
+	Limits      map[string]int `json:"limits" binding:"required"`
+	IsActive    bool           `json:"is_active"`
 }
 
 type UpdatePlanRequest struct {
-	Name     *string        `json:"name,omitempty"`
-	Price    *float64       `json:"price,omitempty"`
-	Currency *string        `json:"currency,omitempty"`
-	Duration *string        `json:"duration,omitempty"`
-	Features map[string]any `json:"features,omitempty"`
-	Limits   map[string]int `json:"limits,omitempty"`
-	IsActive *bool          `json:"is_active,omitempty"`
+	Name        *string        `json:"name,omitempty"`
+	Description *string        `json:"description,omitempty"`
+	Price       *float64       `json:"price,omitempty"`
+	Currency    *string        `json:"currency,omitempty"`
+	Duration    *string        `json:"duration,omitempty"`
+	Features    map[string]any `json:"features,omitempty"`
+	Limits      map[string]int `json:"limits,omitempty"`
+	IsActive    *bool          `json:"is_active,omitempty"`
 }
 
 type PaymentResponse struct {

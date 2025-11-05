@@ -8,9 +8,12 @@ import (
 type SubscriptionPlan struct {
 	BaseModel
 	Name          string         `gorm:"not null"`
+	Description   string         `gorm:"not null"`
+	Slug          string         `gorm:"not null;uniqueIndex"`
 	Price         float64        `gorm:"not null"`
 	Currency      string         `gorm:"default:'KZT'"`
-	Duration      string         `gorm:"not null"`   // "monthly", "yearly"
+	Duration      string         `gorm:"not null"` // "monthly", "yearly"
+	BillingPeriod int            `gorm:"not null"`
 	Features      datatypes.JSON `gorm:"type:jsonb"` // {"premium_support": true, ...}
 	Limits        datatypes.JSON `gorm:"type:jsonb"` // {"publications": 5, "responses": 10}
 	IsActive      bool           `gorm:"default:true"`
