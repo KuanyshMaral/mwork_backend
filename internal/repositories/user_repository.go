@@ -33,6 +33,8 @@ type UserRepository interface {
 	FindByVerificationToken(db *gorm.DB, token string) (*models.User, error)
 	FindByResetToken(db *gorm.DB, token string) (*models.User, error)
 	UpdateLastActive(db *gorm.DB, userID string) error
+
+	FindByProfileID(db *gorm.DB, profileID string) (*models.User, error)
 }
 
 type UserRepositoryImpl struct {
@@ -296,4 +298,31 @@ func (r *UserRepositoryImpl) UpdateLastActive(db *gorm.DB, userID string) error 
 		return ErrUserNotFound
 	}
 	return nil
+}
+
+// FindByProfileID находит пользователя по ID его *профиля*
+func (r *UserRepositoryImpl) FindByProfileID(db *gorm.DB, profileID string) (*models.User, error) {
+	var user models.User
+	// Ищем пользователя, чей ID (users.id) связан с employer_profiles.user_id,
+	// и у которого employer_profiles.id совпадает с profileID
+	err := db.Joins("JOIN employer_profiles ON users.id = employer_profiles.user_id").
+		Where("employer_profiles.id = ?", profileID).
+		First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Попробовать найти в model_profiles?
+			err2 := db.Joins("JOIN model_profiles ON users.id = model_profiles.user_id").
+				Where("model_profiles.id = ?", profileID).
+				First(&user).Error
+			if err2 != nil {
+				if errors.Is(err2, gorm.ErrRecordNotFound) {
+					return nil, ErrUserNotFound
+				}
+				return nil, err2
+			}
+			return &user, nil
+		}
+		return nil, err
+	}
+	return &user, nil
 }

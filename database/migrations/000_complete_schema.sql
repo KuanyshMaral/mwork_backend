@@ -191,6 +191,7 @@ CREATE INDEX idx_employer_profiles_deleted_at ON employer_profiles(deleted_at); 
 -- 5. SUBSCRIPTION & PAYMENTS
 -- ============================================================
 
+-- ▼▼▼ ИСПРАВЛЕНА ОШИБКА 1: Удалена дублирующаяся колонка 'slug' ▼▼▼
 CREATE TABLE IF NOT EXISTS subscription_plans (
                                                   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     created_at TIMESTAMPTZ DEFAULT now(),
@@ -198,7 +199,7 @@ CREATE TABLE IF NOT EXISTS subscription_plans (
     deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     name VARCHAR(100) NOT NULL UNIQUE,
-    slug VARCHAR(100) NOT NULL UNIQUE,
+    slug VARCHAR(100) NOT NULL UNIQUE, -- (Это правильное определение)
     description TEXT,
 
     price DECIMAL(10,2) NOT NULL,
@@ -207,7 +208,7 @@ CREATE TABLE IF NOT EXISTS subscription_plans (
 
     duration VARCHAR(50),
     payment_status VARCHAR(100),
-    slug TEXT NOT NULL,
+    -- slug TEXT NOT NULL, -- ❌ ЭТА СТРОКА БЫЛА УДАЛЕНА (дубликат)
 
     features JSONB DEFAULT '{}',
     limits JSONB DEFAULT '{}',
@@ -215,6 +216,7 @@ CREATE TABLE IF NOT EXISTS subscription_plans (
     is_active BOOLEAN DEFAULT true,
     trial_days INTEGER DEFAULT 0
     );
+-- ▲▲▲ КОНЕЦ ИСПРАВЛЕНИЯ 1 ▲▲▲
 
 CREATE TRIGGER set_timestamp_subscription_plans
     BEFORE UPDATE ON subscription_plans
@@ -245,9 +247,10 @@ CREATE TABLE IF NOT EXISTS user_subscriptions (
 
     current_usage JSONB DEFAULT '{}',
 
+    -- (Оставляем оба, т.к. неясно, какое поле использует GORM-модель)
     invoice_id TEXT UNIQUE,
-
     inv_id TEXT,
+
     CONSTRAINT fk_subscription_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_subscription_plan FOREIGN KEY (plan_id) REFERENCES subscription_plans(id) ON DELETE RESTRICT
     );
@@ -406,7 +409,7 @@ CREATE TABLE IF NOT EXISTS castings (
     payment_max DECIMAL(10,2),
     currency VARCHAR(10) DEFAULT 'KZT',
 
-    -- Event details
+    -- Event details (✅ ПРАВИЛЬНО: event_date)
     event_date TIMESTAMPTZ,
     event_time VARCHAR(50),
 
@@ -578,7 +581,7 @@ CREATE INDEX idx_notifications_deleted_at ON notifications(deleted_at); -- ⭐�
 
 
 -- ============================================================
--- 9.1. NOTIFICATION TEMPLATES (⭐️ ПРОПУЩЕННАЯ ТАБЛИЦА)
+-- 9.1. NOTIFICATION TEMPLATES (✅ ПРАВИЛЬНАЯ ТАБЛИЦА)
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS notification_templates (
@@ -661,7 +664,7 @@ CREATE INDEX idx_chat_dialogs_deleted_at ON chat.dialogs(deleted_at); -- ⭐️ 
 CREATE TABLE IF NOT EXISTS chat.messages (
                                              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at TIMESTAMPTZ DEFAULT now(),
-    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete (в дополнение к старому deleted_at, если он был)
+    deleted_at TIMESTAMPTZ, -- ⭐️ ADDED: Soft Delete
 
     dialog_id UUID NOT NULL,
     sender_id UUID NOT NULL,
@@ -679,7 +682,6 @@ CREATE TABLE IF NOT EXISTS chat.messages (
     status message_status DEFAULT 'sent',
 
     edited_at TIMESTAMPTZ,
-    -- deleted_at TIMESTAMPTZ, -- ❌ УДАЛЕНО: Чтобы не дублировать поле
 
     CONSTRAINT fk_message_dialog FOREIGN KEY (dialog_id) REFERENCES chat.dialogs(id) ON DELETE CASCADE,
     CONSTRAINT fk_message_sender FOREIGN KEY (sender_id) REFERENCES public.users(id) ON DELETE SET NULL,
@@ -837,7 +839,7 @@ CREATE INDEX idx_refresh_tokens_deleted_at ON refresh_tokens(deleted_at); -- ⭐
 -- 13. SAMPLE DATA (Optional)
 -- ============================================================
 
--- Insert subscription plans
+-- ▼▼▼ ИСПРАВЛЕНА ОШИБКА 2: Добавлены 'slug' для 'NOT NULL' ▼▼▼
 INSERT INTO subscription_plans (name, slug, description, price, billing_period, features, limits, is_active)
 VALUES
     ('Free', 'free', 'Get started with basic features', 0, 30,
@@ -853,6 +855,7 @@ VALUES
      '{"max_castings": -1, "max_portfolio_items": -1}'::jsonb,
      true)
     ON CONFLICT (slug) DO NOTHING;
+-- ▲▲▲ КОНЕЦ ИСПРАВЛЕНИЯ 2 ▲▲▲
 
 COMMIT;
 

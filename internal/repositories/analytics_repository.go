@@ -322,11 +322,13 @@ func (r *analyticsRepository) GetRegistrationStats(db *gorm.DB, days int) (*Regi
 
 // PlatformCastingStats структура для статистики кастингов платформы
 type PlatformCastingStats struct {
-	TotalCastings   int64   `json:"totalCastings"`
-	ActiveCastings  int64   `json:"activeCastings"`
-	SuccessRate     float64 `json:"successRate"`
-	AvgResponseRate float64 `json:"avgResponseRate"`
-	AvgResponseTime float64 `json:"avgResponseTime"`
+	TotalCastings     int64   `json:"totalCastings"`
+	ActiveCastings    int64   `json:"activeCastings"`
+	SuccessRate       float64 `json:"successRate"`
+	AvgResponseRate   float64 `json:"avgResponseRate"`
+	AvgResponseTime   float64 `json:"avgResponseTime"`
+	AcceptedResponses int64   `json:"acceptedResponses"`
+	ClosedCastings    int64   `json:"closedCastings"`
 }
 
 // GetPlatformCastingStats возвращает статистику по кастингам платформы
