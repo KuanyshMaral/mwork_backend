@@ -1,0 +1,6611 @@
+{
+	"info": {
+		"_postman_id": "49746597-7c969d4b-d110-41c7-8deb-2c491faf850d",
+		"name": "MWORK complete",
+		"description": "Complete API collection for MWork Backend",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register(шаблон для model)",
+					"id": "49746597-2939cf35-9868-4a87-84ce-e4a5c12d6bd1",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"role\": \"model\",\n  \"city\": \"Astana\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Register(шаблон для employer)",
+					"id": "49746597-f670d807-a725-4b4a-baf4-b7e95637b4b0",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"company_name\": \"My Company LLC\",\n    \"email\": \"employer@example.com\",\n    \"password\": \"password123\",\n    \"role\": \"employer\",\n    \"city\": \"Astana\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"id": "49746597-12f2e656-bea8-40e5-aac4-2be978c82970",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"admin@mwork.com\",\n  \"password\": \"super-secret-password-123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Обновление Access Token через Refresh Token",
+					"id": "49746597-322e4faf-dcf7-49c0-9df4-c4041b345402",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/auth/refresh",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"refresh"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Logout",
+					"id": "49746597-96d08bcb-c3d0-474f-8185-b53d7f2ea71c",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/auth/logout",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"logout"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Email",
+					"id": "49746597-02a83c74-3883-4d76-87a6-a41e333b9530",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"verification token\": \"1874d014eebfb23c\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/verify-email",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"verify-email"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Request Password Reset",
+					"id": "49746597-63a1c6f6-94b9-4634-98aa-a1965eaa0d11",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"john@example.com\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/password-reset",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"password-reset"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Reset Password",
+					"id": "49746597-7b58260a-2a9b-4e14-b2a3-5672e1180c46",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"token\": \"reset_token_here\",\n  \"new_password\": \"newpassword123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/reset-password",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"reset-password"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"id": "49746597-49b72918-383a-4256-8d0a-6e6ee7c1b8d5"
+		},
+		{
+			"name": "User Profile",
+			"item": [
+				{
+					"name": "Get My Profile",
+					"id": "49746597-4c4fbb39-f98e-4b36-a63c-309265e6fdb2",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/profile",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"profile"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update My Profile",
+					"id": "49746597-6bc50191-e18e-4cf1-8a86-f1d457b3285b",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "module",
+									"value": "profile",
+									"type": "text"
+								},
+								{
+									"key": "usage",
+									"value": "avatar",
+									"type": "text"
+								},
+								{
+									"key": "file",
+									"type": "file",
+									"src": "/C:/Users/mrmar/Downloads/shadowy-buff-guy-in-a-doorway-meme-3.jpg"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/profile",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"profile"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Change Password",
+					"id": "49746597-bf71e5ed-8164-46bb-a32f-4939c0eee619",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"current_password\": \"password123\",\n  \"new_password\": \"newpassword123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/profile/password/change",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"profile",
+								"password",
+								"change"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"id": "49746597-72342ba7-2413-409a-a2f6-185784cbdbbe"
+		},
+		{
+			"name": "Model Profiles",
+			"item": [
+				{
+					"name": "Create Model Profile",
+					"id": "49746597-df06ebc3-6f90-4332-9a02-61c5e8cdfcd3",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMDE0ZmI0MzYtZWY2YS00ZjY0LWIxMmItNzJhODY4MWYyYjVmIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyMjgzOTc3LCJpYXQiOjE3NjIxOTc1Nzd9.tilvipJcty3lznWBozXeBDzO-pDbpkhz1F58C-_K2c8",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\":\"Jane Doe\",\n  \"age\": 25,\n  \"height\": 175,\n  \"weight\": 65,\n  \"gender\": \"female\",\n  \"experience_years\": 3,\n  \"hourly_rate\": 50,\n  \"clothing_size\": \"M\",\n  \"shoe_size\": \"8\",\n  \"city\": \"Astana\",\n  \"languages\": [\"Russian\", \"English\"],\n  \"categories\": [\"photo\", \"video\"],\n  \"is_public\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/profiles/model",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"profiles",
+								"model"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Employer Profile",
+					"id": "49746597-d2de3eac-580e-4944-b17b-629fbeae8bde",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiOWY1MzQzZTktZWFlOC00Y2Q4LTkwYzUtN2IxNmI0MTk1NmJkIiwicm9sZSI6ImVtcGxveWVyIiwiZXhwIjoxNzYyMzY2ODI5LCJpYXQiOjE3NjIyODA0Mjl9.6NxTme_Me6j0noXZnUSwC7TQ_iHn0PEZshj8N2r5z58",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"company_name\": \"Photo Studio\",\n  \"contact_person\": \"Jane Doe\",\n  \"phone\": \"+79991234567\",\n  \"website\": \"https://example.com\",\n  \"city\": \"Moscow\",\n  \"company_type\": \"agency\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/profiles/employer",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"profiles",
+								"employer"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Profile",
+					"id": "49746597-f9693e26-b866-48ae-a662-606a9f3f2d3e",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/profiles/:userId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"profiles",
+								":userId"
+							],
+							"variable": [
+								{
+									"id": "60b573ee-5ec6-44d8-b07e-1d44e419c862",
+									"key": "userId"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search Models",
+					"id": "49746597-84e92920-0f8a-4e28-94be-9771e4191f84",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/profiles/models/search?city=Moscow&min_age=20&max_age=30&page=1&page_size=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"profiles",
+								"models",
+								"search"
+							],
+							"query": [
+								{
+									"key": "city",
+									"value": "Moscow"
+								},
+								{
+									"key": "min_age",
+									"value": "20"
+								},
+								{
+									"key": "max_age",
+									"value": "30"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "20"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update My Profile",
+					"id": "49746597-36e076aa-4cb8-496c-9e65-a7f49deb062b",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMzIyOWM0NTEtYjM2Ny00NGEzLTgyZTUtMWU1ZjEwMmZjMmYxIiwicm9sZSI6Im1vZGVsIiwiZXhwIjoxNzYyMzQ2Mjc3LCJpYXQiOjE3NjIyNTk4Nzd9.FLGQnSssyw4_fr7qg2zQ0OsIWBVoRJlu_Lt4-zM4oE4",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"age\": 26,\n  \"hourly_rate\": 55\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/profiles/me",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"profiles",
+								"me"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Toggle Profile Visibility",
+					"id": "49746597-ed4d6564-85c6-4e63-833f-df6170559d48",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMzIyOWM0NTEtYjM2Ny00NGEzLTgyZTUtMWU1ZjEwMmZjMmYxIiwicm9sZSI6Im1vZGVsIiwiZXhwIjoxNzYyMzQ2Mjc3LCJpYXQiOjE3NjIyNTk4Nzd9.FLGQnSssyw4_fr7qg2zQ0OsIWBVoRJlu_Lt4-zM4oE4",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"is_public\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/profiles/me/visibility",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"profiles",
+								"me",
+								"visibility"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Stats",
+					"id": "49746597-62f6c04f-a5f0-4e26-a2d5-bdf8075c01ad",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMzIyOWM0NTEtYjM2Ny00NGEzLTgyZTUtMWU1ZjEwMmZjMmYxIiwicm9sZSI6Im1vZGVsIiwiZXhwIjoxNzYyMzQ2Mjc3LCJpYXQiOjE3NjIyNTk4Nzd9.FLGQnSssyw4_fr7qg2zQ0OsIWBVoRJlu_Lt4-zM4oE4",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/profiles/me/stats",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"profiles",
+								"me",
+								"stats"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"id": "49746597-a64c7ca1-2d41-43ac-876f-65fc6d50fbf0"
+		},
+		{
+			"name": "Castings",
+			"item": [
+				{
+					"name": "Search Castings",
+					"id": "49746597-87e1ef26-15e0-47ca-91ab-2a49b5f00978",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/castings?city=Moscow&category=photo&min_price=100&max_price=500&page=1&page_size=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"castings"
+							],
+							"query": [
+								{
+									"key": "city",
+									"value": "Moscow"
+								},
+								{
+									"key": "category",
+									"value": "photo"
+								},
+								{
+									"key": "min_price",
+									"value": "100"
+								},
+								{
+									"key": "max_price",
+									"value": "500"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "20"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Casting",
+					"id": "49746597-7ed238dd-72d4-49a2-8511-38e10479bb44",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/castings/:castingId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"castings",
+								":castingId"
+							],
+							"variable": [
+								{
+									"id": "2d47ef88-580f-44ae-bdba-54b00623d76d",
+									"key": "castingId"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Active Castings",
+					"id": "49746597-00b075ae-e138-41f7-bf3b-cca3c67139a6",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/castings/active?limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"castings",
+								"active"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Castings by City",
+					"id": "49746597-e049f31c-005d-40d6-8f7c-232cd52fc62a",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/castings/city/Moscow?limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"castings",
+								"city",
+								"Moscow"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Casting",
+					"id": "49746597-212e37fd-2fe5-40ec-a042-5c7d190e8aa8",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiOWY1MzQzZTktZWFlOC00Y2Q4LTkwYzUtN2IxNmI0MTk1NmJkIiwicm9sZSI6ImVtcGxveWVyIiwiZXhwIjoxNzYyMzY2ODI5LCJpYXQiOjE3NjIyODA0Mjl9.6NxTme_Me6j0noXZnUSwC7TQ_iHn0PEZshj8N2r5z58",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Fashion Photoshoot\",\n  \"description\": \"Looking for models for summer campaign\",\n  \"min_price\": 100,\n  \"max_price\": 500,\n  \"date\": \"2025-12-01\",\n  \"time\": \"10:00\",\n  \"location\": \"Studio A\",\n  \"city\": \"Moscow\",\n  \"categories\": [\"photo\"],\n  \"gender_required\": \"female\",\n  \"min_age\": 20,\n  \"max_age\": 30,\n  \"min_height\": 170,\n  \"max_height\": 180,\n  \"clothing_size_required\": \"M\",\n  \"work_type\": \"one-time\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/castings",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"castings"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Castings",
+					"id": "49746597-79c4f0dd-aa1d-4e9f-8b98-bb728d661a2f",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/castings/my",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"castings",
+								"my"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Casting",
+					"id": "49746597-0514d303-65c9-41e7-8f74-22cf85c83027",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Updated Fashion Photoshoot\",\n  \"max_price\": 600\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/castings/:castingId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"castings",
+								":castingId"
+							],
+							"variable": [
+								{
+									"id": "abfdef7d-af16-499a-965c-1228823b03b2",
+									"key": "castingId"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Casting",
+					"id": "49746597-730eab19-0ff1-4499-9bb6-0f73c5585fce",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/castings/:castingId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"castings",
+								":castingId"
+							],
+							"variable": [
+								{
+									"id": "149fe366-ec55-4d14-9cc7-d7d4b98ad213",
+									"key": "castingId"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Casting Status",
+					"id": "49746597-3ffdb807-b997-4a17-afcb-2d7f2ee86bb0",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"closed\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/castings/:castingId/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"castings",
+								":castingId",
+								"status"
+							],
+							"variable": [
+								{
+									"id": "cd949ddc-184b-4fc4-828f-d44c0cad2d76",
+									"key": "castingId"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Casting Stats",
+					"id": "49746597-69dbafbd-643d-43e6-ab36-47ec0ae8c824",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/castings/:castingId/stats",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"castings",
+								":castingId",
+								"stats"
+							],
+							"variable": [
+								{
+									"id": "c400116b-f807-4b1c-b505-d14901b36847",
+									"key": "castingId"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Stats",
+					"id": "49746597-c0f284b9-49f8-4bfb-a1eb-aa3f937916fb",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/castings/stats/my",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"castings",
+								"stats",
+								"my"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Matching Castings (for Models)",
+					"id": "49746597-64fd09ed-9271-49c1-a6d0-1a5b1aa4598b",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/castings/matching?limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"castings",
+								"matching"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Casting Responses (for Employer)",
+					"id": "49746597-f34fb925-1c85-43dc-87cc-7ff8c24ecf9a",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/castings/:castingId/responses",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"castings",
+								":castingId",
+								"responses"
+							],
+							"variable": [
+								{
+									"id": "4cd90e26-a7a2-42a2-9b7e-e26edecef10b",
+									"key": "castingId"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"id": "49746597-ed06d434-4ca4-4c59-8916-8435f5d808b5"
+		},
+		{
+			"name": "Reviews",
+			"item": [
+				{
+					"name": "Create Review",
+					"id": "49746597-0394f2d5-be17-48d1-866c-fbeae8cbd688",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"model_id\": \"model123\",\n  \"casting_id\": \"casting123\",\n  \"rating\": 5,\n  \"comment\": \"Great professional!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/reviews",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"reviews"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Review",
+					"id": "49746597-ccbd4960-7ecb-4425-9ea2-0a7367c5bbdc",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/reviews/:reviewId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"reviews",
+								":reviewId"
+							],
+							"variable": [
+								{
+									"id": "03fda3dc-5714-4a0c-b997-b9a97e86d724",
+									"key": "reviewId"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Model Reviews",
+					"id": "49746597-b9afaa5b-d5fe-4802-9756-b9cb204303fb",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/reviews/models/:modelId?page=1&page_size=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"reviews",
+								"models",
+								":modelId"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "10"
+								}
+							],
+							"variable": [
+								{
+									"id": "d5392409-3df5-481e-bf6d-513c1609872a",
+									"key": "modelId"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Model Rating Stats",
+					"id": "49746597-2249a170-473b-4c1a-be2c-647ac98553fc",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/reviews/models/:modelId/stats",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"reviews",
+								"models",
+								":modelId",
+								"stats"
+							],
+							"variable": [
+								{
+									"id": "80a18917-531e-48d1-a844-e698672b032e",
+									"key": "modelId"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Review Summary",
+					"id": "49746597-b2cadb67-6f8a-40d3-8983-dd911752e688",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/reviews/models/:modelId/summary",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"reviews",
+								"models",
+								":modelId",
+								"summary"
+							],
+							"variable": [
+								{
+									"id": "2b0b171e-815e-4eef-9f65-b69d8447824d",
+									"key": "modelId"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Reviews",
+					"id": "49746597-f95e4e73-19e0-48f7-af08-730c3e889be0",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/reviews/my?page=1&page_size=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"reviews",
+								"my"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Review",
+					"id": "49746597-95b39cb5-b3e6-4bb0-b308-a126d2aa41a7",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"rating\": 4,\n  \"comment\": \"Updated comment\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/reviews/:reviewId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"reviews",
+								":reviewId"
+							],
+							"variable": [
+								{
+									"id": "dd013dda-8089-4b0c-b6be-ad934c9da9ac",
+									"key": "reviewId"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Review",
+					"id": "49746597-bcbc823f-0fbb-4886-95ab-7cd14e86c48d",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/reviews/:reviewId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"reviews",
+								":reviewId"
+							],
+							"variable": [
+								{
+									"id": "63b47be5-1ef3-4446-9de7-1138b74a848a",
+									"key": "reviewId"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Can Create Review",
+					"id": "49746597-bfd3ee4a-d7ac-4dd3-9798-9a9160f683b9",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/reviews/can-create?model_id=model123&casting_id=casting123",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"reviews",
+								"can-create"
+							],
+							"query": [
+								{
+									"key": "model_id",
+									"value": "model123"
+								},
+								{
+									"key": "casting_id",
+									"value": "casting123"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"id": "49746597-5057b950-142c-4d70-991b-28c618b170c0"
+		},
+		{
+			"name": "Portfolio",
+			"item": [
+				{
+					"name": "Create Portfolio Item",
+					"id": "49746597-07509d5f-d3a8-4d7a-9ff9-5ef194c27976",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "title",
+									"value": "Summer Collection",
+									"type": "text"
+								},
+								{
+									"key": "description",
+									"value": "Beautiful summer photoshoot",
+									"type": "text"
+								},
+								{
+									"key": "file",
+									"type": "file",
+									"value": null
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/portfolio",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"portfolio"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Portfolio Item",
+					"id": "49746597-42999e4e-9655-44f4-8fd8-b14b7c4d6d8b",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/portfolio/:itemId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"portfolio",
+								":itemId"
+							],
+							"variable": [
+								{
+									"id": "c4c4edfd-7cb6-4b19-a819-60992efd81a7",
+									"key": "itemId"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Model Portfolio",
+					"id": "49746597-81508235-4b1c-41d3-b630-c6d66e16df0b",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/portfolio/model/:modelId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"portfolio",
+								"model",
+								":modelId"
+							],
+							"variable": [
+								{
+									"id": "3c4d09b1-c0d1-445d-bd92-0bc33160a674",
+									"key": "modelId"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Featured Portfolio",
+					"id": "49746597-129aac9f-bf5f-4d30-99de-a2bc8eb319b8",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/portfolio/featured?limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"portfolio",
+								"featured"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Recent Portfolio",
+					"id": "49746597-f396a474-64a4-4bed-abc1-92c4e964898f",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/portfolio/recent?limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"portfolio",
+								"recent"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Portfolio Item",
+					"id": "49746597-3df27c7c-e56c-4aa3-9a3d-35c43f4692c7",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Updated Title\",\n  \"description\": \"Updated description\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/portfolio/:itemId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"portfolio",
+								":itemId"
+							],
+							"variable": [
+								{
+									"id": "e76db0fb-b674-415b-b96f-30584d01a193",
+									"key": "itemId"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Portfolio Item",
+					"id": "49746597-18391d3e-49bd-4ec4-aed2-d0142a6a115f",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/portfolio/:itemId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"portfolio",
+								":itemId"
+							],
+							"variable": [
+								{
+									"id": "a70176e0-1544-4a88-b216-ab9516295367",
+									"key": "itemId"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Portfolio Order",
+					"id": "49746597-24919301-99aa-4066-8cb4-f2f6ca0dee00",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"items\": [\n    {\n      \"id\": \"item1\",\n      \"order\": 1\n    },\n    {\n      \"id\": \"item2\",\n      \"order\": 2\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/portfolio/reorder",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"portfolio",
+								"reorder"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Toggle Portfolio Visibility",
+					"id": "49746597-c7a32845-7ddf-4de7-833b-46609b0bb9ec",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"is_public\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/portfolio/:itemId/visibility",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"portfolio",
+								":itemId",
+								"visibility"
+							],
+							"variable": [
+								{
+									"id": "7147134a-bef1-48ce-95e6-c79086577495",
+									"key": "itemId"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Portfolio Stats",
+					"id": "49746597-29c8e24a-b9cb-40da-ba79-1ef629637f45",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/portfolio/stats/:modelId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"portfolio",
+								"stats",
+								":modelId"
+							],
+							"variable": [
+								{
+									"id": "64cef7cc-b6d7-4163-8d0a-f8163c7de806",
+									"key": "modelId"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"id": "49746597-8fc92c2d-b38e-4672-b12a-cff7dd2eeabe"
+		},
+		{
+			"name": "Chat & Messages",
+			"item": [
+				{
+					"name": "Create Dialog",
+					"id": "49746597-e84f4142-c9f7-4ddd-8a0a-7ca4cec5a5ef",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"participant_ids\": [\"user2\"],\n  \"title\": \"Project Discussion\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/dialogs",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"dialogs"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Dialogs",
+					"id": "49746597-a0f0893a-f02b-410c-95fa-df461c5e2682",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/dialogs",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"dialogs"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Dialog",
+					"id": "49746597-44e88a8c-29eb-483b-acec-029243f2030e",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/dialogs/:dialogID",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"dialogs",
+								":dialogID"
+							],
+							"variable": [
+								{
+									"id": "c8435d2d-0145-4f6c-aacf-10a56d4d9fd0",
+									"key": "dialogID"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Send Message",
+					"id": "49746597-1525f5fb-c78e-486f-b6bc-caeebec105c2",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"dialog_id\": \"dialog123\",\n  \"text\": \"Hello, how are you?\",\n  \"reply_to_id\": null\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/messages",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"messages"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Messages",
+					"id": "49746597-443b6c05-84e7-48c6-8800-c522e34abac6",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/dialogs/:dialogID/messages?limit=50&offset=0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"dialogs",
+								":dialogID",
+								"messages"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "50"
+								},
+								{
+									"key": "offset",
+									"value": "0"
+								}
+							],
+							"variable": [
+								{
+									"id": "d1567d7f-3162-4741-a167-dcdc265ca61f",
+									"key": "dialogID"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Message",
+					"id": "49746597-886e58ac-224b-4f80-92b2-6f51807ca9da",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"text\": \"Updated message\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/messages/:messageID",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"messages",
+								":messageID"
+							],
+							"variable": [
+								{
+									"id": "2d2b1d85-c38b-47f7-a5f1-d581828deb66",
+									"key": "messageID"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Message",
+					"id": "49746597-eb3f375c-bc2e-4b6c-b159-52e7d5fda49d",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/messages/:messageID",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"messages",
+								":messageID"
+							],
+							"variable": [
+								{
+									"id": "9207d1ba-b53e-4060-ae72-7ea526aa733a",
+									"key": "messageID"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Add Reaction",
+					"id": "49746597-6b51c4fa-1cf4-42de-abc0-899694358eed",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"emoji\": \"👍\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/messages/:messageID/reactions",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"messages",
+								":messageID",
+								"reactions"
+							],
+							"variable": [
+								{
+									"id": "6bfc05c5-f4b8-4885-b6f5-9983684ca584",
+									"key": "messageID"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Mark Messages as Read",
+					"id": "49746597-269b8bc8-6981-4df0-8323-644f253cc704",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/dialogs/:dialogID/read",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"dialogs",
+								":dialogID",
+								"read"
+							],
+							"variable": [
+								{
+									"id": "68f086da-586c-44b4-ab8b-0270b5be6745",
+									"key": "dialogID"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Unread Count",
+					"id": "49746597-94079492-c53f-4d74-b459-6652eca85c68",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/dialogs/:dialogID/unread-count",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"dialogs",
+								":dialogID",
+								"unread-count"
+							],
+							"variable": [
+								{
+									"id": "dbf756b4-e2d1-4407-9e24-8932c68ea538",
+									"key": "dialogID"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"id": "49746597-9aaeef30-caa2-405e-85de-f2bc393ab3fe"
+		},
+		{
+			"name": "Subscriptions & Payments",
+			"item": [
+				{
+					"name": "Public Routes (Plans)",
+					"item": [
+						{
+							"name": "Get Plans",
+							"id": "49746597-986b25c6-bdd2-42c8-ab5c-e054a29f1973",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/plans?role=model",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"plans"
+									],
+									"query": [
+										{
+											"key": "role",
+											"value": "model"
+										}
+									]
+								},
+								"description": "Получает список всех доступных тарифных планов. Можно отфильтровать по роли."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Plan by ID",
+							"id": "49746597-84ab391c-2154-4f23-bb5e-68de52ed9ef6",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/plans/plan_123abc",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"plans",
+										"plan_123abc"
+									]
+								},
+								"description": "Получает детальную информацию о конкретном плане по его ID."
+							},
+							"response": []
+						}
+					],
+					"id": "49746597-7a61c083-b121-4cc4-a8a9-08209c95485d",
+					"description": "Информация, доступная всем."
+				},
+				{
+					"name": "User Subscriptions",
+					"item": [
+						{
+							"name": "Get My Subscription",
+							"id": "49746597-fe040476-ed83-4307-9582-9ea48fc0997b",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/subscriptions/my",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"subscriptions",
+										"my"
+									]
+								},
+								"description": "Получает информацию о текущей активной подписке пользователя."
+							},
+							"response": []
+						},
+						{
+							"name": "Get My Subscription Stats",
+							"id": "49746597-e31b6334-9386-42cb-9e62-e00b76240ff3",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/subscriptions/my/stats",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"subscriptions",
+										"my",
+										"stats"
+									]
+								},
+								"description": "Получает статистику использования текущей подписки."
+							},
+							"response": []
+						},
+						{
+							"name": "Create Subscription",
+							"id": "49746597-ea046ab4-7002-497b-a55b-d8c677f48351",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"plan_id\": \"plan_pro_monthly_123\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/subscriptions/subscribe",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"subscriptions",
+										"subscribe"
+									]
+								},
+								"description": "Создает (или активирует) новую подписку для пользователя на основе ID плана."
+							},
+							"response": []
+						},
+						{
+							"name": "Cancel Subscription",
+							"id": "49746597-0098ca27-f30a-4e37-a43c-d985e54980ee",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "PUT",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/subscriptions/cancel",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"subscriptions",
+										"cancel"
+									]
+								},
+								"description": "Отменяет текущую подписку пользователя (обычно отключает автопродление)."
+							},
+							"response": []
+						},
+						{
+							"name": "Renew Subscription",
+							"id": "49746597-d19167ba-234d-439d-b8f8-a290c4539b70",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "PUT",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"plan_id\": \"plan_pro_monthly_123\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/subscriptions/renew",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"subscriptions",
+										"renew"
+									]
+								},
+								"description": "Продлевает или возобновляет подписку."
+							},
+							"response": []
+						},
+						{
+							"name": "Check Subscription Limit",
+							"id": "49746597-6cfa8643-6bdd-4210-847d-0bb8eb7cb6e2",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/subscriptions/check-limit?feature=create_casting",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"subscriptions",
+										"check-limit"
+									],
+									"query": [
+										{
+											"key": "feature",
+											"value": "create_casting"
+										}
+									]
+								},
+								"description": "Проверяет, может ли пользователь выполнить определенное действие (feature) в рамках своего лимита."
+							},
+							"response": []
+						},
+						{
+							"name": "Increment Usage",
+							"id": "49746597-ca9420e0-f431-4bb0-be2b-da6890add4b4",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"feature\": \"create_casting\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/subscriptions/increment-usage",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"subscriptions",
+										"increment-usage"
+									]
+								},
+								"description": "Увеличивает счетчик использования для определенного действия (feature) на 1."
+							},
+							"response": []
+						},
+						{
+							"name": "Reset Usage",
+							"id": "49746597-9eb77559-1562-4593-8deb-ad591363b3ac",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "PUT",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/subscriptions/reset-usage",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"subscriptions",
+										"reset-usage"
+									]
+								},
+								"description": "Сбрасывает счетчики использования (вероятно, используется при обновлении подписки)."
+							},
+							"response": []
+						}
+					],
+					"id": "49746597-38b6df3c-316e-440d-86e4-436628f53bc3",
+					"description": "Управление личной подпиской (требует авторизации).",
+					"auth": {
+						"type": "bearer",
+						"bearer": [
+							{
+								"key": "token",
+								"value": "{{access_token}}",
+								"type": "string"
+							}
+						]
+					}
+				},
+				{
+					"name": "User Payments",
+					"item": [
+						{
+							"name": "Create Payment",
+							"id": "49746597-b0429c08-2aba-4b60-bb74-67c64b69ddb0",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"plan_id\": \"plan_pro_monthly_123\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/payments/create",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"payments",
+										"create"
+									]
+								},
+								"description": "Создает запись о платеже (инвойс) для покупки определенного плана."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Payment History",
+							"id": "49746597-f524b2eb-c508-424a-8522-6d3b5ac76ac8",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/payments/history",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"payments",
+										"history"
+									]
+								},
+								"description": "Получает историю всех платежей текущего пользователя."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Payment Status by ID",
+							"id": "49746597-9d49c21c-ff89-4136-a5cb-772128e344a2",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/payments/payment_xyz_789/status",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"payments",
+										"payment_xyz_789",
+										"status"
+									]
+								},
+								"description": "Получает статус конкретного платежа по его ID."
+							},
+							"response": []
+						}
+					],
+					"id": "49746597-3e855da9-888d-4336-9810-4d5400adbfb5",
+					"description": "Создание и просмотр личных платежей (требует авторизации).",
+					"auth": {
+						"type": "bearer",
+						"bearer": [
+							{
+								"key": "token",
+								"value": "{{access_token}}",
+								"type": "string"
+							}
+						]
+					}
+				},
+				{
+					"name": "Robokassa Integration",
+					"item": [
+						{
+							"name": "Init Robokassa Payment",
+							"id": "49746597-299dfd31-e158-4312-8b5c-ca379fb4674a",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"plan_id\": \"plan_pro_monthly_123\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/robokassa/init",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"robokassa",
+										"init"
+									]
+								},
+								"description": "(Требует Auth) Инициирует процесс оплаты через Робокассу, создает платеж и возвращает ссылку для редиректа на оплату."
+							},
+							"response": []
+						},
+						{
+							"name": "Process Robokassa Callback",
+							"id": "49746597-5d573926-6f50-4a65-ab70-bc19a81f6103",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"InvId\": 12345,\n    \"OutSum\": \"990.00\",\n    \"SignatureValue\": \"a1b2c3d4e5f6...\",\n    \"shp_user_id\": \"user_uuid_abc\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/robokassa/callback",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"robokassa",
+										"callback"
+									]
+								},
+								"description": "(Публичный) Эндпоинт, который вызывает сама Робокасса, чтобы уведомить ваш сервер об успешной (или неуспешной) оплате."
+							},
+							"response": []
+						},
+						{
+							"name": "Check Robokassa Payment",
+							"id": "49746597-d19cae44-b455-4869-a9de-f15ff65837b3",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/robokassa/check/12345",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"robokassa",
+										"check",
+										"12345"
+									]
+								},
+								"description": "(Требует Auth) Позволяет клиенту (браузеру) проверить статус платежа Робокассы по ID."
+							},
+							"response": []
+						}
+					],
+					"id": "49746597-6dfa78ec-788c-4b18-a138-1f19c988b038",
+					"description": "Интеграция с Робокассой (частично требует авторизации)."
+				}
+			],
+			"id": "49746597-5be923ff-48d5-4427-a0d1-afe234e03fe0"
+		},
+		{
+			"name": "Uploads",
+			"item": [
+				{
+					"name": "Upload File",
+					"id": "49746597-7cdaeb9d-361f-4543-87bd-c7572f895424",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"value": null
+								},
+								{
+									"key": "module",
+									"value": "portfolio",
+									"type": "text"
+								},
+								{
+									"key": "entity_type",
+									"value": "portfolio_item",
+									"type": "text"
+								},
+								{
+									"key": "is_public",
+									"value": "true",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/uploads",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"uploads"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Multiple Files",
+					"id": "49746597-fa4faa76-5367-4eab-b67f-a27e1bc8acb1",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "files",
+									"type": "file",
+									"value": null
+								},
+								{
+									"key": "module",
+									"value": "portfolio",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/uploads/multi",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"uploads",
+								"multi"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Upload",
+					"id": "49746597-892e3141-3c40-43e2-abd2-79d6dd5ec6a8",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/uploads/:uploadId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"uploads",
+								":uploadId"
+							],
+							"variable": [
+								{
+									"id": "a50b2fff-d2ee-4643-8e06-71f8355916a6",
+									"key": "uploadId"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Uploads",
+					"id": "49746597-86ce6fb1-4795-4a67-b85c-e7c38ab3ad94",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/uploads/user/me?limit=50&offset=0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"uploads",
+								"user",
+								"me"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "50"
+								},
+								{
+									"key": "offset",
+									"value": "0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Storage Usage",
+					"id": "49746597-33123639-d945-4eaa-b0a2-ea3e97afbd9c",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/uploads/storage/usage",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"uploads",
+								"storage",
+								"usage"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Upload",
+					"id": "49746597-74d54d12-b518-4eb8-a0f4-3f04faf6b0e6",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/uploads/:uploadId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"uploads",
+								":uploadId"
+							],
+							"variable": [
+								{
+									"id": "59376419-1f6f-4bc1-a6c2-c5d36913ab62",
+									"key": "uploadId"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"id": "49746597-154c96b7-28c3-44bc-ace8-558e8492123a"
+		},
+		{
+			"name": "Notifications",
+			"item": [
+				{
+					"name": "Get My Notifications (List) Copy",
+					"id": "49746597-335aa837-521d-4d1e-bf78-994fd6a0a66d",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/notifications/my?page=1&page_size=10&unread_only=true",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"notifications",
+								"my"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "10"
+								},
+								{
+									"key": "unread_only",
+									"value": "true"
+								}
+							]
+						},
+						"description": "Получает список своих уведомлений с пагинацией."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Unread Count Copy",
+					"id": "49746597-1e641e04-0e19-4cca-9d17-c8a62342f6b4",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/notifications/unread-count",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"notifications",
+								"unread-count"
+							]
+						},
+						"description": "Получает только количество непрочитанных уведомлений (для иконки \"колокольчика\")."
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Stats Copy",
+					"id": "49746597-4c886338-816b-4554-a18f-64db946d4824",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/notifications/stats",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"notifications",
+								"stats"
+							]
+						},
+						"description": "Получает статистику по своим уведомлениям (например, общее количество, сколько прочитано)."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Notification Copy",
+					"id": "49746597-aed71a16-3742-471c-a200-d4b53c82ac8a",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"recipient_id\": \"user_uuid_recipient\",\n    \"type\": \"NEW_RESPONSE\",\n    \"title\": \"Новый отклик на ваш кастинг\",\n    \"message\": \"Модель 'Анна' откликнулась на 'Кастинг для рекламы'.\",\n    \"entity_id\": \"casting_uuid_123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/notifications",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"notifications"
+							]
+						},
+						"description": "Создает новое уведомление."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Notification by ID Copy",
+					"id": "49746597-aba21492-13db-4b9d-af07-233d81b83ac5",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/notifications/{{notificationId}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"notifications",
+								"{{notificationId}}"
+							]
+						},
+						"description": "Получает одно конкретное уведомление по его ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Mark as Read (Single) Copy",
+					"id": "49746597-d2bb28d6-92ac-4ece-87db-90425a0aaeff",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/notifications/{{notificationId}}/read",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"notifications",
+								"{{notificationId}}",
+								"read"
+							]
+						},
+						"description": "Помечает одно уведомление как прочитанное."
+					},
+					"response": []
+				},
+				{
+					"name": "Mark All as Read Copy",
+					"id": "49746597-9dae71fa-47da-4922-bccf-46037d999b91",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/notifications/read-all",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"notifications",
+								"read-all"
+							]
+						},
+						"description": "Помечает все свои уведомления как прочитанные."
+					},
+					"response": []
+				},
+				{
+					"name": "Mark Multiple as Read Copy",
+					"id": "49746597-937c95b6-5d64-423c-9235-ba3b198d748f",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"notification_ids\": [\n        \"notif_uuid_abc\",\n        \"notif_uuid_xyz\"\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/notifications/read-multiple",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"notifications",
+								"read-multiple"
+							]
+						},
+						"description": "Помечает несколько уведомлений (списком ID) как прочитанные."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Notification (Single) Copy",
+					"id": "49746597-81790391-1115-4210-a287-4f6ad8fe19c3",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/notifications/{{notificationId}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"notifications",
+								"{{notificationId}}"
+							]
+						},
+						"description": "Удаляет одно конкретное уведомление."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete All My Notifications Copy",
+					"id": "49746597-9ca37009-c787-45b0-9d4d-09f19799a6ba",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/notifications",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"notifications"
+							]
+						},
+						"description": "Удаляет все уведомления текущего пользователя."
+					},
+					"response": []
+				}
+			],
+			"id": "49746597-11e43dba-3443-4945-893b-cc52a34c8338"
+		},
+		{
+			"name": "[Search]",
+			"item": [
+				{
+					"name": "Search Castings (Simple)",
+					"id": "49746597-5abefce5-01de-4a85-b355-9648815ead74",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"query\": \"actor\",\n    \"city\": \"Almaty\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/search/castings",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"search",
+								"castings"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search Castings (Advanced)",
+					"id": "49746597-ed78279d-bcbf-4a59-b690-e385c1b47981",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"city\": \"Almaty\",\n    \"min_age\": 18,\n    \"max_age\": 25,\n    \"gender\": \"female\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/search/castings/advanced",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"search",
+								"castings",
+								"advanced"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Casting Search Suggestions",
+					"id": "49746597-88b808dd-e4f3-420d-a064-42bb1abc43fb",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/search/castings/suggestions?q=act",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"search",
+								"castings",
+								"suggestions"
+							],
+							"query": [
+								{
+									"key": "q",
+									"value": "act"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search Models (Simple)",
+					"id": "49746597-36760743-cac5-4b69-b3fe-ce2269ec65c8",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"query\": \"model\",\n    \"city\": \"Almaty\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/search/models",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"search",
+								"models"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search Models (Advanced)",
+					"id": "49746597-664ba6d5-d42f-4efd-9832-a0c7c1757884",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"city\": \"Almaty\",\n    \"min_age\": 18,\n    \"max_age\": 25,\n    \"gender\": \"female\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/search/models/advanced",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"search",
+								"models",
+								"advanced"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Model Search Suggestions",
+					"id": "49746597-f4a24ddd-9f4b-4f18-b738-f6e165a44fea",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/search/models/suggestions?q=mod",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"search",
+								"models",
+								"suggestions"
+							],
+							"query": [
+								{
+									"key": "q",
+									"value": "mod"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Search Employers",
+					"id": "49746597-ba459b09-4024-4404-9f5e-355998ee66be",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"query\": \"agency\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/search/employers",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"search",
+								"employers"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Unified Search",
+					"id": "49746597-bfef4b1b-8937-40ca-95b4-0855841cc87a",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"query\": \"Almaty\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/search/unified",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"search",
+								"unified"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Search Autocomplete",
+					"id": "49746597-4d76f37b-5dc0-417b-9513-d00df54efb04",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/search/autocomplete?q=al",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"search",
+								"autocomplete"
+							],
+							"query": [
+								{
+									"key": "q",
+									"value": "al"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Popular Searches",
+					"id": "49746597-1128be74-9196-4a3c-8a22-1d7c68195bbd",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/search/popular",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"search",
+								"popular"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Search Trends",
+					"id": "49746597-352b98c7-a858-48b8-93fe-bfc225a7ae00",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/search/trends",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"search",
+								"trends"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Search History",
+					"id": "49746597-bf38a1c8-71dc-45e0-983a-af003a32513f",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/search/history",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"search",
+								"history"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Clear My Search History",
+					"id": "49746597-2ba2d48d-de12-4606-bb59-24d9a4f4ee4d",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/search/history",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"search",
+								"history"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"id": "49746597-ab636c0c-86c7-4611-bd20-fd220b119c58",
+			"description": "Эндпоинты для поиска по платформе"
+		},
+		{
+			"name": "[Matching]",
+			"item": [
+				{
+					"name": "Find Matching Models for Casting",
+					"id": "49746597-ac28bec6-83b4-4f66-ba6c-920b9d79dcd4",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/matching/castings/:castingId/models?limit=10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matching",
+								"castings",
+								":castingId",
+								"models"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							],
+							"variable": [
+								{
+									"id": "11e999a2-a297-412d-bc00-12a746a0b2a7",
+									"key": "castingId",
+									"value": "casting-id-here"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Find Models By Criteria",
+					"id": "49746597-724e4474-2399-4970-b613-f3002437c1b6",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"city\": \"Almaty\",\n    \"min_age\": 20,\n    \"max_age\": 30\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/matching/models/search",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matching",
+								"models",
+								"search"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Model Compatibility",
+					"id": "49746597-3540c994-9a13-4706-8a5f-37515ff938b6",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/matching/compatibility?model_id=MODEL_ID&casting_id=CASTING_ID",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matching",
+								"compatibility"
+							],
+							"query": [
+								{
+									"key": "model_id",
+									"value": "MODEL_ID"
+								},
+								{
+									"key": "casting_id",
+									"value": "CASTING_ID"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Find Similar Models",
+					"id": "49746597-d0fb529f-bd75-4a49-8989-27b0b60695ae",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/matching/models/:modelId/similar",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matching",
+								"models",
+								":modelId",
+								"similar"
+							],
+							"variable": [
+								{
+									"id": "3a0c0b8d-2601-471e-9c5d-aac7d5444faa",
+									"key": "modelId",
+									"value": "model-id-here"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Matching Weights",
+					"id": "49746597-5c056e31-ac77-472a-bdac-1851ef169b4d",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/matching/weights",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matching",
+								"weights"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Matching Stats for Casting",
+					"id": "49746597-a8163ef9-ed9d-4863-ac02-e84c1660bc5d",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/matching/castings/:castingId/stats",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matching",
+								"castings",
+								":castingId",
+								"stats"
+							],
+							"variable": [
+								{
+									"id": "1199c3a9-67a8-49cb-88e3-982e134dfcce",
+									"key": "castingId",
+									"value": "casting-id-here"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Model Matching Stats",
+					"id": "49746597-960c8c3b-5706-42c9-913c-6612c4567f39",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/matching/models/:modelId/stats",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"matching",
+								"models",
+								":modelId",
+								"stats"
+							],
+							"variable": [
+								{
+									"id": "72cbaf29-2c55-46f4-ae26-614f543f12e4",
+									"key": "modelId",
+									"value": "model-id-here"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"id": "49746597-f6c8263d-cfdc-435b-8c05-3b56675b0352",
+			"description": "Система подбора (матчинга) моделей и кастингов"
+		},
+		{
+			"name": "[Analytics]",
+			"item": [
+				{
+					"name": "Platform: Get Overview Copy",
+					"id": "49746597-d905e3cf-1300-4121-863f-71d5c0bcc502",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analytics/platform/overview?date_from=2025-10-01&date_to=2025-10-31",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"platform",
+								"overview"
+							],
+							"query": [
+								{
+									"key": "date_from",
+									"value": "2025-10-01"
+								},
+								{
+									"key": "date_to",
+									"value": "2025-10-31"
+								}
+							]
+						},
+						"description": "Получает общий обзор состояния платформы за выбранный период (по умолчанию 30 дней)."
+					},
+					"response": []
+				},
+				{
+					"name": "Platform: Get Growth Metrics Copy",
+					"id": "49746597-8fb9d996-83cc-4ceb-b4e5-d5bee6431e14",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analytics/platform/growth?days=30",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"platform",
+								"growth"
+							],
+							"query": [
+								{
+									"key": "days",
+									"value": "30"
+								}
+							]
+						},
+						"description": "Получает метрики роста платформы (новые пользователи, новые кастинги) за последние N дней."
+					},
+					"response": []
+				},
+				{
+					"name": "Platform: Get Health Metrics Copy",
+					"id": "49746597-7f434584-0267-42fc-832d-03b12c7e76cb",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analytics/platform/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"platform",
+								"health"
+							]
+						},
+						"description": "Получает метрики 'здоровья' платформы."
+					},
+					"response": []
+				},
+				{
+					"name": "Users: Get User Analytics Copy",
+					"id": "49746597-05ebe587-89a9-4f5e-a4e9-c47c212bf353",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analytics/users?date_from=2025-10-01&date_to=2025-10-31",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"users"
+							],
+							"query": [
+								{
+									"key": "date_from",
+									"value": "2025-10-01"
+								},
+								{
+									"key": "date_to",
+									"value": "2025-10-31"
+								}
+							]
+						},
+						"description": "Получает общую аналитику по пользователям (распределение по ролям, статусам) за период."
+					},
+					"response": []
+				},
+				{
+					"name": "Users: Get Acquisition Metrics Copy",
+					"id": "49746597-7a828630-f34f-4920-aa7d-82e1b0f029e9",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analytics/users/acquisition?date_from=2025-10-01&date_to=2025-10-31",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"users",
+								"acquisition"
+							],
+							"query": [
+								{
+									"key": "date_from",
+									"value": "2025-10-01"
+								},
+								{
+									"key": "date_to",
+									"value": "2025-10-31"
+								}
+							]
+						},
+						"description": "Получает метрики привлечения пользователей (источники, динамика регистраций) за период."
+					},
+					"response": []
+				},
+				{
+					"name": "Users: Get Retention Metrics Copy",
+					"id": "49746597-81876463-fd47-40cf-8293-3868fe53ca45",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analytics/users/retention?days=30",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"users",
+								"retention"
+							],
+							"query": [
+								{
+									"key": "days",
+									"value": "30"
+								}
+							]
+						},
+						"description": "Получает метрики удержания пользователей (Retention Rate, Churn Rate) за N дней."
+					},
+					"response": []
+				},
+				{
+					"name": "Users: Get Active Users Count Copy",
+					"id": "49746597-ba8182df-4f01-4644-ae05-65864425dc0e",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analytics/users/active/count",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"users",
+								"active",
+								"count"
+							]
+						},
+						"description": "Получает текущее количество активных пользователей (DAU/WAU/MAU)."
+					},
+					"response": []
+				},
+				{
+					"name": "Castings: Get Casting Analytics Copy",
+					"id": "49746597-b8f06408-8dd5-4102-abdd-5a6f7dddc02b",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analytics/castings?date_from=2025-10-01&date_to=2025-10-31",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"castings"
+							],
+							"query": [
+								{
+									"key": "date_from",
+									"value": "2025-10-01"
+								},
+								{
+									"key": "date_to",
+									"value": "2025-10-31"
+								}
+							]
+						},
+						"description": "Получает общую аналитику по кастингам (количество, статусы, среднее число откликов) за период."
+					},
+					"response": []
+				},
+				{
+					"name": "Castings: Get Employer Performance Metrics Copy",
+					"id": "49746597-8371162e-34e5-44a3-8f11-4711d118fb43",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analytics/castings/:employer_id/performance?days=30",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"castings",
+								":employer_id",
+								"performance"
+							],
+							"query": [
+								{
+									"key": "days",
+									"value": "30"
+								}
+							],
+							"variable": [
+								{
+									"id": "755a4b03-407b-45dd-8bbb-846c1c0c6dae",
+									"key": "employer_id",
+									"value": "user_employer_uuid_123"
+								}
+							]
+						},
+						"description": "Получает метрики эффективности кастингов для конкретного работодателя (по `employer_id`)."
+					},
+					"response": []
+				},
+				{
+					"name": "Matching: Get Matching Analytics Copy",
+					"id": "49746597-f28397bc-286b-46b9-8e6c-989b555f1a77",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analytics/matching?date_from=2025-10-01&date_to=2025-10-31",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"matching"
+							],
+							"query": [
+								{
+									"key": "date_from",
+									"value": "2025-10-01"
+								},
+								{
+									"key": "date_to",
+									"value": "2025-10-31"
+								}
+							]
+						},
+						"description": "Получает общую аналитику по работе системы мэтчинга (сколько мэтчей найдено, точность) за период."
+					},
+					"response": []
+				},
+				{
+					"name": "Matching: Get Efficiency Metrics Copy",
+					"id": "49746597-43764956-9322-460a-b292-94d4cbcc4ba7",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analytics/matching/efficiency?days=30",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"matching",
+								"efficiency"
+							],
+							"query": [
+								{
+									"key": "days",
+									"value": "30"
+								}
+							]
+						},
+						"description": "Получает метрики эффективности мэтчинга (процент успешных мэтчей, среднее время на мэтч) за N дней."
+					},
+					"response": []
+				},
+				{
+					"name": "Financial: Get Financial Analytics Copy",
+					"id": "49746597-fe8b3ecd-bd00-4982-b1f6-77c332e8d476",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analytics/financial?date_from=2025-10-01&date_to=2025-10-31",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"financial"
+							],
+							"query": [
+								{
+									"key": "date_from",
+									"value": "2025-10-01"
+								},
+								{
+									"key": "date_to",
+									"value": "2025-10-31"
+								}
+							]
+						},
+						"description": "Получает финансовую аналитику (MRR, ARR, LTV) за период."
+					},
+					"response": []
+				},
+				{
+					"name": "Geographic: Get Geographic Analytics Copy",
+					"id": "49746597-22cd88db-e09e-4dbe-a747-f38be082bca9",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analytics/geographic",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"geographic"
+							]
+						},
+						"description": "Получает аналитику по географическому распределению пользователей и кастингов."
+					},
+					"response": []
+				},
+				{
+					"name": "Geographic: Get City Performance Copy",
+					"id": "49746597-641ffa5b-e63e-4a81-8f10-a000ac2375cc",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analytics/geographic/cities?top_n=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"geographic",
+								"cities"
+							],
+							"query": [
+								{
+									"key": "top_n",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Получает метрики эффективности по городам (Топ-N городов по активности)."
+					},
+					"response": []
+				},
+				{
+					"name": "Categories: Get Category Analytics Copy",
+					"id": "49746597-37a6e9af-6eb4-4cda-9898-8d7797627093",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analytics/categories",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"categories"
+							]
+						},
+						"description": "Получает общую аналитику по категориям (кастингов или моделей)."
+					},
+					"response": []
+				},
+				{
+					"name": "Categories: Get Popular Categories Copy",
+					"id": "49746597-39b968e1-8ed7-49cb-872b-3a306f6165ad",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analytics/categories/popular?days=30&limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"categories",
+								"popular"
+							],
+							"query": [
+								{
+									"key": "days",
+									"value": "30"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Получает список Топ-N самых популярных категорий за последние N дней."
+					},
+					"response": []
+				},
+				{
+					"name": "Performance: Get API Performance Metrics Copy",
+					"id": "49746597-6cabe173-2b28-470b-a698-40a0bc6ee3e0",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analytics/performance?date_from=2025-10-01&date_to=2025-10-31",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"performance"
+							],
+							"query": [
+								{
+									"key": "date_from",
+									"value": "2025-10-01"
+								},
+								{
+									"key": "date_to",
+									"value": "2025-10-31"
+								}
+							]
+						},
+						"description": "Получает метрики производительности API (среднее время ответа, p95/p99) за период."
+					},
+					"response": []
+				},
+				{
+					"name": "Performance: Get RealTime Metrics Copy",
+					"id": "49746597-ffee1fb3-ff8f-4165-8a2d-01ec8cdb4e3c",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analytics/realtime",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"realtime"
+							]
+						},
+						"description": "Получает метрики в реальном времени (активные пользователи сейчас, запросов в секунду)."
+					},
+					"response": []
+				},
+				{
+					"name": "Performance: Get System Health Metrics Copy",
+					"id": "49746597-67459f29-0489-4248-9e9d-3961c52d0190",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analytics/system/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"system",
+								"health"
+							]
+						},
+						"description": "Получает метрики здоровья системы (CPU, память, состояние БД)."
+					},
+					"response": []
+				},
+				{
+					"name": "Reports: Generate Custom Report Copy",
+					"id": "49746597-769f69d0-99f9-4f91-84a5-72a49ed2c72f",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"report_type\": \"user_growth\",\n    \"date_from\": \"2025-01-01T00:00:00Z\",\n    \"date_to\": \"2025-10-31T23:59:59Z\",\n    \"filters\": {\n        \"role\": \"model\",\n        \"city\": \"Astana\"\n    },\n    \"metrics\": [\"total_users\", \"new_users\", \"wau\"]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/analytics/reports/custom",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"reports",
+								"custom"
+							]
+						},
+						"description": "Генерирует кастомный (пользовательский) отчет на основе заданных параметров."
+					},
+					"response": []
+				},
+				{
+					"name": "Reports: Get Predefined Reports Copy",
+					"id": "49746597-f798aaaf-cd80-45cd-a691-a40fd7b9c3d1",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{AuthToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/analytics/reports/predefined",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"analytics",
+								"reports",
+								"predefined"
+							]
+						},
+						"description": "Получает список доступных готовых (предопределенных) отчетов."
+					},
+					"response": []
+				}
+			],
+			"id": "49746597-4f556124-7735-4fec-8f5c-350ce54fbaa1",
+			"description": "Эндпоинты для сбора и отображения аналитики"
+		},
+		{
+			"name": "[Admin]",
+			"item": [
+				{
+					"name": "Admin - Users",
+					"item": [
+						{
+							"name": "Admin - Get Users",
+							"id": "49746597-7e595c62-3334-42bd-a889-caf9e7cb5167",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMDE0ZmI0MzYtZWY2YS00ZjY0LWIxMmItNzJhODY4MWYyYjVmIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyMjgzOTc3LCJpYXQiOjE3NjIxOTc1Nzd9.tilvipJcty3lznWBozXeBDzO-pDbpkhz1F58C-_K2c8",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/users?page=1&page_size=20",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"users"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "page_size",
+											"value": "20"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Admin - Update User Status",
+							"id": "49746597-17ce6ac1-a4f5-41ef-8b07-dc9ba1315ddb",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "PUT",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"status\": \"banned\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/admin/users/:userId/status",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"users",
+										":userId",
+										"status"
+									],
+									"variable": [
+										{
+											"id": "4d777ca5-2b5c-4400-ba99-758d46accc69",
+											"key": "userId",
+											"value": "user-id-to-ban"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Admin - Verify Employer",
+							"id": "49746597-a3f3f1d7-8776-43a4-b073-605305b94ece",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "PUT",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"is_verified\": true\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/admin/users/:userId/verify-employer",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"users",
+										":userId",
+										"verify-employer"
+									],
+									"variable": [
+										{
+											"id": "81fb3751-a910-423c-be2e-41d4cb4c307f",
+											"key": "userId",
+											"value": "employer-user-id"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Admin - Get Registration Stats",
+							"id": "49746597-a4e10b7e-2dd6-48f8-92d3-d22e3e032803",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/users/stats/registration",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"users",
+										"stats",
+										"registration"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Admin - Delete User",
+							"id": "49746597-104f25fb-82f4-4114-aae1-7e1d21132bfc",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "file",
+											"type": "file",
+											"value": null
+										},
+										{
+											"key": "module",
+											"value": "portfolio",
+											"type": "text"
+										},
+										{
+											"key": "entity_type",
+											"value": "portfolio_item",
+											"type": "text"
+										},
+										{
+											"key": "is_public",
+											"value": "true",
+											"type": "text"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/admin/users/:userId",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"users",
+										":userId"
+									],
+									"variable": [
+										{
+											"id": "c6729216-b70d-49f4-b393-7002f59024af",
+											"key": "userId",
+											"value": ""
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					],
+					"id": "49746597-d0c3fae9-79f1-4099-8058-528b4fb47c73"
+				},
+				{
+					"name": "Admin - Castings",
+					"item": [
+						{
+							"name": "Admin - Close Expired Castings",
+							"id": "49746597-4aea7bc8-a4bc-4c63-85e2-b1c85abf7c33",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/castings/close-expired",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"castings",
+										"close-expired"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Admin - Get Platform Casting Stats",
+							"id": "49746597-d94a5af0-41c3-473b-8550-02458e158e9e",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/castings/stats/platform",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"castings",
+										"stats",
+										"platform"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Admin - Get Platform Matching Stats",
+							"id": "49746597-749395a5-c625-4573-beba-028dc4d2e068",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/castings/stats/matching",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"castings",
+										"stats",
+										"matching"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Admin - Get Casting Distribution by City",
+							"id": "49746597-ba53ce8e-41b7-4f8b-a84d-1767cfdf2077",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/castings/distribution/city",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"castings",
+										"distribution",
+										"city"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Admin - Get Active Castings Count",
+							"id": "49746597-e0a1183f-4183-4655-8780-2c008551d022",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/castings/count/active",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"castings",
+										"count",
+										"active"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Admin - Get Popular Categories",
+							"id": "49746597-201a8044-b9c7-4867-8650-ac7b05742a9c",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/castings/categories/popular",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"castings",
+										"categories",
+										"popular"
+									]
+								}
+							},
+							"response": []
+						}
+					],
+					"id": "49746597-017007c9-6036-43a2-bcf1-6068a2c71c64"
+				},
+				{
+					"name": "Admin - Reviews",
+					"item": [
+						{
+							"name": "Admin - Get Platform Review Stats",
+							"id": "49746597-f8d952d7-4ae0-4d86-bb31-8d687d135c82",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/reviews/stats/platform",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"reviews",
+										"stats",
+										"platform"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Admin - Get Recent Reviews",
+							"id": "49746597-a312edb1-a51c-4185-9f13-1bbccdbb7724",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/reviews/recent",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"reviews",
+										"recent"
+									]
+								}
+							},
+							"response": []
+						}
+					],
+					"id": "49746597-970bf500-15e0-414f-af68-832119b1f401"
+				},
+				{
+					"name": "Admin - Uploads",
+					"item": [
+						{
+							"name": "Admin - Get Platform Upload Stats",
+							"id": "49746597-cb51bdad-8a49-4a8d-ba8f-b099a999eaaf",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/uploads/admin/stats",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"uploads",
+										"admin",
+										"stats"
+									]
+								}
+							},
+							"response": []
+						}
+					],
+					"id": "49746597-b123e434-5fbf-4a2a-a0fe-99c51e1d9138"
+				},
+				{
+					"name": "Admin - Matching",
+					"item": [
+						{
+							"name": "Admin - Update Matching Weights",
+							"id": "49746597-dbfb8d06-d2a0-4337-9ae6-53375a5c2c04",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "PUT",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"age_weight\": 1.5,\n    \"city_weight\": 2.0\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{baseUrl}}/admin/matching/weights",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"matching",
+										"weights"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Admin - Get Platform Matching Stats",
+							"id": "49746597-1e68b0e9-194b-4ce9-8a02-1efb3bd9cc4a",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/matching/stats/platform",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"matching",
+										"stats",
+										"platform"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Admin - Recalculate All Matches",
+							"id": "49746597-a9ec09e2-c03f-46cc-bf27-88b0159c15bf",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/admin/matching/recalculate",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"matching",
+										"recalculate"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Admin - Get Matching Logs",
+							"id": "49746597-2bc3386f-2716-4438-a5eb-a0e5b4ee8e7c",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/matching/logs",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"matching",
+										"logs"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Admin - Batch Match Models",
+							"id": "49746597-7d9b85ed-4469-4d99-95c8-37874a3c0294",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"casting_ids\": [\"id-1\", \"id-2\"]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/admin/matching/batch",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"matching",
+										"batch"
+									]
+								}
+							},
+							"response": []
+						}
+					],
+					"id": "49746597-821d13bb-9690-4ace-8d87-768115392281"
+				},
+				{
+					"name": "Admin - Notifications",
+					"item": [
+						{
+							"name": "Get All Templates",
+							"id": "49746597-4278c02d-9ebb-43e3-b230-414b35bb86e1",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}",
+										"description": "(Admin Token)",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/admin/notifications/templates",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"notifications",
+										"templates"
+									]
+								},
+								"description": "Получает все существующие шаблоны."
+							},
+							"response": []
+						},
+						{
+							"name": "Create Template",
+							"id": "49746597-5ff857f9-ef0d-4a50-b418-57b4517482b9",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}",
+										"description": "(Admin Token)",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"type\": \"password_reset\",\n    \"title\": \"Сброс вашего пароля\",\n    \"message\": \"<h1>Сброс пароля</h1><p>Для сброса перейдите по ссылке {{.ResetURL}}</p>\",\n    \"variables\": [\"ResetURL\"]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/admin/notifications/templates",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"notifications",
+										"templates"
+									]
+								},
+								"description": "Создает новый шаблон уведомления (для email или push)."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Template by ID",
+							"id": "49746597-6f7206d4-65ce-49c3-a9ca-15debd07220b",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}",
+										"description": "(Admin Token)",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/admin/notifications/templates/:templateId",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"notifications",
+										"templates",
+										":templateId"
+									],
+									"variable": [
+										{
+											"id": "5f0a3431-0b88-45fd-89b6-18c840362cf1",
+											"key": "templateId",
+											"value": "95a7d80d-05b0-45d9-9ad6-57fc99287c93"
+										}
+									]
+								},
+								"description": "Получает шаблон по его ID."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Template by Type",
+							"id": "49746597-3335b733-a681-4b1e-a5e1-7c839e1b062f",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}",
+										"description": "(Admin Token)",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/admin/notifications/templates/type/:notificationType",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"notifications",
+										"templates",
+										"type",
+										":notificationType"
+									],
+									"variable": [
+										{
+											"id": "da0cd725-e719-4820-8da7-76cb8d834099",
+											"key": "notificationType",
+											"value": "password_reset"
+										}
+									]
+								},
+								"description": "Получает шаблон по его типу (например, password_reset)."
+							},
+							"response": []
+						},
+						{
+							"name": "Update Template",
+							"id": "49746597-56c54ab8-2a2f-44f7-b27f-f7cf4395a29b",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}",
+										"description": "(Admin Token)",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"title\": \"Новый заголовок\",\n    \"message\": \"<p>Новое тело шаблона.</p>\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/admin/notifications/templates/:templateId",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"notifications",
+										"templates",
+										":templateId"
+									],
+									"variable": [
+										{
+											"id": "f2019ec9-fccf-44ad-b42f-50da37e812f1",
+											"key": "templateId",
+											"value": "95a7d80d-05b0-45d9-9ad6-57fc99287c93"
+										}
+									]
+								},
+								"description": "Обновляет существующий шаблон."
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Template",
+							"id": "49746597-91b2626f-23cc-46fc-bcc9-31281ddafdcf",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}",
+										"description": "(Admin Token)",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/admin/notifications/templates/:templateId",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"notifications",
+										"templates",
+										":templateId"
+									],
+									"variable": [
+										{
+											"id": "11538009-7689-472c-9631-2d54cd4798c5",
+											"key": "templateId",
+											"value": "95a7d80d-05b0-45d9-9ad6-57fc99287c93"
+										}
+									]
+								},
+								"description": "Удаляет шаблон."
+							},
+							"response": []
+						},
+						{
+							"name": "Admin: Get All Notifications (Platform)",
+							"id": "49746597-9b2dc3f5-11c9-4e71-94aa-e53158ba8a22",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}",
+										"description": "(Admin Token)",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/admin/notifications?page=1&page_size=50",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"notifications"
+									],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "page_size",
+											"value": "50"
+										},
+										{
+											"key": "user_id",
+											"value": "user_uuid_abc",
+											"disabled": true
+										}
+									]
+								},
+								"description": "Получает все уведомления всех пользователей (с пагинацией и фильтрами)."
+							},
+							"response": []
+						},
+						{
+							"name": "Admin: Get Platform Stats",
+							"id": "49746597-068bda2b-b203-4e7f-bdf1-3780b40f165f",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}",
+										"description": "(Admin Token)",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/admin/notifications/stats/platform",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"notifications",
+										"stats",
+										"platform"
+									]
+								},
+								"description": "Получает общую статистику по всем уведомлениям на платформе."
+							},
+							"response": []
+						},
+						{
+							"name": "Admin: Send Bulk Notification",
+							"id": "49746597-c1742d30-ca86-4d8b-a36b-82531edf6601",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}",
+										"description": "(Admin Token)",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"title\": \"Важное объявление\",\n    \"message\": \"Платформа будет недоступна 10.10.2025 с 10:00 до 11:00.\",\n    \n    \"type\": \"announcement\",\n\n    \"user_ids\": [\n        \"46131142-8837-4ce6-a21d-7291baeae7b8\",\n        \"526723c3-295c-4e43-8ee8-5d95a2280870\",\n        \"fa1886c9-e72e-4320-adec-bb8524d0c3c9\"\n    ]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/admin/notifications/bulk-send",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"notifications",
+										"bulk-send"
+									]
+								},
+								"description": "Массовая рассылка уведомлений по фильтру."
+							},
+							"response": []
+						},
+						{
+							"name": "Admin: Clean Old Notifications Copy",
+							"id": "49746597-6720c092-06fe-4d55-8820-1ea744a544af",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{auth_token}}",
+										"description": "(Admin Token)",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/admin/notifications/cleanup?days=90",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"notifications",
+										"cleanup"
+									],
+									"query": [
+										{
+											"key": "days",
+											"value": "90"
+										}
+									]
+								},
+								"description": "Удаляет старые уведомления (по умолчанию старше 30 дней)."
+							},
+							"response": []
+						}
+					],
+					"id": "49746597-4b503647-02e9-442b-8898-9fa09b728c39"
+				},
+				{
+					"name": "Admin - Subscriptions",
+					"item": [
+						{
+							"name": "Create Plan (Admin)",
+							"id": "49746597-4a42ccd0-4892-45bd-b5d1-7b1cc9baf881",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Pro Model Plan\",\n    \"description\": \"Full access for models\",\n    \"price\": 990.00,\n    \"currency\": \"KZT\", // <-- Обязательно: Добавлена валюта\n    \"duration\": \"monthly\", // <-- Обязательно: Исправлено имя и тип (строка)\n    \"role\": \"model\",\n    \"features\": {\n        \"responses_limit\": 50,\n        \"portfolio_photos\": 20\n    },\n    \"limits\": { // <-- Обязательно: Добавлены лимиты использования\n        \"publications\": 10,\n        \"responses\": 50,\n        \"messages\": 100\n    },\n    \"is_active\": true\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/admin/plans",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"plans"
+									]
+								},
+								"description": "Создание нового тарифного плана в системе."
+							},
+							"response": []
+						},
+						{
+							"name": "Update Plan (Admin)",
+							"id": "49746597-0029ef9b-e8c2-4654-b3ec-e2198c8ec488",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "PUT",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"price\": 1090.00,\n    \"description\": \"Updated description\",\n    \"is_active\": false\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/admin/plans/plan_123abc",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"plans",
+										"plan_123abc"
+									]
+								},
+								"description": "Обновление существующего тарифного плана."
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Plan (Admin)",
+							"id": "49746597-0393bb33-562f-4035-955e-11aabb088de9",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/plans/:planId",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"plans",
+										":planId"
+									],
+									"variable": [
+										{
+											"id": "e10808b3-102c-4142-a21f-240f40d2fbee",
+											"key": "planId",
+											"value": "ffc212dd-95b9-437a-994a-e27ac094bb3c"
+										}
+									]
+								},
+								"description": "Удаление тарифного плана."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Platform Subscription Stats (Admin)",
+							"id": "49746597-274ef70b-5708-49ab-83b5-36882facc059",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/subscriptions/stats/platform",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"subscriptions",
+										"stats",
+										"platform"
+									]
+								},
+								"description": "Получение общей статистики по подпискам на платформе."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Revenue Stats (Admin)",
+							"id": "49746597-108d7104-1120-4419-978f-e228e5e94cde",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/subscriptions/stats/revenue?days=30",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"subscriptions",
+										"stats",
+										"revenue"
+									],
+									"query": [
+										{
+											"key": "days",
+											"value": "30"
+										}
+									]
+								},
+								"description": "Получение статистики по доходам (MRR, ARR) за последние N дней."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Expiring Subscriptions (Admin)",
+							"id": "49746597-f8660dfc-32aa-4ec3-8e87-ba99992687e8",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/subscriptions/expiring?days=7",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"subscriptions",
+										"expiring"
+									],
+									"query": [
+										{
+											"key": "days",
+											"value": "7"
+										}
+									]
+								},
+								"description": "Получает список подписок, которые истекают в ближайшие N дней."
+							},
+							"response": []
+						},
+						{
+							"name": "Get Expired Subscriptions (Admin)",
+							"id": "49746597-dd4570bd-97b5-4eea-8463-3d3f3f44ccb0",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/subscriptions/expired",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"subscriptions",
+										"expired"
+									]
+								},
+								"description": "Получает список всех уже истекших подписок."
+							},
+							"response": []
+						},
+						{
+							"name": "Process Expired Subscriptions (Admin)",
+							"id": "49746597-a98d3f45-def2-427e-9493-242b09bb5e55",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/subscriptions/process-expired",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"subscriptions",
+										"process-expired"
+									]
+								},
+								"description": "Запускает фоновую задачу (job) для обработки истекших подписок."
+							},
+							"response": []
+						}
+					],
+					"id": "49746597-ee27d482-97f7-41dd-be2d-a823d637ec6d"
+				},
+				{
+					"name": "Admin - Search",
+					"item": [
+						{
+							"name": "Get Search Analytics",
+							"id": "49746597-b245b4c8-29e8-4e38-93bb-f46c60bebd01",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/search/analytics",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"search",
+										"analytics"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Reindex Search Data",
+							"id": "49746597-b2905e49-d46d-4cb6-8484-59da297a318d",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/search/reindex",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"search",
+										"reindex"
+									]
+								}
+							},
+							"response": []
+						}
+					],
+					"id": "49746597-bae5a6fa-ce25-4bad-837f-f3ae183af731"
+				},
+				{
+					"name": "Admin - Chat",
+					"item": [
+						{
+							"name": "Get All Dialogs (Admin)",
+							"id": "49746597-26329971-5b38-4fe7-aa5c-f1ef32ad909a",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/dialogs",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"dialogs"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Chat Stats (Admin)",
+							"id": "49746597-1311610b-942c-4336-a270-50b224d6180e",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/stats",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"stats"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Clean Old Messages (Admin)",
+							"id": "49746597-56a10984-860e-43a2-aac6-c4cfde798dfe",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/admin/clean",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"admin",
+										"clean"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete User Messages (Admin)",
+							"id": "49746597-b0e88eb3-ad8f-4392-9699-894dfe0092cc",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/admin/users/:userID/messages",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"admin",
+										"users",
+										":userID",
+										"messages"
+									],
+									"variable": [
+										{
+											"id": "5609876e-3ef8-45d4-b880-ca43176f4879",
+											"key": "userID",
+											"value": "user-id-here"
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					],
+					"id": "49746597-37ddfb2e-399f-4d5f-b20f-9d02cf074d40"
+				},
+				{
+					"name": "Admin - Analytics",
+					"item": [
+						{
+							"name": "Admin: Get Admin Dashboard",
+							"id": "49746597-6053f545-b978-464c-bdd9-ba419f4f386f",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZmExODg2YzktZTcyZS00MzIwLWFkZWMtYmI4NTI0ZDBjM2M5Iiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzYyNDE3MzIzLCJpYXQiOjE3NjIzMzA5MjN9.T4HpJZCeSGyQiwusiM1eBn-hzEFXijyxodIOAwPj-54",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{AuthToken}}"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/analytics/admin/dashboard",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"analytics",
+										"admin",
+										"dashboard"
+									]
+								},
+								"description": "Получает сводные данные для главного дашборда администратора."
+							},
+							"response": []
+						}
+					],
+					"id": "49746597-54d1e076-bdbd-4bee-835c-e740b0681e74"
+				}
+			],
+			"id": "49746597-74873a53-417a-42eb-9c7b-fa0523d1c7e9",
+			"description": "Административные эндпоинты"
+		},
+		{
+			"name": "[Responses]",
+			"item": [
+				{
+					"name": "Create Response to Casting",
+					"id": "49746597-1b6d2c89-1ddc-45dc-8899-b684354a06be",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"message\": \"I am very interested in this casting!\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/responses/castings/:castingId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"responses",
+								"castings",
+								":castingId"
+							],
+							"variable": [
+								{
+									"id": "60496506-3395-4327-8c38-b76becc887ff",
+									"key": "castingId",
+									"value": "casting-id-here"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Responses (Model)",
+					"id": "49746597-4148f450-6bdc-46bd-bdb1-4703837ec606",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/responses/my",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"responses",
+								"my"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete/Withdraw Response",
+					"id": "49746597-a4c390c8-1d89-4338-b7e5-4a1278404eae",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/responses/:responseId",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"responses",
+								":responseId"
+							],
+							"variable": [
+								{
+									"id": "15a30403-f852-44d4-9a90-0d0a96a78eba",
+									"key": "responseId",
+									"value": "response-id-here"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Responses for a Casting (Employer)",
+					"id": "49746597-390a3dfd-9d9e-472c-b3dd-bd6f8e5253c5",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/responses/castings/:castingId/list",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"responses",
+								"castings",
+								":castingId",
+								"list"
+							],
+							"variable": [
+								{
+									"id": "158fc3c9-1563-4a13-b82e-85c5295b2bc1",
+									"key": "castingId",
+									"value": "casting-id-here"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Response Status (Employer)",
+					"id": "49746597-2e70112b-f986-4e0f-971d-15ffd1fec71b",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"accepted\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/responses/:responseId/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"responses",
+								":responseId",
+								"status"
+							],
+							"variable": [
+								{
+									"id": "cfe44ab0-b2bb-449e-a485-a531ab33cf3d",
+									"key": "responseId",
+									"value": "response-id-here"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Mark Response as Viewed (Employer)",
+					"id": "49746597-891fdd51-5b53-41d0-b413-b3473e2d3c7b",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/responses/:responseId/viewed",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"responses",
+								":responseId",
+								"viewed"
+							],
+							"variable": [
+								{
+									"id": "72f80a68-f223-4c11-bd4b-a689c8407feb",
+									"key": "responseId",
+									"value": "response-id-here"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Response Stats (Employer)",
+					"id": "49746597-693c2766-d035-48ce-9d0d-1be343e1b983",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/responses/castings/:castingId/stats",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"responses",
+								"castings",
+								":castingId",
+								"stats"
+							],
+							"variable": [
+								{
+									"id": "c2ba32fb-8f2e-4d82-9b3f-c1a12b4bffeb",
+									"key": "castingId",
+									"value": "casting-id-here"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Single Response by ID",
+					"id": "49746597-88bbafb1-25c0-4625-8735-b0ca320b367b",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/responses/:responseId",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"responses",
+								":responseId"
+							],
+							"variable": [
+								{
+									"id": "4adac61b-16ea-453f-bc4a-906f44b5d395",
+									"key": "responseId",
+									"value": "response-id-here"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"id": "49746597-f785f6a4-cd2c-44f7-b5bd-a4a2af7d169d",
+			"description": "Управление откликами на кастинги"
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:4000/api/v1"
+		},
+		{
+			"key": "access_token",
+			"value": ""
+		},
+		{
+			"key": "user_id",
+			"value": ""
+		}
+	]
+}
